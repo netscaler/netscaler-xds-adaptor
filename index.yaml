@@ -1,0 +1,23 @@
+apiVersion: v1
+entries:
+  citrix-adc-istio-ingress-gateway:
+  - apiVersion: v1
+    appVersion: "1.0"
+    created: "2019-07-29T10:59:14.529624557+05:30"
+    description: A Helm chart for Citrix ADC as Ingress Gateway installation in Istio
+      Service Mesh on Kubernetes platform
+    digest: 2af2a19cf0f4c28acb91651b88f427db4ded8b6d5b62bd576dbbc6f12d5daddf
+    home: https://www.citrix.com
+    icon: https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/docs/media/Citrix_icon.png
+    maintainers:
+    - email: dhiraj.gedam@citrix.com
+      name: Dhiraj Gedam
+    - email: subash.dangol@citrix.com
+      name: Subash Dangal
+    name: citrix-adc-istio-ingress-gateway
+    sources:
+    - https://github.com/citrix/citrix-istio-adaptor
+    urls:
+    - https://citrix.github.io/citrix-istio-adaptor/citrix-adc-istio-ingress-gateway-1.0.0.tgz
+    version: 1.0.0
+generated: "2019-07-29T10:59:14.528880892+05:30"

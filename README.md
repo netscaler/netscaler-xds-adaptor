@@ -1,1 +1,1 @@
-# citrix-istio-adaptor
+This is a chart repository for [helm](https://helm.sh) charts of Citrix ADC as an Ingress Gateway installation in [Istio](https://istio.io) Service Mesh. To deploy please follow [this](https://github.com/citrix/citrix-istio-adaptor/tree/master/charts).
