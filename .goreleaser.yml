@@ -1,0 +1,11 @@
+# .goreleaser.yml
+# Build customization
+builds:
+  - binary: citrix-istio-adaptor
+    main: ./istio-adaptor/main.go
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64 

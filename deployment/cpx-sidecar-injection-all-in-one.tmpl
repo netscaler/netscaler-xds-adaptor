@@ -1,0 +1,278 @@
+# Configmap to inject istio-adaptor and cpx as sidecar containers
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cpx-istio-sidecar-injector
+  namespace: {NAMESPACE}
+  labels:
+    app: istio
+    istio: sidecar-injector
+data:
+  config: |-
+    policy: enabled
+    template: |-
+      containers:
+      - name: istio-adaptor
+        image: {ISTIO_ADAPTOR_IMAGE}:{ISTIO_ADAPTOR_IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: APPLICATION_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['app']
+        - name: NS_USER
+          value: nsroot
+        - name: NS_PASSWORD
+          value: nsroot
+        args:
+        - -pilot-location
+        - istio-pilot.istio-system:15011
+        - -proxy-type
+        - sidecar
+        # Subject Alternative Name for istio-pilot which SPIFFE ID of the Istio Pilot in given case.
+        # The format of this SPIFFE ID is spiffe://<spiffe_trustDomain>/ns/<namespace_of_istio-pilot>/sa/<serviceaccount_of_istio-pilot>
+        # By default, trustDomain is cluster.local. Namespace is istio-system. SA: istio-pilot-service-account
+        # Default value of pilotSAN spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account
+        - -pilot-SAN
+        - spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account
+        - -netscaler-url
+        - "http://127.0.0.1"
+        - -secure-connect=true
+        - -adm-ip
+        - {LS_IP}
+        volumeMounts:
+        - mountPath: /etc/certs/
+          name: istio-certs
+          readOnly: true
+        - mountPath: /etc/nslogin 
+          name: nslogin
+          readOnly: true
+      - name: cpx-proxy
+        image: {CPX_IMAGE_NAME}:{CPX_IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        env:
+        - name: "EULA"
+          value: "YES"
+        - name: "CPX_SIDECAR_MODE"
+          value: "YES"
+        - name: "KUBERNETES_TASK_ID"
+          value: ""
+        - name: "NS_CPX_LITE"
+          value: "YES"
+        # Note: By default, management http and https ports run on ports 9080 and 9443 resp.
+        # Use below ENV variables to change it to some values
+        #        - name: "MGMT_HTTP_PORT"
+        #          value: 10080
+        #        - name: "MGMT_HTTPS_PORT"
+        #          value: 10443
+        # Provide the Citrix Application Delivery Management (ADM) IP address and Port to license Citrix ADC CPX. Port 27000 is default.
+        - name: "LS_IP"
+          value: {LS_IP}
+        - name: "LS_PORT"
+          value: "{LS_PORT}" 
+      volumes:
+      - name: nslogin
+        secret:
+          optional: true
+          secretName: nslogin
+      - name: istio-certs
+        secret:
+          optional: true
+          secretName: istio.default
+---
+# Empty configmap for meshConfig. 
+# TODO: Check if wrong file can be specified or not
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio
+  namespace: {NAMESPACE}
+  labels:
+    app: istio
+    chart: istio-1.0.0
+    release: RELEASE-NAME
+    heritage: Tiller
+data:
+  mesh: |-
+# empty file
+
+---
+# RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cpx-sidecar-injector-service-account
+  namespace: {NAMESPACE}
+  labels:
+    app: cpx-sidecar-injector
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: cpx-sidecar-injector-citrix-system
+  labels:
+    app: cpx-sidecar-injector
+rules:
+- apiGroups: ["*"]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations"]
+  verbs: ["get", "list", "watch", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: cpx-sidecar-injector-admin-role-binding-citrix-system
+  labels:
+    app: cpx-sidecar-injector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cpx-sidecar-injector-citrix-system
+subjects:
+  - kind: ServiceAccount
+    name: cpx-sidecar-injector-service-account
+    namespace: {NAMESPACE}
+---
+# MutatingWebHook will refer to below Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpx-sidecar-injector
+  namespace: {NAMESPACE}
+  labels:
+    istio: sidecar-injector
+spec:
+  ports:
+  - port: 443
+  selector:
+    istio: sidecar-injector
+
+---
+# Deployment of the cpx-sidecar-injector service
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: cpx-sidecar-injector
+  namespace: {NAMESPACE}
+  labels:
+    app: sidecarInjectorWebhook
+    istio: sidecar-injector
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        istio: sidecar-injector
+      annotations:
+        sidecar.istio.io/inject: "false"
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+    spec:
+      serviceAccountName: cpx-sidecar-injector-service-account
+      containers:
+        - name: sidecar-injector-webhook
+          image: "gcr.io/istio-release/sidecar_injector:1.0.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --caCertFile=/etc/istio/certs/cert.pem
+            - --tlsCertFile=/etc/istio/certs/cert.pem
+            - --tlsKeyFile=/etc/istio/certs/key.pem
+            - --injectConfig=/etc/istio/inject/config
+            - --meshConfig=/etc/istio/config/mesh
+            - --healthCheckInterval=2s
+            - --healthCheckFile=/health
+            - --webhookConfigName=cpx-sidecar-injector # THIS IS IMPORTANT. Refer to the service name
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/istio/config
+            readOnly: true
+          - name: certs
+            mountPath: /etc/istio/certs
+            readOnly: true
+          - name: inject-config
+            mountPath: /etc/istio/inject
+            readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/sidecar-injector
+                - probe
+                - --probe-path=/health
+                - --interval=4s
+            initialDelaySeconds: 4
+            periodSeconds: 4
+          readinessProbe:
+            exec:
+              command:
+                - /usr/local/bin/sidecar-injector
+                - probe
+                - --probe-path=/health
+                - --interval=4s
+            initialDelaySeconds: 4
+            periodSeconds: 4
+          resources:
+            requests:
+              cpu: 10m
+            
+      volumes:
+      - name: config-volume
+        configMap:
+          name: istio
+      - name: certs
+        secret:
+          secretName: cpx-sidecar-injector-certs
+      - name: inject-config
+        configMap:
+          name: cpx-istio-sidecar-injector
+          items:
+          - key: config
+            path: config
+---
+# MutatingWebhook
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: cpx-sidecar-injector
+  namespace: {NAMESPACE}
+  labels:
+    app: cpx-sidecar-injector
+webhooks:
+  - name: sidecar-injector.istio.io
+    clientConfig:
+      service:
+        name: cpx-sidecar-injector
+        namespace: {NAMESPACE}
+        path: "/inject"
+      caBundle: ""
+    rules:
+      - operations: [ "CREATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    failurePolicy: Fail
+    namespaceSelector:
+      matchLabels:
+          # Add a label here for sidecar injection. Namespace must be labeled with this label
+        cpx-injection: enabled 
+---

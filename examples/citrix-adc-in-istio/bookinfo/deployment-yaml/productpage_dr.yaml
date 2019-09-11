@@ -1,0 +1,10 @@
+---
+# Source: bookinfo-citrix-ingress/templates/productpage_dr.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: productpage
+spec:
+  host: productpage
+
+---

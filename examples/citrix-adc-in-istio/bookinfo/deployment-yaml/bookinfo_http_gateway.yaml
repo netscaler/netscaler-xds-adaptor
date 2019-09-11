@@ -1,0 +1,17 @@
+# Source: bookinfo-citrix-ingress/templates/bookinfo_http_gateway.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: bookinfo-http-gateway
+spec:
+  selector:
+    app: citrix-ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+
+---
