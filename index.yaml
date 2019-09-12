@@ -3,21 +3,41 @@ entries:
   citrix-adc-istio-ingress-gateway:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2019-07-29T10:59:14.529624557+05:30"
+    created: "2019-09-12T14:41:10.888381939+05:30"
     description: A Helm chart for Citrix ADC as Ingress Gateway installation in Istio
       Service Mesh on Kubernetes platform
-    digest: 2af2a19cf0f4c28acb91651b88f427db4ded8b6d5b62bd576dbbc6f12d5daddf
+    digest: 0564aa55e8282cbbe248d6453c894dfdfcc62507a761d05280ba312cf16a6fdd
     home: https://www.citrix.com
-    icon: https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/docs/media/Citrix_icon.png
+    icon: https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/media/Citrix_icon.png
     maintainers:
     - email: dhiraj.gedam@citrix.com
       name: Dhiraj Gedam
     - email: subash.dangol@citrix.com
-      name: Subash Dangal
+      name: Subash Dangol
     name: citrix-adc-istio-ingress-gateway
     sources:
     - https://github.com/citrix/citrix-istio-adaptor
     urls:
     - https://citrix.github.io/citrix-istio-adaptor/citrix-adc-istio-ingress-gateway-1.0.0.tgz
     version: 1.0.0
-generated: "2019-07-29T10:59:14.528880892+05:30"
+  citrix-cpx-istio-sidecar-injector:
+  - apiVersion: v1
+    appVersion: "1.0"
+    created: "2019-09-12T14:41:10.889220251+05:30"
+    description: A Helm chart to deploy resources which install Citrix ADC CPX in
+      Istio Service Mesh as sidecar in application pod
+    digest: f7b909817230a898e62a308a417d016201eafa4261c24a9a1b19a25c9e11e147
+    home: https://www.citrix.com
+    icon: https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/media/Citrix_icon.png
+    maintainers:
+    - email: dhiraj.gedam@citrix.com
+      name: Dhiraj Gedam
+    - email: subash.dangol@citrix.com
+      name: Subash Dangol
+    name: citrix-cpx-istio-sidecar-injector
+    sources:
+    - https://github.com/citrix/citrix-istio-adaptor
+    urls:
+    - https://citrix.github.io/citrix-istio-adaptor/citrix-cpx-istio-sidecar-injector-1.0.0.tgz
+    version: 1.0.0
+generated: "2019-09-12T14:41:10.887236123+05:30"

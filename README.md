@@ -1,1 +1,1 @@
-This is a chart repository for [helm](https://helm.sh) charts of Citrix ADC as an Ingress Gateway installation in [Istio](https://istio.io) Service Mesh. To deploy please follow [this](https://github.com/citrix/citrix-istio-adaptor/tree/master/charts).
+This is a [helm](https://helm.sh) chart repository to install Citrix ADC as an Ingress Gateway and/or Sidecar Proxy in [Istio](https://istio.io) Service Mesh. To deploy please follow [this](https://github.com/citrix/citrix-istio-adaptor/tree/master/charts).
