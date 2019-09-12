@@ -30,7 +30,7 @@ Below are features which are supported in this release:
 9. Transport Authentication using mTLS
 10. Prometheus support for Ingress Gateway
 
-The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, Service Entry) can be found [here](https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/features.md/features.md).
+The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, Service Entry) can be found [here](https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/features.md).
 
 
 ### Known Issues
