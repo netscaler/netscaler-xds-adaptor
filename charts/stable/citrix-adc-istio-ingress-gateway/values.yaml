@@ -7,7 +7,7 @@ citrixCPX: false
 metricExporter:
     required: true
     image: quay.io/citrix/citrix-adc-metrics-exporter
-    version: 1.1
+    version: 1.2
     port: 8888
     secure: "YES"
     logLevel: ERROR
