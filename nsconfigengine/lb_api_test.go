@@ -18,11 +18,74 @@ import (
 	"testing"
 )
 
+func Test_getLbMonName(t *testing.T) {
+	testCases := []struct {
+		input          string
+		expectedOutput string
+	}{
+		{"outbound_4040_v1_httpserverbigbigname_istio130_svc_cluster_local", "v1_httpserverbigbigname_istio130_lbmon"},
+		{"outbound_4040__httpserverbigbigname_istio130_svc_cluster_local", "_httpserverbigbigname_istio130_lbmon"},
+		{"outbound___httpserverbigbigname_istio130_svc_cluster_local", "_httpserverbigbigname_istio130_lbmon"},
+		{"outbound_4040_v1_httpserver_istio130_svc_cluster_local", "outbound_4040_v1_httpserver_istio130_svc_cluster_local_lbmon"},
+	}
+
+	for _, c := range testCases {
+		output := getLbMonName(c.input)
+		if output != c.expectedOutput {
+			t.Errorf("FAILED!!! Expected: %s. Received: %s", c.expectedOutput, output)
+		} else {
+			t.Logf("PASSED for %s\n", c.input)
+		}
+	}
+}
+
+func Test_convertTimeUnits(t *testing.T) {
+	type EI struct {
+		time int
+		unit string
+	}
+	type EO EI
+
+	testCases := []struct {
+		input          EI
+		expectedOutput EO
+	}{
+		{EI{0, "MSEC"}, EO{defaultInterval, "SEC"}},
+		{EI{10000, ""}, EO{defaultInterval, "SEC"}},
+		{EI{20000, "MSEC"}, EO{20000, "MSEC"}},
+		{EI{20940, "MSEC"}, EO{20940, "MSEC"}},
+		{EI{20941, "MSEC"}, EO{20, "SEC"}},
+		{EI{20941000, "MSEC"}, EO{349, "MIN"}},
+		{EI{1506000000, "MSEC"}, EO{20940, "MIN"}},
+		{EI{20940, "SEC"}, EO{20940, "SEC"}},
+		{EI{26000, "SEC"}, EO{433, "MIN"}},
+		{EI{2600, "SEC"}, EO{2600, "SEC"}},
+		{EI{26, "MIN"}, EO{26, "MIN"}},
+		{EI{26000, "MIN"}, EO{20940, "MIN"}},
+	}
+
+	for _, c := range testCases {
+		time, unit := convertTimeUnits(c.input.time, c.input.unit, maxInterval, defaultInterval)
+		if time != c.expectedOutput.time || unit != c.expectedOutput.unit {
+			t.Errorf("FAILED!!! Expected: %d %s. Received: %d %s", c.expectedOutput.time, c.expectedOutput.unit, time, unit)
+		} else {
+			t.Logf("PASSED for %v\n", c)
+		}
+	}
+
+}
+
 func Test_LBApi_http(t *testing.T) {
 	lbObj := NewLBApi("lbent1", "HTTP", "HTTP", "ROUNDROBIN")
 	lbObj.MaxConnections = 200
 	lbObj.MaxHTTP2ConcurrentStreams = 300
 	lbObj.MaxRequestsPerConnection = 50
+	lbObj.LbMonitorObj = new(LBMonitor)
+	lbObj.LbMonitorObj.Retries = 7
+	lbObj.LbMonitorObj.Interval = 3
+	lbObj.LbMonitorObj.IntervalUnits = "SEC"
+	lbObj.LbMonitorObj.DownTime = 10
+	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	client := env.GetNitroClient()
 	t.Logf("Test LBApi.Add")
 	err := lbObj.Add(client)
@@ -34,12 +97,38 @@ func Test_LBApi_http(t *testing.T) {
 		{"nshttpprofile", "nshttp_profile_300", map[string]interface{}{"name": "nshttp_profile_300", "http2": "ENABLED", "http2maxconcurrentstreams": 300}},
 		{"servicegroup", "lbent1", map[string]interface{}{"servicegroupname": "lbent1", "servicetype": "HTTP", "maxclient": 200, "maxreq": 50, "httpprofilename": "nshttp_profile_300"}},
 		{"lbvserver_servicegroup_binding", "lbent1", map[string]interface{}{"name": "lbent1", "servicegroupname": "lbent1"}},
+		{"lbmonitor", "lbent1_lbmon", map[string]interface{}{"monitorname": "lbent1_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []interface{}{"200"}, "httprequest": "HEAD /", "retries": 7, "interval": 3, "downtime": 10}},
+		{"servicegroup_lbmonitor_binding", "lbent1", map[string]interface{}{"servicegroupname": "lbent1", "monitor_name": "lbent1_lbmon"}},
 	}
 	err = env.VerifyConfigBlockPresence(client, configs)
 	if err != nil {
 		t.Errorf("Config verification failed for Add %v, error %v", "lbent1", err)
 	}
 	t.Logf("Test LBApi update")
+	lbObj.MaxConnections = 100
+	lbObj.MaxRequestsPerConnection = 0
+	lbObj.MaxHTTP2ConcurrentStreams = 0
+	lbObj.LbMonitorObj.Retries = 0
+	lbObj.LbMonitorObj.Interval = 5
+	lbObj.LbMonitorObj.IntervalUnits = "SEC"
+	lbObj.LbMonitorObj.DownTime = 0
+	err = lbObj.Add(client)
+	if err != nil {
+		t.Errorf("LBApi add failed with %v", err)
+	}
+	configs = []env.VerifyNitroConfig{
+		{"lbvserver", "lbent1", map[string]interface{}{"name": "lbent1", "servicetype": "HTTP"}},
+		{"servicegroup", "lbent1", map[string]interface{}{"servicegroupname": "lbent1", "servicetype": "HTTP", "maxclient": 100, "maxreq": 0}},
+		{"lbvserver_servicegroup_binding", "lbent1", map[string]interface{}{"name": "lbent1", "servicegroupname": "lbent1"}},
+		{"lbmonitor", "lbent1_lbmon", map[string]interface{}{"monitorname": "lbent1_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []interface{}{"200"}, "httprequest": "HEAD /", "retries": defaultRetries, "interval": 5, "downtime": defaultDownTime}},
+	}
+	err = env.VerifyConfigBlockPresence(client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for Update %v, error %v", "lbent1", err)
+	}
+
+	t.Logf("Test LBApi update with LB Monitor removal")
+	lbObj.LbMonitorObj = nil
 	lbObj.MaxConnections = 100
 	lbObj.MaxRequestsPerConnection = 0
 	lbObj.MaxHTTP2ConcurrentStreams = 0
@@ -54,7 +143,7 @@ func Test_LBApi_http(t *testing.T) {
 	}
 	err = env.VerifyConfigBlockPresence(client, configs)
 	if err != nil {
-		t.Errorf("Config verification failed for Update %v, error %v", "lbent1", err)
+		t.Errorf("Config verification failed for Update with LB Monitor removal %v, error %v", "lbent1", err)
 	}
 	t.Logf("Test LBApi delete")
 	err = lbObj.Delete(client)
@@ -64,6 +153,7 @@ func Test_LBApi_http(t *testing.T) {
 	configs = []env.VerifyNitroConfig{
 		{"lbvserver", "lbent1", map[string]interface{}{"name": "lbent1", "servicetype": "HTTP"}},
 		{"servicegroup", "lbent1", map[string]interface{}{"servicegroupname": "lbent1", "servicetype": "HTTP", "maxclient": 100, "maxreq": 0, "httpprofilename": "http_default_profile"}},
+		{"lbmonitor", "lbent1_lbmon", map[string]interface{}{"monitorname": "lbent1_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []int{200}, "httprequest": "HEAD /", "retries": 5, "interval": 5, "downtime": 10}},
 	}
 	err = env.VerifyConfigBlockAbsence(client, configs)
 	if err != nil {
@@ -127,6 +217,12 @@ func Test_LBApi_http_tls(t *testing.T) {
 	lbObj.MaxConnections = 200
 	lbObj.MaxHTTP2ConcurrentStreams = 300
 	lbObj.MaxRequestsPerConnection = 50
+	lbObj.LbMonitorObj = new(LBMonitor)
+	lbObj.LbMonitorObj.Retries = 7
+	lbObj.LbMonitorObj.Interval = 3
+	lbObj.LbMonitorObj.IntervalUnits = "SEC"
+	lbObj.LbMonitorObj.DownTime = 10
+	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	lbObj.BackendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", PrivateKeyFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", RootCertFilename: "../tests/certs/certssvc1/rootCA.crt"}}
 	client := env.GetNitroClient()
 	UploadCert(client, "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certssvc1_svc1", "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", "certssvc1_svc1_key")
@@ -141,6 +237,8 @@ func Test_LBApi_http_tls(t *testing.T) {
 		{"nshttpprofile", "nshttp_profile_300", map[string]interface{}{"name": "nshttp_profile_300", "http2": "ENABLED", "http2maxconcurrentstreams": 300}},
 		{"servicegroup", "lbent1s", map[string]interface{}{"servicegroupname": "lbent1s", "servicetype": "SSL", "maxclient": 200, "maxreq": 50}},
 		{"lbvserver_servicegroup_binding", "lbent1s", map[string]interface{}{"name": "lbent1s", "servicegroupname": "lbent1s"}},
+		{"lbmonitor", "lbent1s_lbmon", map[string]interface{}{"monitorname": "lbent1s_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []interface{}{"200"}, "httprequest": "HEAD /", "retries": 7, "interval": 3, "downtime": 10}},
+		{"servicegroup_lbmonitor_binding", "lbent1s", map[string]interface{}{"servicegroupname": "lbent1s", "monitor_name": "lbent1s_lbmon"}},
 		{"sslcertkey", "certssvc1_svc1", map[string]interface{}{"cert": "/nsconfig/ssl/certssvc1_svc1", "certkey": "certssvc1_svc1", "key": "/nsconfig/ssl/certssvc1_svc1_key"}},
 		{"sslcertkey", "certssvc1_rootCA", map[string]interface{}{"cert": "/nsconfig/ssl/certssvc1_rootCA", "certkey": "certssvc1_rootCA"}},
 		{"sslservicegroup", "lbent1s", map[string]interface{}{"serverauth": "ENABLED", "servicegroupname": "lbent1s"}},
@@ -161,6 +259,7 @@ func Test_LBApi_http_tls(t *testing.T) {
 	configs = []env.VerifyNitroConfig{
 		{"lbvserver", "lbent1s", map[string]interface{}{"name": "lbent1s", "servicetype": "SSL"}},
 		{"servicegroup", "lbent1s", map[string]interface{}{"servicegroupname": "lbent1s", "servicetype": "HTTP"}},
+		{"lbmonitor", "lbent1s_lbmon", map[string]interface{}{"monitorname": "lbent1s_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []int{200}, "httprequest": "HEAD /", "retries": 7, "interval": 3, "downtime": 10}},
 	}
 	err = env.VerifyConfigBlockAbsence(client, configs)
 	if err != nil {

@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 )
@@ -129,13 +130,13 @@ func createResponse(resp *cache.Response, typeURL string) (*v2.DiscoveryResponse
 	if resp == nil {
 		return nil, errors.New("missing response")
 	}
-	resources := make([]types.Any, len(resp.Resources))
+	resources := make([]*types.Any, len(resp.Resources))
 	for i := 0; i < len(resp.Resources); i++ {
 		data, err := proto.Marshal(resp.Resources[i])
 		if err != nil {
 			return nil, err
 		}
-		resources[i] = types.Any{
+		resources[i] = &types.Any{
 			TypeUrl: typeURL,
 			Value:   data,
 		}
@@ -187,6 +188,9 @@ func (s *server) process(stream stream, reqCh <-chan *v2.DiscoveryRequest, defau
 			return err
 		}
 	}
+
+	// node may only be set on the first discovery request
+	var node = &core.Node{}
 
 	for {
 		select {
@@ -248,6 +252,13 @@ func (s *server) process(stream stream, reqCh <-chan *v2.DiscoveryRequest, defau
 			}
 			if req == nil {
 				return status.Errorf(codes.Unavailable, "empty request")
+			}
+
+			// node field in discovery request is delta-compressed
+			if req.Node != nil {
+				node = req.Node
+			} else {
+				req.Node = node
 			}
 
 			// nonces can be reused across streams; we verify nonce only if nonce is not initialized
@@ -414,10 +425,22 @@ func (s *server) DeltaAggregatedResources(_ discovery.AggregatedDiscoveryService
 	return errors.New("not implemented")
 }
 
+func (s *server) DeltaEndpoints(_ v2.EndpointDiscoveryService_DeltaEndpointsServer) error {
+	return errors.New("not implemented")
+}
+
 func (s *server) DeltaClusters(_ v2.ClusterDiscoveryService_DeltaClustersServer) error {
 	return errors.New("not implemented")
 }
 
 func (s *server) DeltaRoutes(_ v2.RouteDiscoveryService_DeltaRoutesServer) error {
+	return errors.New("not implemented")
+}
+
+func (s *server) DeltaListeners(_ v2.ListenerDiscoveryService_DeltaListenersServer) error {
+	return errors.New("not implemented")
+}
+
+func (s *server) DeltaSecrets(_ discovery.SecretDiscoveryService_DeltaSecretsServer) error {
 	return errors.New("not implemented")
 }

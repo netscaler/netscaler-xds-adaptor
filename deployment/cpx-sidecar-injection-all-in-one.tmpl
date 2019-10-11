@@ -79,10 +79,11 @@ data:
           value: "YES"
         # Note: By default, management http and https ports run on ports 9080 and 9443 resp.
         # Use below ENV variables to change it to some values
-        #        - name: "MGMT_HTTP_PORT"
-        #          value: 10080
-        #        - name: "MGMT_HTTPS_PORT"
-        #          value: 10443
+        # If backend application is running on 10080 and 10443, then below values needs to be changed. 
+        - name: "MGMT_HTTP_PORT"
+          value: 10080
+        - name: "MGMT_HTTPS_PORT"
+          value: 10443
         # Provide the Citrix Application Delivery Management (ADM) IP address and Port to license Citrix ADC CPX. Port 27000 is default.
         - name: "LS_IP"
           value: {LS_IP}
@@ -171,16 +172,21 @@ spec:
 
 ---
 # Deployment of the cpx-sidecar-injector service
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cpx-sidecar-injector
   namespace: {NAMESPACE}
   labels:
+    app: cpx-sidecar-injector
     app: sidecarInjectorWebhook
     istio: sidecar-injector
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: cpx-sidecar-injector
+      istio: sidecar-injector
   template:
     metadata:
       labels:

@@ -90,7 +90,7 @@ func getNsConfAdaptor() *configAdaptor {
 func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resourceName string, expectedResource interface{}, expectedResponse interface{}, receivedResponse interface{}) error {
 	compare := reflect.DeepEqual(expectedResponse, receivedResponse)
 	if compare == false {
-		return fmt.Errorf("Expected response: %s/%+v    Recevied resource:%s/%+v", reflect.TypeOf(expectedResponse).String(), expectedResponse, reflect.TypeOf(receivedResponse).String(), receivedResponse)
+		return fmt.Errorf("Expected response: %s/%+v    Received resource:%s/%+v", reflect.TypeOf(expectedResponse).String(), expectedResponse, reflect.TypeOf(receivedResponse).String(), receivedResponse)
 	}
 	confBl, err := nsConfAdaptor.getConfigByName(nsconfigengine.GetNSCompatibleName(resourceName), configType)
 	if err != nil {
@@ -99,7 +99,7 @@ func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resour
 	log.Printf("Comapring %v with %v", confBl.resource, expectedResource)
 	compare = reflect.DeepEqual(confBl.resource, expectedResource)
 	if compare == false {
-		return fmt.Errorf("Expected resource:%s/%+v    Recevied resource:%s/%+v", reflect.TypeOf(expectedResource).String(), expectedResource, reflect.TypeOf(confBl.resource).String(), confBl.resource)
+		return fmt.Errorf("Expected resource:%s/%+v    Received resource:%s/%+v", reflect.TypeOf(expectedResource).String(), expectedResource, reflect.TypeOf(confBl.resource).String(), confBl.resource)
 	}
 	return nil
 }
@@ -109,11 +109,19 @@ func Test_clusterAdd(t *testing.T) {
 	nsConfAdaptor := getNsConfAdaptor()
 
 	log.Println("HTTP cluster add")
+	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &types.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &types.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &types.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 1024, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
+	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
+	lbObj.LbMonitorObj.Retries = 9
+	lbObj.LbMonitorObj.Interval = 5100
+	lbObj.LbMonitorObj.IntervalUnits = "MSEC"
+	lbObj.LbMonitorObj.DownTime = 7
+	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	err := verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
+	lbObj.LbMonitorObj = nil
 
 	log.Println("TCP cluster add")
 	lbObj.FrontendServiceType = "TCP"
@@ -127,16 +135,23 @@ func Test_clusterAdd(t *testing.T) {
 	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &types.UInt32Value{Value: uint32(500)}, MaxRequests: &types.UInt32Value{Value: uint32(750)}}}}
 	cds.MaxRequestsPerConnection = &types.UInt32Value{Value: uint32(100)}
 	cds.TlsContext = &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext("/etc/certs/server-cert.crt", "/etc/certs/server-key.key", "")}
+	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &types.Duration{Seconds: int64(21000)}, BaseEjectionTime: &types.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
 	lbObj.FrontendServiceType = "HTTP"
 	lbObj.BackendServiceType = "SSL"
 	lbObj.MaxConnections = 500
 	lbObj.MaxRequestsPerConnection = 100
 	lbObj.MaxHTTP2ConcurrentStreams = 750
 	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: "/etc/certs/server-cert.crt", PrivateKeyFilename: "/etc/certs/server-key.key"}}
+	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
+	lbObj.LbMonitorObj.Interval = 21000
+	lbObj.LbMonitorObj.IntervalUnits = "SEC"
+	lbObj.LbMonitorObj.DownTime = 7500
+	lbObj.LbMonitorObj.DownTimeUnits = "MSEC"
 	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
+	lbObj.LbMonitorObj = nil
 
 	log.Println("SSL_TCP cluster add")
 	lbObj.FrontendServiceType = "TCP"
@@ -145,7 +160,6 @@ func Test_clusterAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
-
 }
 
 func Test_clusterDel(t *testing.T) {

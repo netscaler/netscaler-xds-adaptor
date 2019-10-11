@@ -3,33 +3,75 @@
 
 package google_api
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
-
-import strings "strings"
-import reflect "reflect"
-
-import io "io"
+import (
+	fmt "fmt"
+	proto "github.com/gogo/protobuf/proto"
+	io "io"
+	math "math"
+	math_bits "math/bits"
+	reflect "reflect"
+	strings "strings"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// Defines the HTTP configuration for a service. It contains a list of
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+
+// Defines the HTTP configuration for an API service. It contains a list of
 // [HttpRule][google.api.HttpRule], each specifying the mapping of an RPC method
 // to one or more HTTP REST API methods.
 type Http struct {
 	// A list of HTTP configuration rules that apply to individual API methods.
 	//
 	// **NOTE:** All service configuration rules follow "last one wins" order.
-	Rules []*HttpRule `protobuf:"bytes,1,rep,name=rules" json:"rules,omitempty"`
+	Rules []*HttpRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	// When set to true, URL path parameters will be fully URI-decoded except in
+	// cases of single segment matches in reserved expansion, where "%2F" will be
+	// left encoded.
+	//
+	// The default behavior is to not decode RFC 6570 reserved characters in multi
+	// segment matches.
+	FullyDecodeReservedExpansion bool `protobuf:"varint,2,opt,name=fully_decode_reserved_expansion,json=fullyDecodeReservedExpansion,proto3" json:"fully_decode_reserved_expansion,omitempty"`
 }
 
-func (m *Http) Reset()                    { *m = Http{} }
-func (*Http) ProtoMessage()               {}
-func (*Http) Descriptor() ([]byte, []int) { return fileDescriptorHttp, []int{0} }
+func (m *Http) Reset()      { *m = Http{} }
+func (*Http) ProtoMessage() {}
+func (*Http) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ff9994be407cdcc9, []int{0}
+}
+func (m *Http) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Http) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Http.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Http) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Http.Merge(m, src)
+}
+func (m *Http) XXX_Size() int {
+	return m.Size()
+}
+func (m *Http) XXX_DiscardUnknown() {
+	xxx_messageInfo_Http.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Http proto.InternalMessageInfo
 
 func (m *Http) GetRules() []*HttpRule {
 	if m != nil {
@@ -38,89 +80,101 @@ func (m *Http) GetRules() []*HttpRule {
 	return nil
 }
 
-// `HttpRule` defines the mapping of an RPC method to one or more HTTP
-// REST APIs.  The mapping determines what portions of the request
-// message are populated from the path, query parameters, or body of
-// the HTTP request.  The mapping is typically specified as an
-// `google.api.http` annotation, see "google/api/annotations.proto"
-// for details.
+func (m *Http) GetFullyDecodeReservedExpansion() bool {
+	if m != nil {
+		return m.FullyDecodeReservedExpansion
+	}
+	return false
+}
+
+// # gRPC Transcoding
 //
-// The mapping consists of a field specifying the path template and
-// method kind.  The path template can refer to fields in the request
-// message, as in the example below which describes a REST GET
-// operation on a resource collection of messages:
+// gRPC Transcoding is a feature for mapping between a gRPC method and one or
+// more HTTP REST endpoints. It allows developers to build a single API service
+// that supports both gRPC APIs and REST APIs. Many systems, including [Google
+// APIs](https://github.com/googleapis/googleapis),
+// [Cloud Endpoints](https://cloud.google.com/endpoints), [gRPC
+// Gateway](https://github.com/grpc-ecosystem/grpc-gateway),
+// and [Envoy](https://github.com/envoyproxy/envoy) proxy support this feature
+// and use it for large scale production services.
 //
+// `HttpRule` defines the schema of the gRPC/REST mapping. The mapping specifies
+// how different portions of the gRPC request message are mapped to the URL
+// path, URL query parameters, and HTTP request body. It also controls how the
+// gRPC response message is mapped to the HTTP response body. `HttpRule` is
+// typically specified as an `google.api.http` annotation on the gRPC method.
+//
+// Each mapping specifies a URL path template and an HTTP method. The path
+// template may refer to one or more fields in the gRPC request message, as long
+// as each field is a non-repeated field with a primitive (non-message) type.
+// The path template controls how fields of the request message are mapped to
+// the URL path.
+//
+// Example:
 //
 //     service Messaging {
 //       rpc GetMessage(GetMessageRequest) returns (Message) {
-//         option (google.api.http).get = "/v1/messages/{message_id}/{sub.subfield}";
+//         option (google.api.http) = {
+//             get: "/v1/{name=messages/*}"
+//         };
 //       }
 //     }
 //     message GetMessageRequest {
-//       message SubMessage {
-//         string subfield = 1;
-//       }
-//       string message_id = 1; // mapped to the URL
-//       SubMessage sub = 2;    // `sub.subfield` is url-mapped
+//       string name = 1; // Mapped to URL path.
 //     }
 //     message Message {
-//       string text = 1; // content of the resource
+//       string text = 1; // The resource content.
 //     }
 //
-// The same http annotation can alternatively be expressed inside the
-// `GRPC API Configuration` YAML file.
+// This enables an HTTP REST to gRPC mapping as below:
 //
-//     http:
-//       rules:
-//         - selector: <proto_package_name>.Messaging.GetMessage
-//           get: /v1/messages/{message_id}/{sub.subfield}
-//
-// This definition enables an automatic, bidrectional mapping of HTTP
-// JSON to RPC. Example:
-//
-// HTTP | RPC
+// HTTP | gRPC
 // -----|-----
-// `GET /v1/messages/123456/foo`  | `GetMessage(message_id: "123456" sub: SubMessage(subfield: "foo"))`
+// `GET /v1/messages/123456`  | `GetMessage(name: "messages/123456")`
 //
-// In general, not only fields but also field paths can be referenced
-// from a path pattern. Fields mapped to the path pattern cannot be
-// repeated and must have a primitive (non-message) type.
+// Any fields in the request message which are not bound by the path template
+// automatically become HTTP query parameters if there is no HTTP request body.
+// For example:
 //
-// Any fields in the request message which are not bound by the path
-// pattern automatically become (optional) HTTP query
-// parameters. Assume the following definition of the request message:
-//
-//
+//     service Messaging {
+//       rpc GetMessage(GetMessageRequest) returns (Message) {
+//         option (google.api.http) = {
+//             get:"/v1/messages/{message_id}"
+//         };
+//       }
+//     }
 //     message GetMessageRequest {
 //       message SubMessage {
 //         string subfield = 1;
 //       }
-//       string message_id = 1; // mapped to the URL
-//       int64 revision = 2;    // becomes a parameter
-//       SubMessage sub = 3;    // `sub.subfield` becomes a parameter
+//       string message_id = 1; // Mapped to URL path.
+//       int64 revision = 2;    // Mapped to URL query parameter `revision`.
+//       SubMessage sub = 3;    // Mapped to URL query parameter `sub.subfield`.
 //     }
-//
 //
 // This enables a HTTP JSON to RPC mapping as below:
 //
-// HTTP | RPC
+// HTTP | gRPC
 // -----|-----
-// `GET /v1/messages/123456?revision=2&sub.subfield=foo` | `GetMessage(message_id: "123456" revision: 2 sub: SubMessage(subfield: "foo"))`
+// `GET /v1/messages/123456?revision=2&sub.subfield=foo` |
+// `GetMessage(message_id: "123456" revision: 2 sub: SubMessage(subfield:
+// "foo"))`
 //
-// Note that fields which are mapped to HTTP parameters must have a
-// primitive type or a repeated primitive type. Message types are not
-// allowed. In the case of a repeated type, the parameter can be
-// repeated in the URL, as in `...?param=A&param=B`.
+// Note that fields which are mapped to URL query parameters must have a
+// primitive type or a repeated primitive type or a non-repeated message type.
+// In the case of a repeated type, the parameter can be repeated in the URL
+// as `...?param=A&param=B`. In the case of a message type, each field of the
+// message is mapped to a separate parameter, such as
+// `...?foo.a=A&foo.b=B&foo.c=C`.
 //
-// For HTTP method kinds which allow a request body, the `body` field
+// For HTTP methods that allow a request body, the `body` field
 // specifies the mapping. Consider a REST update method on the
 // message resource collection:
-//
 //
 //     service Messaging {
 //       rpc UpdateMessage(UpdateMessageRequest) returns (Message) {
 //         option (google.api.http) = {
-//           put: "/v1/messages/{message_id}"
+//           patch: "/v1/messages/{message_id}"
 //           body: "message"
 //         };
 //       }
@@ -130,14 +184,14 @@ func (m *Http) GetRules() []*HttpRule {
 //       Message message = 2;   // mapped to the body
 //     }
 //
-//
 // The following HTTP JSON to RPC mapping is enabled, where the
 // representation of the JSON in the request body is determined by
 // protos JSON encoding:
 //
-// HTTP | RPC
+// HTTP | gRPC
 // -----|-----
-// `PUT /v1/messages/123456 { "text": "Hi!" }` | `UpdateMessage(message_id: "123456" message { text: "Hi!" })`
+// `PATCH /v1/messages/123456 { "text": "Hi!" }` | `UpdateMessage(message_id:
+// "123456" message { text: "Hi!" })`
 //
 // The special name `*` can be used in the body mapping to define that
 // every field not bound by the path template should be mapped to the
@@ -147,7 +201,7 @@ func (m *Http) GetRules() []*HttpRule {
 //     service Messaging {
 //       rpc UpdateMessage(Message) returns (Message) {
 //         option (google.api.http) = {
-//           put: "/v1/messages/{message_id}"
+//           patch: "/v1/messages/{message_id}"
 //           body: "*"
 //         };
 //       }
@@ -160,13 +214,14 @@ func (m *Http) GetRules() []*HttpRule {
 //
 // The following HTTP JSON to RPC mapping is enabled:
 //
-// HTTP | RPC
+// HTTP | gRPC
 // -----|-----
-// `PUT /v1/messages/123456 { "text": "Hi!" }` | `UpdateMessage(message_id: "123456" text: "Hi!")`
+// `PATCH /v1/messages/123456 { "text": "Hi!" }` | `UpdateMessage(message_id:
+// "123456" text: "Hi!")`
 //
 // Note that when using `*` in the body mapping, it is not possible to
 // have HTTP parameters, as all fields not bound by the path end in
-// the body. This makes this option more rarely used in practice of
+// the body. This makes this option more rarely used in practice when
 // defining REST APIs. The common usage of `*` is in custom methods
 // which don't use the URL at all for transferring data.
 //
@@ -188,32 +243,31 @@ func (m *Http) GetRules() []*HttpRule {
 //       string user_id = 2;
 //     }
 //
+// This enables the following two alternative HTTP JSON to RPC mappings:
 //
-// This enables the following two alternative HTTP JSON to RPC
-// mappings:
-//
-// HTTP | RPC
+// HTTP | gRPC
 // -----|-----
 // `GET /v1/messages/123456` | `GetMessage(message_id: "123456")`
-// `GET /v1/users/me/messages/123456` | `GetMessage(user_id: "me" message_id: "123456")`
+// `GET /v1/users/me/messages/123456` | `GetMessage(user_id: "me" message_id:
+// "123456")`
 //
-// # Rules for HTTP mapping
+// ## Rules for HTTP mapping
 //
-// The rules for mapping HTTP path, query parameters, and body fields
-// to the request message are as follows:
+// 1. Leaf request fields (recursive expansion nested messages in the request
+//    message) are classified into three categories:
+//    - Fields referred by the path template. They are passed via the URL path.
+//    - Fields referred by the [HttpRule.body][google.api.HttpRule.body]. They are passed via the HTTP
+//      request body.
+//    - All other fields are passed via the URL query parameters, and the
+//      parameter name is the field path in the request message. A repeated
+//      field can be represented as multiple query parameters under the same
+//      name.
+//  2. If [HttpRule.body][google.api.HttpRule.body] is "*", there is no URL query parameter, all fields
+//     are passed via URL path and HTTP request body.
+//  3. If [HttpRule.body][google.api.HttpRule.body] is omitted, there is no HTTP request body, all
+//     fields are passed via URL path and URL query parameters.
 //
-// 1. The `body` field specifies either `*` or a field path, or is
-//    omitted. If omitted, it assumes there is no HTTP body.
-// 2. Leaf fields (recursive expansion of nested messages in the
-//    request) can be classified into three types:
-//     (a) Matched in the URL template.
-//     (b) Covered by body (if body is `*`, everything except (a) fields;
-//         else everything under the body field)
-//     (c) All other fields.
-// 3. URL query parameters found in the HTTP request are mapped to (c) fields.
-// 4. Any body sent with an HTTP request can contain only (b) fields.
-//
-// The syntax of the path template is as follows:
+// ### Path template syntax
 //
 //     Template = "/" Segments [ Verb ] ;
 //     Segments = Segment { "/" Segment } ;
@@ -222,30 +276,88 @@ func (m *Http) GetRules() []*HttpRule {
 //     FieldPath = IDENT { "." IDENT } ;
 //     Verb     = ":" LITERAL ;
 //
-// The syntax `*` matches a single path segment. It follows the semantics of
-// [RFC 6570](https://tools.ietf.org/html/rfc6570) Section 3.2.2 Simple String
-// Expansion.
+// The syntax `*` matches a single URL path segment. The syntax `**` matches
+// zero or more URL path segments, which must be the last part of the URL path
+// except the `Verb`.
 //
-// The syntax `**` matches zero or more path segments. It follows the semantics
-// of [RFC 6570](https://tools.ietf.org/html/rfc6570) Section 3.2.3 Reserved
-// Expansion. NOTE: it must be the last segment in the path except the Verb.
-//
-// The syntax `LITERAL` matches literal text in the URL path.
-//
-// The syntax `Variable` matches the entire path as specified by its template;
-// this nested template must not contain further variables. If a variable
+// The syntax `Variable` matches part of the URL path as specified by its
+// template. A variable template must not contain other variables. If a variable
 // matches a single path segment, its template may be omitted, e.g. `{var}`
 // is equivalent to `{var=*}`.
 //
-// NOTE: the field paths in variables and in the `body` must not refer to
-// repeated fields or map fields.
+// The syntax `LITERAL` matches literal text in the URL path. If the `LITERAL`
+// contains any reserved character, such characters should be percent-encoded
+// before the matching.
 //
-// Use CustomHttpPattern to specify any HTTP method that is not included in the
-// `pattern` field, such as HEAD, or "*" to leave the HTTP method unspecified for
-// a given URL path rule. The wild-card rule is useful for services that provide
-// content to Web (HTML) clients.
+// If a variable contains exactly one path segment, such as `"{var}"` or
+// `"{var=*}"`, when such a variable is expanded into a URL path on the client
+// side, all characters except `[-_.~0-9a-zA-Z]` are percent-encoded. The
+// server side does the reverse decoding. Such variables show up in the
+// [Discovery
+// Document](https://developers.google.com/discovery/v1/reference/apis) as
+// `{var}`.
+//
+// If a variable contains multiple path segments, such as `"{var=foo/*}"`
+// or `"{var=**}"`, when such a variable is expanded into a URL path on the
+// client side, all characters except `[-_.~/0-9a-zA-Z]` are percent-encoded.
+// The server side does the reverse decoding, except "%2F" and "%2f" are left
+// unchanged. Such variables show up in the
+// [Discovery
+// Document](https://developers.google.com/discovery/v1/reference/apis) as
+// `{+var}`.
+//
+// ## Using gRPC API Service Configuration
+//
+// gRPC API Service Configuration (service config) is a configuration language
+// for configuring a gRPC service to become a user-facing product. The
+// service config is simply the YAML representation of the `google.api.Service`
+// proto message.
+//
+// As an alternative to annotating your proto file, you can configure gRPC
+// transcoding in your service config YAML files. You do this by specifying a
+// `HttpRule` that maps the gRPC method to a REST endpoint, achieving the same
+// effect as the proto annotation. This can be particularly useful if you
+// have a proto that is reused in multiple services. Note that any transcoding
+// specified in the service config will override any matching transcoding
+// configuration in the proto.
+//
+// Example:
+//
+//     http:
+//       rules:
+//         # Selects a gRPC method and applies HttpRule to it.
+//         - selector: example.v1.Messaging.GetMessage
+//           get: /v1/messages/{message_id}/{sub.subfield}
+//
+// ## Special notes
+//
+// When gRPC Transcoding is used to map a gRPC to JSON REST endpoints, the
+// proto to JSON conversion must follow the [proto3
+// specification](https://developers.google.com/protocol-buffers/docs/proto3#json).
+//
+// While the single segment variable follows the semantics of
+// [RFC 6570](https://tools.ietf.org/html/rfc6570) Section 3.2.2 Simple String
+// Expansion, the multi segment variable **does not** follow RFC 6570 Section
+// 3.2.3 Reserved Expansion. The reason is that the Reserved Expansion
+// does not expand special characters like `?` and `#`, which would lead
+// to invalid URLs. As the result, gRPC Transcoding uses a custom encoding
+// for multi segment variables.
+//
+// The path variables **must not** refer to any repeated or mapped field,
+// because client libraries are not capable of handling such variable expansion.
+//
+// The path variables **must not** capture the leading "/" character. The reason
+// is that the most common use case "{var}" does not capture the leading "/"
+// character. For consistency, all path variables must share the same behavior.
+//
+// Repeated message fields must not be mapped to URL query parameters, because
+// no client library can support such complicated mapping.
+//
+// If an API needs to use a JSON array for request or response body, it can map
+// the request or response body to a repeated field. However, some gRPC
+// Transcoding implementations may not support this feature.
 type HttpRule struct {
-	// Selects methods to which this rule applies.
+	// Selects a method to which this rule applies.
 	//
 	// Refer to [selector][google.api.DocumentationRule.selector] for syntax details.
 	Selector string `protobuf:"bytes,1,opt,name=selector,proto3" json:"selector,omitempty"`
@@ -261,20 +373,57 @@ type HttpRule struct {
 	//	*HttpRule_Patch
 	//	*HttpRule_Custom
 	Pattern isHttpRule_Pattern `protobuf_oneof:"pattern"`
-	// The name of the request field whose value is mapped to the HTTP body, or
-	// `*` for mapping all fields not captured by the path pattern to the HTTP
-	// body. NOTE: the referred field must not be a repeated field and must be
-	// present at the top-level of request message type.
+	// The name of the request field whose value is mapped to the HTTP request
+	// body, or `*` for mapping all request fields not captured by the path
+	// pattern to the HTTP body, or omitted for not having any HTTP request body.
+	//
+	// NOTE: the referred field must be present at the top-level of the request
+	// message type.
 	Body string `protobuf:"bytes,7,opt,name=body,proto3" json:"body,omitempty"`
+	// Optional. The name of the response field whose value is mapped to the HTTP
+	// response body. When omitted, the entire response message will be used
+	// as the HTTP response body.
+	//
+	// NOTE: The referred field must be present at the top-level of the response
+	// message type.
+	ResponseBody string `protobuf:"bytes,12,opt,name=response_body,json=responseBody,proto3" json:"response_body,omitempty"`
 	// Additional HTTP bindings for the selector. Nested bindings must
 	// not contain an `additional_bindings` field themselves (that is,
 	// the nesting may only be one level deep).
-	AdditionalBindings []*HttpRule `protobuf:"bytes,11,rep,name=additional_bindings,json=additionalBindings" json:"additional_bindings,omitempty"`
+	AdditionalBindings []*HttpRule `protobuf:"bytes,11,rep,name=additional_bindings,json=additionalBindings,proto3" json:"additional_bindings,omitempty"`
 }
 
-func (m *HttpRule) Reset()                    { *m = HttpRule{} }
-func (*HttpRule) ProtoMessage()               {}
-func (*HttpRule) Descriptor() ([]byte, []int) { return fileDescriptorHttp, []int{1} }
+func (m *HttpRule) Reset()      { *m = HttpRule{} }
+func (*HttpRule) ProtoMessage() {}
+func (*HttpRule) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ff9994be407cdcc9, []int{1}
+}
+func (m *HttpRule) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *HttpRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_HttpRule.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *HttpRule) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HttpRule.Merge(m, src)
+}
+func (m *HttpRule) XXX_Size() int {
+	return m.Size()
+}
+func (m *HttpRule) XXX_DiscardUnknown() {
+	xxx_messageInfo_HttpRule.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_HttpRule proto.InternalMessageInfo
 
 type isHttpRule_Pattern interface {
 	isHttpRule_Pattern()
@@ -299,7 +448,7 @@ type HttpRule_Patch struct {
 	Patch string `protobuf:"bytes,6,opt,name=patch,proto3,oneof"`
 }
 type HttpRule_Custom struct {
-	Custom *CustomHttpPattern `protobuf:"bytes,8,opt,name=custom,oneof"`
+	Custom *CustomHttpPattern `protobuf:"bytes,8,opt,name=custom,proto3,oneof"`
 }
 
 func (*HttpRule_Get) isHttpRule_Pattern()    {}
@@ -368,6 +517,13 @@ func (m *HttpRule) GetCustom() *CustomHttpPattern {
 func (m *HttpRule) GetBody() string {
 	if m != nil {
 		return m.Body
+	}
+	return ""
+}
+
+func (m *HttpRule) GetResponseBody() string {
+	if m != nil {
+		return m.ResponseBody
 	}
 	return ""
 }
@@ -478,28 +634,28 @@ func _HttpRule_OneofSizer(msg proto.Message) (n int) {
 	// pattern
 	switch x := m.Pattern.(type) {
 	case *HttpRule_Get:
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(len(x.Get)))
 		n += len(x.Get)
 	case *HttpRule_Put:
-		n += proto.SizeVarint(3<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(len(x.Put)))
 		n += len(x.Put)
 	case *HttpRule_Post:
-		n += proto.SizeVarint(4<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(len(x.Post)))
 		n += len(x.Post)
 	case *HttpRule_Delete:
-		n += proto.SizeVarint(5<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(len(x.Delete)))
 		n += len(x.Delete)
 	case *HttpRule_Patch:
-		n += proto.SizeVarint(6<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(len(x.Patch)))
 		n += len(x.Patch)
 	case *HttpRule_Custom:
 		s := proto.Size(x.Custom)
-		n += proto.SizeVarint(8<<3 | proto.WireBytes)
+		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
 	case nil:
@@ -517,9 +673,37 @@ type CustomHttpPattern struct {
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 }
 
-func (m *CustomHttpPattern) Reset()                    { *m = CustomHttpPattern{} }
-func (*CustomHttpPattern) ProtoMessage()               {}
-func (*CustomHttpPattern) Descriptor() ([]byte, []int) { return fileDescriptorHttp, []int{2} }
+func (m *CustomHttpPattern) Reset()      { *m = CustomHttpPattern{} }
+func (*CustomHttpPattern) ProtoMessage() {}
+func (*CustomHttpPattern) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ff9994be407cdcc9, []int{2}
+}
+func (m *CustomHttpPattern) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CustomHttpPattern) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CustomHttpPattern.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CustomHttpPattern) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CustomHttpPattern.Merge(m, src)
+}
+func (m *CustomHttpPattern) XXX_Size() int {
+	return m.Size()
+}
+func (m *CustomHttpPattern) XXX_DiscardUnknown() {
+	xxx_messageInfo_CustomHttpPattern.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CustomHttpPattern proto.InternalMessageInfo
 
 func (m *CustomHttpPattern) GetKind() string {
 	if m != nil {
@@ -540,12 +724,44 @@ func init() {
 	proto.RegisterType((*HttpRule)(nil), "google.api.HttpRule")
 	proto.RegisterType((*CustomHttpPattern)(nil), "google.api.CustomHttpPattern")
 }
+
+func init() { proto.RegisterFile("google/api/http.proto", fileDescriptor_ff9994be407cdcc9) }
+
+var fileDescriptor_ff9994be407cdcc9 = []byte{
+	// 446 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x92, 0xb1, 0x8e, 0xd3, 0x40,
+	0x10, 0x86, 0xbd, 0x89, 0x93, 0x4b, 0x26, 0x07, 0x12, 0xcb, 0x81, 0x56, 0x08, 0x96, 0x28, 0x34,
+	0x11, 0x45, 0x4e, 0x3a, 0x0a, 0x0a, 0x2a, 0x0c, 0x11, 0x47, 0x17, 0xb9, 0xa5, 0xb0, 0x1c, 0x7b,
+	0x48, 0x2c, 0x7c, 0xde, 0x95, 0x77, 0x8c, 0x48, 0xc7, 0x23, 0xf0, 0x0c, 0x54, 0x3c, 0x0a, 0x65,
+	0xca, 0x13, 0x15, 0x71, 0x1a, 0xca, 0x2b, 0x29, 0xd1, 0xae, 0x1d, 0xee, 0x24, 0x24, 0xba, 0xf9,
+	0xff, 0xf9, 0x3c, 0xfe, 0x3d, 0x1e, 0xb8, 0xb7, 0x52, 0x6a, 0x95, 0xe3, 0x69, 0xac, 0xb3, 0xd3,
+	0x35, 0x91, 0x9e, 0xe9, 0x52, 0x91, 0xe2, 0xd0, 0xd8, 0xb3, 0x58, 0x67, 0x93, 0x0d, 0xf8, 0xe7,
+	0x44, 0x9a, 0x3f, 0x85, 0x5e, 0x59, 0xe5, 0x68, 0x04, 0x1b, 0x77, 0xa7, 0xa3, 0xb3, 0x93, 0xd9,
+	0x35, 0x33, 0xb3, 0x40, 0x58, 0xe5, 0x18, 0x36, 0x08, 0x9f, 0xc3, 0xe3, 0xf7, 0x55, 0x9e, 0x6f,
+	0xa2, 0x14, 0x13, 0x95, 0x62, 0x54, 0xa2, 0xc1, 0xf2, 0x23, 0xa6, 0x11, 0x7e, 0xd2, 0x71, 0x61,
+	0x32, 0x55, 0x88, 0xce, 0x98, 0x4d, 0x07, 0xe1, 0x43, 0x87, 0xbd, 0x76, 0x54, 0xd8, 0x42, 0xf3,
+	0x03, 0x33, 0xf9, 0xd1, 0x81, 0xc1, 0x61, 0x34, 0x7f, 0x00, 0x03, 0x83, 0x39, 0x26, 0xa4, 0x4a,
+	0xc1, 0xc6, 0x6c, 0x3a, 0x0c, 0xff, 0x6a, 0xce, 0xa1, 0xbb, 0x42, 0x72, 0x33, 0x87, 0xe7, 0x5e,
+	0x68, 0x85, 0xf5, 0x74, 0x45, 0xa2, 0x7b, 0xf0, 0x74, 0x45, 0xfc, 0x04, 0x7c, 0xad, 0x0c, 0x09,
+	0xbf, 0x35, 0x9d, 0xe2, 0x02, 0xfa, 0x29, 0xe6, 0x48, 0x28, 0x7a, 0xad, 0xdf, 0x6a, 0x7e, 0x1f,
+	0x7a, 0x3a, 0xa6, 0x64, 0x2d, 0xfa, 0x6d, 0xa3, 0x91, 0xfc, 0x39, 0xf4, 0x93, 0xca, 0x90, 0xba,
+	0x10, 0x83, 0x31, 0x9b, 0x8e, 0xce, 0x1e, 0xdd, 0x5c, 0xc6, 0x2b, 0xd7, 0xb1, 0xb9, 0x17, 0x31,
+	0x11, 0x96, 0x85, 0x1d, 0xd8, 0xe0, 0x9c, 0x83, 0xbf, 0x54, 0xe9, 0x46, 0x1c, 0xb9, 0x0f, 0x70,
+	0x35, 0x7f, 0x02, 0xb7, 0x4a, 0x34, 0x5a, 0x15, 0x06, 0x23, 0xd7, 0x3c, 0x76, 0xcd, 0xe3, 0x83,
+	0x19, 0x58, 0x68, 0x0e, 0x77, 0xe3, 0x34, 0xcd, 0x28, 0x53, 0x45, 0x9c, 0x47, 0xcb, 0xac, 0x48,
+	0xb3, 0x62, 0x65, 0xc4, 0xe8, 0x3f, 0xff, 0x82, 0x5f, 0x3f, 0x10, 0xb4, 0x7c, 0x30, 0x84, 0x23,
+	0xdd, 0x84, 0x9a, 0xbc, 0x80, 0x3b, 0xff, 0x24, 0xb5, 0xf9, 0x3e, 0x64, 0x45, 0xda, 0x2e, 0xd8,
+	0xd5, 0xd6, 0xd3, 0x31, 0xad, 0x9b, 0xed, 0x86, 0xae, 0x0e, 0xde, 0x6d, 0x77, 0xd2, 0xbb, 0xdc,
+	0x49, 0xef, 0x6a, 0x27, 0xd9, 0xe7, 0x5a, 0xb2, 0x6f, 0xb5, 0x64, 0xdf, 0x6b, 0xc9, 0xb6, 0xb5,
+	0x64, 0x3f, 0x6b, 0xc9, 0x7e, 0xd5, 0xd2, 0xbb, 0xaa, 0x25, 0xfb, 0xb2, 0x97, 0xde, 0x76, 0x2f,
+	0xbd, 0xcb, 0xbd, 0xf4, 0xe0, 0x76, 0xa2, 0x2e, 0x6e, 0x44, 0x0d, 0x86, 0xee, 0xd5, 0xf6, 0xe2,
+	0x16, 0xec, 0x37, 0x63, 0x5f, 0x3b, 0xfe, 0x9b, 0x97, 0x8b, 0xb7, 0xcb, 0xbe, 0x3b, 0xc2, 0x67,
+	0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x85, 0x78, 0xc8, 0xab, 0x9d, 0x02, 0x00, 0x00,
+}
+
 func (this *Http) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*Http)
@@ -558,10 +774,7 @@ func (this *Http) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -573,14 +786,14 @@ func (this *Http) Equal(that interface{}) bool {
 			return false
 		}
 	}
+	if this.FullyDecodeReservedExpansion != that1.FullyDecodeReservedExpansion {
+		return false
+	}
 	return true
 }
 func (this *HttpRule) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule)
@@ -593,10 +806,7 @@ func (this *HttpRule) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -615,6 +825,9 @@ func (this *HttpRule) Equal(that interface{}) bool {
 	if this.Body != that1.Body {
 		return false
 	}
+	if this.ResponseBody != that1.ResponseBody {
+		return false
+	}
 	if len(this.AdditionalBindings) != len(that1.AdditionalBindings) {
 		return false
 	}
@@ -627,10 +840,7 @@ func (this *HttpRule) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Get) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Get)
@@ -643,10 +853,7 @@ func (this *HttpRule_Get) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -657,10 +864,7 @@ func (this *HttpRule_Get) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Put) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Put)
@@ -673,10 +877,7 @@ func (this *HttpRule_Put) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -687,10 +888,7 @@ func (this *HttpRule_Put) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Post) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Post)
@@ -703,10 +901,7 @@ func (this *HttpRule_Post) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -717,10 +912,7 @@ func (this *HttpRule_Post) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Delete) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Delete)
@@ -733,10 +925,7 @@ func (this *HttpRule_Delete) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -747,10 +936,7 @@ func (this *HttpRule_Delete) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Patch) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Patch)
@@ -763,10 +949,7 @@ func (this *HttpRule_Patch) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -777,10 +960,7 @@ func (this *HttpRule_Patch) Equal(that interface{}) bool {
 }
 func (this *HttpRule_Custom) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*HttpRule_Custom)
@@ -793,10 +973,7 @@ func (this *HttpRule_Custom) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -807,10 +984,7 @@ func (this *HttpRule_Custom) Equal(that interface{}) bool {
 }
 func (this *CustomHttpPattern) Equal(that interface{}) bool {
 	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	}
 
 	that1, ok := that.(*CustomHttpPattern)
@@ -823,10 +997,7 @@ func (this *CustomHttpPattern) Equal(that interface{}) bool {
 		}
 	}
 	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
+		return this == nil
 	} else if this == nil {
 		return false
 	}
@@ -842,11 +1013,12 @@ func (this *Http) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := make([]string, 0, 5)
+	s := make([]string, 0, 6)
 	s = append(s, "&google_api.Http{")
 	if this.Rules != nil {
 		s = append(s, "Rules: "+fmt.Sprintf("%#v", this.Rules)+",\n")
 	}
+	s = append(s, "FullyDecodeReservedExpansion: "+fmt.Sprintf("%#v", this.FullyDecodeReservedExpansion)+",\n")
 	s = append(s, "}")
 	return strings.Join(s, "")
 }
@@ -854,13 +1026,14 @@ func (this *HttpRule) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := make([]string, 0, 13)
+	s := make([]string, 0, 14)
 	s = append(s, "&google_api.HttpRule{")
 	s = append(s, "Selector: "+fmt.Sprintf("%#v", this.Selector)+",\n")
 	if this.Pattern != nil {
 		s = append(s, "Pattern: "+fmt.Sprintf("%#v", this.Pattern)+",\n")
 	}
 	s = append(s, "Body: "+fmt.Sprintf("%#v", this.Body)+",\n")
+	s = append(s, "ResponseBody: "+fmt.Sprintf("%#v", this.ResponseBody)+",\n")
 	if this.AdditionalBindings != nil {
 		s = append(s, "AdditionalBindings: "+fmt.Sprintf("%#v", this.AdditionalBindings)+",\n")
 	}
@@ -937,7 +1110,7 @@ func valueToGoStringHttp(v interface{}, typ string) string {
 func (m *Http) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -945,29 +1118,46 @@ func (m *Http) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Http) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Http) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.FullyDecodeReservedExpansion {
+		i--
+		if m.FullyDecodeReservedExpansion {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
 	if len(m.Rules) > 0 {
-		for _, msg := range m.Rules {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintHttp(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintHttp(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *HttpRule) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -975,102 +1165,151 @@ func (m *HttpRule) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HttpRule) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HttpRule) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Selector) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintHttp(dAtA, i, uint64(len(m.Selector)))
-		i += copy(dAtA[i:], m.Selector)
-	}
-	if m.Pattern != nil {
-		nn1, err := m.Pattern.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn1
-	}
-	if len(m.Body) > 0 {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintHttp(dAtA, i, uint64(len(m.Body)))
-		i += copy(dAtA[i:], m.Body)
+	if len(m.ResponseBody) > 0 {
+		i -= len(m.ResponseBody)
+		copy(dAtA[i:], m.ResponseBody)
+		i = encodeVarintHttp(dAtA, i, uint64(len(m.ResponseBody)))
+		i--
+		dAtA[i] = 0x62
 	}
 	if len(m.AdditionalBindings) > 0 {
-		for _, msg := range m.AdditionalBindings {
-			dAtA[i] = 0x5a
-			i++
-			i = encodeVarintHttp(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.AdditionalBindings) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.AdditionalBindings[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintHttp(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x5a
 		}
 	}
-	return i, nil
+	if m.Pattern != nil {
+		{
+			size := m.Pattern.Size()
+			i -= size
+			if _, err := m.Pattern.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Body) > 0 {
+		i -= len(m.Body)
+		copy(dAtA[i:], m.Body)
+		i = encodeVarintHttp(dAtA, i, uint64(len(m.Body)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if len(m.Selector) > 0 {
+		i -= len(m.Selector)
+		copy(dAtA[i:], m.Selector)
+		i = encodeVarintHttp(dAtA, i, uint64(len(m.Selector)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *HttpRule_Get) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x12
-	i++
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Get) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Get)
+	copy(dAtA[i:], m.Get)
 	i = encodeVarintHttp(dAtA, i, uint64(len(m.Get)))
-	i += copy(dAtA[i:], m.Get)
-	return i, nil
+	i--
+	dAtA[i] = 0x12
+	return len(dAtA) - i, nil
 }
 func (m *HttpRule_Put) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x1a
-	i++
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Put) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Put)
+	copy(dAtA[i:], m.Put)
 	i = encodeVarintHttp(dAtA, i, uint64(len(m.Put)))
-	i += copy(dAtA[i:], m.Put)
-	return i, nil
+	i--
+	dAtA[i] = 0x1a
+	return len(dAtA) - i, nil
 }
 func (m *HttpRule_Post) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x22
-	i++
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Post) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Post)
+	copy(dAtA[i:], m.Post)
 	i = encodeVarintHttp(dAtA, i, uint64(len(m.Post)))
-	i += copy(dAtA[i:], m.Post)
-	return i, nil
+	i--
+	dAtA[i] = 0x22
+	return len(dAtA) - i, nil
 }
 func (m *HttpRule_Delete) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x2a
-	i++
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Delete) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Delete)
+	copy(dAtA[i:], m.Delete)
 	i = encodeVarintHttp(dAtA, i, uint64(len(m.Delete)))
-	i += copy(dAtA[i:], m.Delete)
-	return i, nil
+	i--
+	dAtA[i] = 0x2a
+	return len(dAtA) - i, nil
 }
 func (m *HttpRule_Patch) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x32
-	i++
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Patch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Patch)
+	copy(dAtA[i:], m.Patch)
 	i = encodeVarintHttp(dAtA, i, uint64(len(m.Patch)))
-	i += copy(dAtA[i:], m.Patch)
-	return i, nil
+	i--
+	dAtA[i] = 0x32
+	return len(dAtA) - i, nil
 }
 func (m *HttpRule_Custom) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	return m.MarshalToSizedBuffer(dAtA[:m.Size()])
+}
+
+func (m *HttpRule_Custom) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.Custom != nil {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintHttp(dAtA, i, uint64(m.Custom.Size()))
-		n2, err := m.Custom.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.Custom.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintHttp(dAtA, i, uint64(size))
 		}
-		i += n2
+		i--
+		dAtA[i] = 0x42
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *CustomHttpPattern) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1078,35 +1317,47 @@ func (m *CustomHttpPattern) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CustomHttpPattern) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CustomHttpPattern) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Kind) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintHttp(dAtA, i, uint64(len(m.Kind)))
-		i += copy(dAtA[i:], m.Kind)
-	}
 	if len(m.Path) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Path)
+		copy(dAtA[i:], m.Path)
 		i = encodeVarintHttp(dAtA, i, uint64(len(m.Path)))
-		i += copy(dAtA[i:], m.Path)
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Kind) > 0 {
+		i -= len(m.Kind)
+		copy(dAtA[i:], m.Kind)
+		i = encodeVarintHttp(dAtA, i, uint64(len(m.Kind)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintHttp(dAtA []byte, offset int, v uint64) int {
+	offset -= sovHttp(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Http) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	if len(m.Rules) > 0 {
@@ -1115,10 +1366,16 @@ func (m *Http) Size() (n int) {
 			n += 1 + l + sovHttp(uint64(l))
 		}
 	}
+	if m.FullyDecodeReservedExpansion {
+		n += 2
+	}
 	return n
 }
 
 func (m *HttpRule) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Selector)
@@ -1138,10 +1395,17 @@ func (m *HttpRule) Size() (n int) {
 			n += 1 + l + sovHttp(uint64(l))
 		}
 	}
+	l = len(m.ResponseBody)
+	if l > 0 {
+		n += 1 + l + sovHttp(uint64(l))
+	}
 	return n
 }
 
 func (m *HttpRule_Get) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Get)
@@ -1149,6 +1413,9 @@ func (m *HttpRule_Get) Size() (n int) {
 	return n
 }
 func (m *HttpRule_Put) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Put)
@@ -1156,6 +1423,9 @@ func (m *HttpRule_Put) Size() (n int) {
 	return n
 }
 func (m *HttpRule_Post) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Post)
@@ -1163,6 +1433,9 @@ func (m *HttpRule_Post) Size() (n int) {
 	return n
 }
 func (m *HttpRule_Delete) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Delete)
@@ -1170,6 +1443,9 @@ func (m *HttpRule_Delete) Size() (n int) {
 	return n
 }
 func (m *HttpRule_Patch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Patch)
@@ -1177,6 +1453,9 @@ func (m *HttpRule_Patch) Size() (n int) {
 	return n
 }
 func (m *HttpRule_Custom) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	if m.Custom != nil {
@@ -1186,6 +1465,9 @@ func (m *HttpRule_Custom) Size() (n int) {
 	return n
 }
 func (m *CustomHttpPattern) Size() (n int) {
+	if m == nil {
+		return 0
+	}
 	var l int
 	_ = l
 	l = len(m.Kind)
@@ -1200,14 +1482,7 @@ func (m *CustomHttpPattern) Size() (n int) {
 }
 
 func sovHttp(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozHttp(x uint64) (n int) {
 	return sovHttp(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1216,8 +1491,14 @@ func (this *Http) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForRules := "[]*HttpRule{"
+	for _, f := range this.Rules {
+		repeatedStringForRules += strings.Replace(f.String(), "HttpRule", "HttpRule", 1) + ","
+	}
+	repeatedStringForRules += "}"
 	s := strings.Join([]string{`&Http{`,
-		`Rules:` + strings.Replace(fmt.Sprintf("%v", this.Rules), "HttpRule", "HttpRule", 1) + `,`,
+		`Rules:` + repeatedStringForRules + `,`,
+		`FullyDecodeReservedExpansion:` + fmt.Sprintf("%v", this.FullyDecodeReservedExpansion) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1226,11 +1507,17 @@ func (this *HttpRule) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForAdditionalBindings := "[]*HttpRule{"
+	for _, f := range this.AdditionalBindings {
+		repeatedStringForAdditionalBindings += strings.Replace(f.String(), "HttpRule", "HttpRule", 1) + ","
+	}
+	repeatedStringForAdditionalBindings += "}"
 	s := strings.Join([]string{`&HttpRule{`,
 		`Selector:` + fmt.Sprintf("%v", this.Selector) + `,`,
 		`Pattern:` + fmt.Sprintf("%v", this.Pattern) + `,`,
 		`Body:` + fmt.Sprintf("%v", this.Body) + `,`,
-		`AdditionalBindings:` + strings.Replace(fmt.Sprintf("%v", this.AdditionalBindings), "HttpRule", "HttpRule", 1) + `,`,
+		`AdditionalBindings:` + repeatedStringForAdditionalBindings + `,`,
+		`ResponseBody:` + fmt.Sprintf("%v", this.ResponseBody) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1329,7 +1616,7 @@ func (m *Http) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1357,7 +1644,7 @@ func (m *Http) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1366,6 +1653,9 @@ func (m *Http) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1374,6 +1664,26 @@ func (m *Http) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FullyDecodeReservedExpansion", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowHttp
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.FullyDecodeReservedExpansion = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipHttp(dAtA[iNdEx:])
@@ -1381,6 +1691,9 @@ func (m *Http) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthHttp
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthHttp
 			}
 			if (iNdEx + skippy) > l {
@@ -1410,7 +1723,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1438,7 +1751,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1448,6 +1761,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1467,7 +1783,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1477,6 +1793,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1496,7 +1815,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1506,6 +1825,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1525,7 +1847,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1535,6 +1857,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1554,7 +1879,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1564,6 +1889,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1583,7 +1911,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1593,6 +1921,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1612,7 +1943,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1622,6 +1953,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1641,7 +1975,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1650,6 +1984,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1673,7 +2010,7 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1682,6 +2019,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1690,6 +2030,38 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResponseBody", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowHttp
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthHttp
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResponseBody = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipHttp(dAtA[iNdEx:])
@@ -1697,6 +2069,9 @@ func (m *HttpRule) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthHttp
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthHttp
 			}
 			if (iNdEx + skippy) > l {
@@ -1726,7 +2101,7 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1754,7 +2129,7 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1764,6 +2139,9 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1783,7 +2161,7 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1793,6 +2171,9 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthHttp
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1805,6 +2186,9 @@ func (m *CustomHttpPattern) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthHttp
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthHttp
 			}
 			if (iNdEx + skippy) > l {
@@ -1873,8 +2257,11 @@ func skipHttp(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthHttp
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthHttp
 			}
 			return iNdEx, nil
@@ -1905,6 +2292,9 @@ func skipHttp(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthHttp
+				}
 			}
 			return iNdEx, nil
 		case 4:
@@ -1923,33 +2313,3 @@ var (
 	ErrInvalidLengthHttp = fmt.Errorf("proto: negative length found during unmarshaling")
 	ErrIntOverflowHttp   = fmt.Errorf("proto: integer overflow")
 )
-
-func init() { proto.RegisterFile("google/api/http.proto", fileDescriptorHttp) }
-
-var fileDescriptorHttp = []byte{
-	// 379 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x92, 0x3f, 0x6e, 0xdb, 0x30,
-	0x14, 0xc6, 0x45, 0x5b, 0x96, 0xed, 0x67, 0xa0, 0x40, 0x59, 0xb7, 0x20, 0x0a, 0x94, 0x30, 0x3c,
-	0x19, 0x1d, 0x64, 0xc0, 0x1d, 0x3a, 0x74, 0xaa, 0x8a, 0x22, 0xce, 0x66, 0x28, 0x07, 0x08, 0x64,
-	0x89, 0x90, 0x85, 0xc8, 0x22, 0x21, 0x3d, 0x0d, 0xd9, 0x72, 0x84, 0x9c, 0x21, 0x53, 0x2e, 0x90,
-	0x3b, 0x64, 0xf4, 0x98, 0x31, 0x56, 0x96, 0x8c, 0x1e, 0x33, 0x06, 0xa4, 0xe4, 0xd8, 0x40, 0x80,
-	0x6c, 0xef, 0xfb, 0xbd, 0x8f, 0x7c, 0x7f, 0x48, 0xf8, 0x1a, 0x4b, 0x19, 0xa7, 0x62, 0x1a, 0xa8,
-	0x64, 0xba, 0x42, 0x54, 0xae, 0xca, 0x25, 0x4a, 0x0a, 0x35, 0x76, 0x03, 0x95, 0x8c, 0x67, 0x60,
-	0xcf, 0x11, 0x15, 0xfd, 0x09, 0x9d, 0xbc, 0x4c, 0x45, 0xc1, 0xc8, 0xa8, 0x3d, 0x19, 0xcc, 0x86,
-	0xee, 0xc1, 0xe3, 0x6a, 0x83, 0x5f, 0xa6, 0xc2, 0xaf, 0x2d, 0xe3, 0xbb, 0x16, 0xf4, 0xf6, 0x8c,
-	0x7e, 0x87, 0x5e, 0x21, 0x52, 0x11, 0xa2, 0xcc, 0x19, 0x19, 0x91, 0x49, 0xdf, 0x7f, 0xd3, 0x94,
-	0x42, 0x3b, 0x16, 0xc8, 0x5a, 0x1a, 0xcf, 0x2d, 0x5f, 0x0b, 0xcd, 0x54, 0x89, 0xac, 0xbd, 0x67,
-	0xaa, 0x44, 0x3a, 0x04, 0x5b, 0xc9, 0x02, 0x99, 0xdd, 0x40, 0xa3, 0x28, 0x03, 0x27, 0x12, 0xa9,
-	0x40, 0xc1, 0x3a, 0x0d, 0x6f, 0x34, 0xfd, 0x06, 0x1d, 0x15, 0x60, 0xb8, 0x62, 0x4e, 0x93, 0xa8,
-	0x25, 0xa5, 0x60, 0x2f, 0x65, 0x74, 0xc9, 0xba, 0xa6, 0x0f, 0x13, 0xd3, 0xdf, 0xe0, 0x84, 0x65,
-	0x81, 0x72, 0xcd, 0x7a, 0x23, 0x32, 0x19, 0xcc, 0x7e, 0x1c, 0x4f, 0xf6, 0xcf, 0x64, 0xf4, 0x2c,
-	0x8b, 0x00, 0x51, 0xe4, 0x99, 0x2e, 0x52, 0xdb, 0xe9, 0x7f, 0xf8, 0x12, 0x44, 0x51, 0x82, 0x89,
-	0xcc, 0x82, 0xf4, 0x7c, 0x99, 0x64, 0x51, 0x92, 0xc5, 0x05, 0x1b, 0x7c, 0xb0, 0x1f, 0x7a, 0x38,
-	0xe0, 0x35, 0x7e, 0xaf, 0x0f, 0x5d, 0x55, 0xdf, 0x3d, 0xfe, 0x03, 0x9f, 0xdf, 0x15, 0xd4, 0x3d,
-	0x5f, 0x24, 0x59, 0xd4, 0xec, 0xce, 0xc4, 0x9a, 0xa9, 0x00, 0x57, 0xf5, 0xe2, 0x7c, 0x13, 0x7b,
-	0x67, 0x9b, 0x2d, 0xb7, 0x1e, 0xb6, 0xdc, 0xda, 0x6d, 0x39, 0xb9, 0xaa, 0x38, 0xb9, 0xad, 0x38,
-	0xb9, 0xaf, 0x38, 0xd9, 0x54, 0x9c, 0x3c, 0x56, 0x9c, 0x3c, 0x57, 0xdc, 0xda, 0x55, 0x9c, 0x5c,
-	0x3f, 0x71, 0x0b, 0x3e, 0x85, 0x72, 0x7d, 0xd4, 0xa2, 0xd7, 0x37, 0x25, 0xf5, 0xeb, 0x2f, 0xc8,
-	0x0b, 0x21, 0x37, 0x2d, 0xfb, 0xe4, 0xef, 0xe2, 0x74, 0xe9, 0x98, 0x0f, 0xf1, 0xeb, 0x35, 0x00,
-	0x00, 0xff, 0xff, 0xc7, 0xf0, 0xec, 0x79, 0x29, 0x02, 0x00, 0x00,
-}

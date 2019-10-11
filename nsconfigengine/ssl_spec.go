@@ -110,6 +110,7 @@ func UploadCert(client *netscaler.NitroClient, certPath, certNsFileName, keyPath
 		return err
 	}
 	str := base64.StdEncoding.EncodeToString(data)
+	DeleteCert(client, certNsFileName)
 	log.Println("[DEBUG] NetScaler Transfer", certPath, certNsFileName)
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Systemfile.Type(), certNsFileName, system.Systemfile{Fileencoding: "BASE64", Filelocation: sslCertPath, Filecontent: str, Filename: certNsFileName}, "add"}, nil, nil))
 	if keyPath != "" {
@@ -119,6 +120,7 @@ func UploadCert(client *netscaler.NitroClient, certPath, certNsFileName, keyPath
 			return err
 		}
 		str := base64.StdEncoding.EncodeToString(data)
+		DeleteCert(client, keyNsFileName)
 		log.Println("[DEBUG] NetScaler Transfer", keyPath, keyNsFileName)
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Systemfile.Type(), keyNsFileName, system.Systemfile{Fileencoding: "BASE64", Filelocation: sslCertPath, Filecontent: str, Filename: keyNsFileName}, "add"}, nil, nil))
 	}

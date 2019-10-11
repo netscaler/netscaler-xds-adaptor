@@ -5,11 +5,12 @@ package monitoring
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	label "google.golang.org/genproto/googleapis/api/label"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Indicates whether the channel has been verified or not. It is illegal
 // to specify this field in a
@@ -174,7 +175,9 @@ func (m *NotificationChannelDescriptor) GetSupportedTiers() []ServiceTier {
 // contact info are only partially populated on retrieval.
 type NotificationChannel struct {
 	// The type of the notification channel. This field matches the
-	// value of the [NotificationChannelDescriptor.type][google.monitoring.v3.NotificationChannelDescriptor.type] field.
+	// value of the
+	// [NotificationChannelDescriptor.type][google.monitoring.v3.NotificationChannelDescriptor.type]
+	// field.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// The full REST resource name for this channel. The syntax is:
 	//
@@ -193,8 +196,8 @@ type NotificationChannel struct {
 	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	// Configuration fields that define the channel and its behavior. The
 	// permissible and required labels are specified in the
-	// [NotificationChannelDescriptor.labels][google.monitoring.v3.NotificationChannelDescriptor.labels] of the
-	// `NotificationChannelDescriptor` corresponding to the `type` field.
+	// [NotificationChannelDescriptor.labels][google.monitoring.v3.NotificationChannelDescriptor.labels]
+	// of the `NotificationChannelDescriptor` corresponding to the `type` field.
 	Labels map[string]string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// User-supplied key/value data that does not need to conform to
 	// the corresponding `NotificationChannelDescriptor`'s schema, unlike

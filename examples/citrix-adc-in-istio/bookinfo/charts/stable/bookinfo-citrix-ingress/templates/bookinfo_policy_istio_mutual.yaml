@@ -19,6 +19,7 @@ apiVersion: "networking.istio.io/v1alpha3"
 kind: "DestinationRule"
 metadata:
   name: productpage-dr
+  namespace: {{ .Release.Namespace }}
 spec:
   host: "productpage"
   trafficPolicy:
@@ -33,6 +34,7 @@ apiVersion: "networking.istio.io/v1alpha3"
 kind: "DestinationRule"
 metadata:
   name: ratings-dr
+  namespace: {{ .Release.Namespace }}
 spec:
   host: "ratings"
   trafficPolicy:
@@ -47,6 +49,7 @@ apiVersion: "networking.istio.io/v1alpha3"
 kind: "DestinationRule"
 metadata:
   name: details-dr
+  namespace: {{ .Release.Namespace }}
 spec:
   host: "details"
   trafficPolicy:
@@ -61,6 +64,7 @@ apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   name: reviews-dr
+  namespace: {{ .Release.Namespace }}
 spec:
   host: "reviews"
   trafficPolicy:

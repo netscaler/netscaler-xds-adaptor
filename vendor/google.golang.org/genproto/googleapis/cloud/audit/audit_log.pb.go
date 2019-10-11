@@ -5,12 +5,13 @@ package audit
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	status "google.golang.org/genproto/googleapis/rpc/status"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +23,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Common audit log format for Google Cloud Platform API operations.
 type AuditLog struct {
@@ -295,7 +296,8 @@ type RequestMetadata struct {
 	//     The request was made by the Google API client for Python.
 	// +   `Cloud SDK Command Line Tool apitools-client/1.0 gcloud/0.9.62`:
 	//     The request was made by the Google Cloud SDK CLI (gcloud).
-	// +   `AppEngine-Google; (+http://code.google.com/appengine; appid: s~my-project`:
+	// +   `AppEngine-Google; (+http://code.google.com/appengine; appid:
+	// s~my-project`:
 	//     The request was made from the `my-project` App Engine app.
 	CallerSuppliedUserAgent string   `protobuf:"bytes,2,opt,name=caller_supplied_user_agent,json=callerSuppliedUserAgent,proto3" json:"caller_supplied_user_agent,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`

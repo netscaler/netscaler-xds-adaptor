@@ -166,7 +166,7 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 
 func (confAdaptor *configAdaptor) bootstrapConfig() error {
 	var err error
-	err = confAdaptor.client.EnableFeatures([]string{"lb", "cs", "ssl", "rewrite", "responder", "aaa"})
+	err = confAdaptor.client.EnableFeatures([]string{"lb", "cs", "ssl", "rewrite", "responder"})
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,13 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 		// Dummy HTTP Vserver is added for Redirect Case
 		{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "ns_dummy_http", Resource: lb.Lbvserver{Name: "ns_dummy_http", Servicetype: "HTTP"}},
 		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "ns_dummy_http", Resource: lb.Lbvserverservicebinding{Name: "ns_dummy_http", Servicename: "ns_blackhole_http"}, IgnoreErrors: []string{"Resource already exists"}},
-		{ResourceType: netscaler.Tmsessionparameter.Type(), ResourceName: "", Resource: tm.Tmsessionparameter{Defaultauthorizationaction: "ALLOW"}, Operation: "set"},
+	}
+	err = confAdaptor.client.EnableFeatures([]string{"aaa"})
+	if err != nil {
+		log.Println("[WARN] aaa feature is not enabled and JWT authentication will not work")
+	} else {
+
+		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Tmsessionparameter.Type(), ResourceName: "", Resource: tm.Tmsessionparameter{Defaultauthorizationaction: "ALLOW"}, Operation: "set"})
 	}
 	if len(confAdaptor.netProfile) > 0 {
 		netprof := nsconfigengine.NsConfigEntity{

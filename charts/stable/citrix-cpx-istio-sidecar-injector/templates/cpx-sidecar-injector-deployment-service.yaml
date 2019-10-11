@@ -15,7 +15,7 @@ spec:
 
 ---
 # Deployment
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cpx-sidecar-injector
@@ -23,14 +23,20 @@ metadata:
   labels:
     app: sidecarInjectorWebhook
     istio: sidecar-injector
+    app: cpx-sidecar-injector
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: cpx-sidecar-injector
+      istio: sidecar-injector
   template:
     metadata:
       labels:
         istio: sidecar-injector
+        app: cpx-sidecar-injector
       annotations:
         sidecar.istio.io/inject: "false"
         scheduler.alpha.kubernetes.io/critical-pod: ""

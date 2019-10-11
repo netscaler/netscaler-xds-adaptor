@@ -1,5 +1,5 @@
 {{- if eq .Values.citrixCPX true }}
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: citrix-ingressgateway
@@ -8,6 +8,9 @@ metadata:
     app: {{ .Values.ingressGateway.label | default "citrix-ingressgateway" }}
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.ingressGateway.label | default "citrix-ingressgateway" }}
   template:
     metadata:
       labels:
@@ -66,12 +69,6 @@ spec:
           - {{ .Values.istioPilot.SAN }}
           - -netscaler-url
           - "http://127.0.0.1" 
-          - -adm-ip
-{{- if .Values.istioAdaptor.ADMIP }}
-          - {{ .Values.istioAdaptor.ADMIP }}
-{{- else }}
-          - ""
-{{- end }}
           - -secure-connect={{ .Values.istioAdaptor.secureConnect}}
           env:
           - name: POD_NAME
@@ -145,13 +142,13 @@ spec:
           - name: "KUBERNETES_TASK_ID"
             value: ""
           - name: "LS_IP"
-            value: "{{ .Values.istioAdaptor.ADMIP }}"  
+            value: "{{ .Values.ingressGateway.licenseServerIP}}" 
           - name: "LS_PORT"
             value: "{{ .Values.ingressGateway.licenseServerPort}}"
 
 ---
 {{ else }}
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: citrix-ingressgateway
@@ -160,6 +157,9 @@ metadata:
     app: {{ .Values.ingressGateway.label | default "citrix-ingressgateway" }}
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.ingressGateway.label | default "citrix-ingressgateway" }}
   template:
     metadata:
       labels:
@@ -230,12 +230,7 @@ spec:
         - {{ required "Mention Citrix ADC IP/URL in https://<ip>[:port] format" .Values.istioAdaptor.netscalerUrl }}
         - -vserver-ip
         - {{ required "Mention Vserver IP to be configured on Citrix ADC" .Values.istioAdaptor.vserverIP }}
-        - -adm-ip
-{{- if .Values.istioAdaptor.ADMIP }}
-        - {{ .Values.istioAdaptor.ADMIP }}
-{{- else }}
-        - ""
-{{- end }}
+        - -secure-connect={{ .Values.istioAdaptor.secureConnect | default true }}
         # If using VPX/MPX as Ingress gateway, then specify the network profile name 
         # which was provided to Citrix Node Controller (CNC)
 {{- if .Values.istioAdaptor.netProfile }}
@@ -256,7 +251,6 @@ spec:
           name: citrix-ingressgateway-ca-certs
           readOnly: true  
         {{- range .Values.ingressGateway.secretVolumes }}
-        - -secure-connect={{ .Values.istioAdaptor.secureConnect | default true }}
         - name: {{ .name }}
           mountPath: {{ .mountPath | quote }}
           readOnly: true

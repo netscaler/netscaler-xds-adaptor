@@ -4,17 +4,18 @@
 package monitoring
 
 import (
+	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/golang/protobuf/ptypes/duration"
 	empty "github.com/golang/protobuf/ptypes/empty"
-	context "golang.org/x/net/context"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	metric "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres "google.golang.org/genproto/googleapis/api/monitoredres"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -26,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Controls which fields are returned by `ListTimeSeries`.
 type ListTimeSeriesRequest_TimeSeriesView int32
@@ -519,7 +520,6 @@ type ListTimeSeriesRequest struct {
 	//
 	//     metric.type = "compute.googleapis.com/instance/cpu/usage_time" AND
 	//         metric.label.instance_name = "my-instance-name"
-	//
 	Filter string `protobuf:"bytes,2,opt,name=filter,proto3" json:"filter,omitempty"`
 	// The time interval for which results should be returned. Only time series
 	// that contain data points in the specified interval are included
@@ -902,13 +902,17 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type MetricServiceClient interface {
-	// Lists monitored resource descriptors that match a filter. This method does not require a Stackdriver account.
+	// Lists monitored resource descriptors that match a filter. This method does
+	// not require a Stackdriver account.
 	ListMonitoredResourceDescriptors(ctx context.Context, in *ListMonitoredResourceDescriptorsRequest, opts ...grpc.CallOption) (*ListMonitoredResourceDescriptorsResponse, error)
-	// Gets a single monitored resource descriptor. This method does not require a Stackdriver account.
+	// Gets a single monitored resource descriptor. This method does not require a
+	// Stackdriver account.
 	GetMonitoredResourceDescriptor(ctx context.Context, in *GetMonitoredResourceDescriptorRequest, opts ...grpc.CallOption) (*monitoredres.MonitoredResourceDescriptor, error)
-	// Lists metric descriptors that match a filter. This method does not require a Stackdriver account.
+	// Lists metric descriptors that match a filter. This method does not require
+	// a Stackdriver account.
 	ListMetricDescriptors(ctx context.Context, in *ListMetricDescriptorsRequest, opts ...grpc.CallOption) (*ListMetricDescriptorsResponse, error)
-	// Gets a single metric descriptor. This method does not require a Stackdriver account.
+	// Gets a single metric descriptor. This method does not require a Stackdriver
+	// account.
 	GetMetricDescriptor(ctx context.Context, in *GetMetricDescriptorRequest, opts ...grpc.CallOption) (*metric.MetricDescriptor, error)
 	// Creates a new metric descriptor.
 	// User-created metric descriptors define
@@ -917,7 +921,8 @@ type MetricServiceClient interface {
 	// Deletes a metric descriptor. Only user-created
 	// [custom metrics](/monitoring/custom-metrics) can be deleted.
 	DeleteMetricDescriptor(ctx context.Context, in *DeleteMetricDescriptorRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Lists time series that match a filter. This method does not require a Stackdriver account.
+	// Lists time series that match a filter. This method does not require a
+	// Stackdriver account.
 	ListTimeSeries(ctx context.Context, in *ListTimeSeriesRequest, opts ...grpc.CallOption) (*ListTimeSeriesResponse, error)
 	// Creates or adds data to one or more time series.
 	// The response is empty if all time series in the request were written.
@@ -1008,13 +1013,17 @@ func (c *metricServiceClient) CreateTimeSeries(ctx context.Context, in *CreateTi
 
 // MetricServiceServer is the server API for MetricService service.
 type MetricServiceServer interface {
-	// Lists monitored resource descriptors that match a filter. This method does not require a Stackdriver account.
+	// Lists monitored resource descriptors that match a filter. This method does
+	// not require a Stackdriver account.
 	ListMonitoredResourceDescriptors(context.Context, *ListMonitoredResourceDescriptorsRequest) (*ListMonitoredResourceDescriptorsResponse, error)
-	// Gets a single monitored resource descriptor. This method does not require a Stackdriver account.
+	// Gets a single monitored resource descriptor. This method does not require a
+	// Stackdriver account.
 	GetMonitoredResourceDescriptor(context.Context, *GetMonitoredResourceDescriptorRequest) (*monitoredres.MonitoredResourceDescriptor, error)
-	// Lists metric descriptors that match a filter. This method does not require a Stackdriver account.
+	// Lists metric descriptors that match a filter. This method does not require
+	// a Stackdriver account.
 	ListMetricDescriptors(context.Context, *ListMetricDescriptorsRequest) (*ListMetricDescriptorsResponse, error)
-	// Gets a single metric descriptor. This method does not require a Stackdriver account.
+	// Gets a single metric descriptor. This method does not require a Stackdriver
+	// account.
 	GetMetricDescriptor(context.Context, *GetMetricDescriptorRequest) (*metric.MetricDescriptor, error)
 	// Creates a new metric descriptor.
 	// User-created metric descriptors define
@@ -1023,7 +1032,8 @@ type MetricServiceServer interface {
 	// Deletes a metric descriptor. Only user-created
 	// [custom metrics](/monitoring/custom-metrics) can be deleted.
 	DeleteMetricDescriptor(context.Context, *DeleteMetricDescriptorRequest) (*empty.Empty, error)
-	// Lists time series that match a filter. This method does not require a Stackdriver account.
+	// Lists time series that match a filter. This method does not require a
+	// Stackdriver account.
 	ListTimeSeries(context.Context, *ListTimeSeriesRequest) (*ListTimeSeriesResponse, error)
 	// Creates or adds data to one or more time series.
 	// The response is empty if all time series in the request were written.

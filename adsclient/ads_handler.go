@@ -17,12 +17,15 @@ import (
 	"citrix-istio-adaptor/nsconfigengine"
 	"fmt"
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	xdsListener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	xdsRoute "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	envoyFault "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/fault/v2"
 	envoyFilterHttp "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyFilterTcp "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/tcp_proxy/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	envoyUtil "github.com/envoyproxy/go-control-plane/pkg/util"
+	proto "github.com/gogo/protobuf/proto"
 	types "github.com/gogo/protobuf/types"
 	istioAuth "istio.io/api/authentication/v1alpha1"
 	istioFilter "istio.io/api/envoy/config/filter/http/authn/v2alpha1"
@@ -132,6 +135,30 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 				RootCertFilename:   cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
 		}
 	}
+	/* Outlier Detection */
+	if serviceType == "HTTP" && cluster.GetOutlierDetection() != nil {
+		lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
+		lbObj.LbMonitorObj.Retries = int(cluster.GetOutlierDetection().GetConsecutiveGatewayFailure().GetValue())
+		if cluster.GetOutlierDetection().GetInterval() != nil {
+			if cluster.GetOutlierDetection().GetInterval().GetNanos() != 0 { // If units are in Nano seconds, convert all to milli seconds as Citrix ADC understands that as smallest unit
+				lbObj.LbMonitorObj.Interval = int(cluster.GetOutlierDetection().GetInterval().GetSeconds()*1000) + int(cluster.GetOutlierDetection().GetInterval().GetNanos())/valueNameToNum["MILLION"]
+				lbObj.LbMonitorObj.IntervalUnits = "MSEC"
+			} else {
+				lbObj.LbMonitorObj.Interval = int(cluster.GetOutlierDetection().GetInterval().GetSeconds())
+				lbObj.LbMonitorObj.IntervalUnits = "SEC"
+			}
+		}
+		if cluster.GetOutlierDetection().GetBaseEjectionTime() != nil {
+			if cluster.GetOutlierDetection().GetBaseEjectionTime().GetNanos() != 0 {
+				lbObj.LbMonitorObj.DownTime = int(cluster.GetOutlierDetection().GetBaseEjectionTime().GetSeconds()*1000) + int(cluster.GetOutlierDetection().GetBaseEjectionTime().GetNanos())/valueNameToNum["MILLION"]
+				lbObj.LbMonitorObj.DownTimeUnits = "MSEC"
+			} else {
+				lbObj.LbMonitorObj.DownTime = int(cluster.GetOutlierDetection().GetBaseEjectionTime().GetSeconds())
+				lbObj.LbMonitorObj.DownTimeUnits = "SEC"
+			}
+		}
+	}
+
 	nsConfig.addConfig(&configBlock{configType: cdsAdd, resourceName: lbObj.Name, resource: lbObj})
 	if (cluster.GetType() == xdsapi.Cluster_STATIC) || (cluster.GetType() == xdsapi.Cluster_STRICT_DNS) {
 		if cluster.GetLoadAssignment() != nil {
@@ -169,7 +196,7 @@ func getAuthConfig(nsConfig *configAdaptor, listenerName string, httpFilters []*
 		switch httpFilter.GetName() {
 		case "istio_authn":
 			filterConfig := &istioFilter.FilterConfig{}
-			if err := envoyUtil.StructToMessage(httpFilter.GetConfig(), filterConfig); err == nil {
+			if err := getHTTPFilterConfig(httpFilter, filterConfig); err == nil {
 				authnPolicy := filterConfig.GetPolicy()
 				for _, origin := range authnPolicy.GetOrigins() {
 					authSpec := &nsconfigengine.AuthSpec{Name: nsconfigengine.GetNSCompatibleName(listenerName), Issuer: origin.GetJwt().GetIssuer(), JwksURI: origin.GetJwt().GetJwksUri(), Audiences: origin.GetJwt().GetAudiences()}
@@ -184,6 +211,8 @@ func getAuthConfig(nsConfig *configAdaptor, listenerName string, httpFilters []*
 					authSpec.FrontendTLS = append(authSpec.FrontendTLS, nsconfigengine.SSLSpec{CertFilename: clientCertFile, PrivateKeyFilename: clientKeyFile, RootCertFilename: cacertFile})
 					return authSpec
 				}
+			} else {
+				log.Printf("[TRACE] getHTTPFilterConfig returned error!")
 			}
 			break
 		}
@@ -224,10 +253,21 @@ func getListenerConfig(nsConfig *configAdaptor, listener *xdsapi.Listener, servi
 	return csObj
 }
 
+func isSNIListener(filterChain *xdsListener.FilterChain) bool {
+	if filterChain.GetFilterChainMatch().GetServerNames() != nil {
+		return true
+	}
+	return false
+}
+
 func getListenerType(l *xdsapi.Listener) (string, string, string, error) {
 	listenerAddress := l.GetAddress()
 	tlsContextExists := false
 	for _, filterChain := range l.GetFilterChains() {
+		// TODO: Handling FilterChainMatch case.
+		if l.GetTrafficDirection() != core.TrafficDirection_INBOUND && filterChain.GetFilterChainMatch() != nil && isSNIListener(filterChain) == false {
+			continue
+		}
 		if filterChain.GetTlsContext() != nil {
 			tlsContextExists = true
 		}
@@ -252,12 +292,40 @@ func getListenerType(l *xdsapi.Listener) (string, string, string, error) {
 	return "", "", "", fmt.Errorf("Unknown filter type")
 }
 
+func getListenerFilterConfig(filter *xdsListener.Filter, out proto.Message) error {
+	switch c := filter.ConfigType.(type) {
+	case *xdsListener.Filter_Config:
+		if err := envoyUtil.StructToMessage(c.Config, out); err != nil {
+			return err
+		}
+	case *xdsListener.Filter_TypedConfig:
+		if err := types.UnmarshalAny(c.TypedConfig, out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) error {
+	switch c := filter.ConfigType.(type) {
+	case *envoyFilterHttp.HttpFilter_Config:
+		if err := envoyUtil.StructToMessage(c.Config, out); err != nil {
+			return err
+		}
+	case *envoyFilterHttp.HttpFilter_TypedConfig:
+		if err := types.UnmarshalAny(c.TypedConfig, out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]interface{} {
 	log.Printf("[TRACE] listenerAdd : %s", listener.GetName())
 	log.Printf("[TRACE] listenerAdd : %v", listener)
 	filterType, csVserverType, serviceType, err := getListenerType(listener)
 	if err != nil {
-		log.Printf("[ERROR] listenerAdd : getListenerType failed with - %v", err)
+		log.Printf("[ERROR] listenerAdd %s: getListenerType failed with - %v", listener.GetName(), err)
 		return nil
 	}
 	csObj := getListenerConfig(nsConfig, listener, csVserverType)
@@ -274,11 +342,17 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]
 		rdsNames = make([]string, 0)
 	}
 	for _, filterChain := range listener.GetFilterChains() {
+		// TODO: Handling FilterChainMatch case.
+		// Need to create another CS vserver of filter-type with CS policy associated with FilterChainMatch
+		if listener.GetTrafficDirection() != core.TrafficDirection_INBOUND && filterChain.GetFilterChainMatch() != nil && isSNIListener(filterChain) == false {
+			continue
+		}
 		for _, filter := range filterChain.GetFilters() {
 			switch filterName := filter.GetName(); filterName {
 			case envoyUtil.HTTPConnectionManager:
 				httpCM := &envoyFilterHttp.HttpConnectionManager{}
-				if err := envoyUtil.StructToMessage(filter.GetConfig(), httpCM); err != nil {
+				//if err := envoyUtil.StructToMessage(filter.GetConfig(), httpCM); err != nil {
+				if err := getListenerFilterConfig(filter, httpCM); err != nil {
 					log.Printf("[ERROR] listenerAdd: Error loading http connection manager: %v", err)
 				} else {
 					csObj.AuthSpec = getAuthConfig(nsConfig, csObj.Name, httpCM.GetHttpFilters())
@@ -292,7 +366,8 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]
 				}
 			case envoyUtil.TCPProxy:
 				tcpProxy := &envoyFilterTcp.TcpProxy{}
-				if err := envoyUtil.StructToMessage(filter.GetConfig(), tcpProxy); err != nil {
+				//if err := envoyUtil.StructToMessage(filter.GetConfig(), tcpProxy); err != nil {
+				if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
 					log.Printf("[ERROR] listenerAdd: Error loading tcp proxy filter: %v", err)
 				} else {
 					if tcpProxy.GetCluster() != "" {
@@ -406,11 +481,11 @@ func getPersistencyPolicy(hashPolicy []*xdsRoute.RouteAction_HashPolicy) *nsconf
 	return persistency
 }
 
-func getFault(perFilterConfig map[string]*types.Struct) nsconfigengine.Fault {
+func getFault(typedPerFilterConfig map[string]*types.Any) nsconfigengine.Fault {
 	fault := nsconfigengine.Fault{}
-	if _, ok := perFilterConfig[envoyUtil.Fault]; ok {
+	if _, ok := typedPerFilterConfig[envoyUtil.Fault]; ok {
 		envoyFaultConfig := &envoyFault.HTTPFault{}
-		if err := envoyUtil.StructToMessage(perFilterConfig[envoyUtil.Fault], envoyFaultConfig); err == nil {
+		if err := types.UnmarshalAny(typedPerFilterConfig[envoyUtil.Fault], envoyFaultConfig); err == nil {
 			if envoyFaultConfig.GetAbort() != nil {
 				percent := envoyFaultConfig.GetAbort().GetPercentage()
 				numerator := percent.GetNumerator()
@@ -462,12 +537,13 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsapi.RouteConfiguration, d
 					rule.Headers = append(rule.Headers, nsconfigengine.MatchHeader{Name: headers.GetName(), Exact: headers.GetExactMatch(), Prefix: headers.GetRegexMatch(), Regex: headers.GetPrefixMatch()})
 				}
 				binding.Rule = rule
-				if vroute.GetPerFilterConfig() != nil {
-					binding.Fault = getFault(vroute.GetPerFilterConfig())
+				if vroute.GetTypedPerFilterConfig() != nil {
+					binding.Fault = getFault(vroute.GetTypedPerFilterConfig())
 				}
 				binding.RwPolicy.PrefixRewrite = vroute.GetRoute().GetPrefixRewrite()
 				binding.RwPolicy.HostRewrite = vroute.GetRoute().GetHostRewrite()
-				for _, reqAddHeader := range vroute.GetRoute().GetRequestHeadersToAdd() {
+				//for _, reqAddHeader := range vroute.GetRoute().GetRequestHeadersToAdd()  OLD - 1.1.2
+				for _, reqAddHeader := range vroute.GetRequestHeadersToAdd() {
 					binding.RwPolicy.AddHeaders = append(binding.RwPolicy.AddHeaders, nsconfigengine.RwHeader{Key: reqAddHeader.GetHeader().GetKey(), Value: reqAddHeader.GetHeader().GetValue()})
 				}
 				var persistency *nsconfigengine.PersistencyPolicy

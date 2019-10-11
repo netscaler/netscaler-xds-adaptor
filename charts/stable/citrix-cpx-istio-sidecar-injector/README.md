@@ -14,11 +14,16 @@ Citrix ADC CPX can be deployed as a sidecar proxy in an application pod in the I
 
 ## <a name="tldr">TL; DR;</a>
 
-    chmod +x citrix-cpx-istio-sidecar-injector/create-certs-for-cpx-istio-chart.sh
+    
+    curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/charts/stable/citrix-cpx-istio-sidecar-injector/create-certs-for-cpx-istio-chart.sh > create-certs-for-cpx-istio-chart.sh 
 
-    . citrix-cpx-istio-sidecar-injector/create-certs-for-cpx-istio-chart.sh --namespace citrix-system
+    chmod +x create-certs-for-cpx-istio-chart.sh
 
-    helm install citrix-cpx-istio-sidecar-injector --namespace citrix-system --name cpx-sidecar-injector --set cpxProxy.EULA=YES
+    ./create-certs-for-cpx-istio-chart.sh --namespace citrix-system
+
+    helm repo add citrix https://citrix.github.io/citrix-istio-adaptor/
+
+    helm install citrix/citrix-cpx-istio-sidecar-injector --namespace citrix-system --name cpx-sidecar-injector --set cpxProxy.EULA=YES
 
 ## <a name="introduction">Introduction</a>
 
@@ -36,9 +41,9 @@ For detailed information on different deployment options, see [Deployment Archit
 
 The following prerequisites are required for deploying Citrix ADC as a sidecar to an application pod.
 
-- Ensure that **Istio version 1.1.2** is installed
+- Ensure that **Istio version 1.3.0** is installed
 - Ensure that Helm is installed. Follow this [step](../../README.md) to install the same.
-- Ensure that your cluster has Kubernetes version 1.9.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
+- Ensure that your cluster has Kubernetes version 1.14.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
 
 You can verify the API by using the following command:
 
@@ -69,7 +74,9 @@ To create a suitable certificate for the Istio webhook service, perform the foll
  To deploy resources for automatic installation of Citrix ADC CPX as a sidecar in Istio, perform the following step. In this example, release name is specified as `cpx-sidecar-injector`  and namespace is used as `citrix-system`.
 
 
-    helm install citrix-cpx-istio-sidecar-injector --name cpx-sidecar-injector --namespace citrix-system --set cpxProxy.EULA=YES
+    helm repo add citrix https://citrix.github.io/citrix-istio-adaptor/
+
+    helm citrix/install citrix-cpx-istio-sidecar-injector --name cpx-sidecar-injector --namespace citrix-system --set cpxProxy.EULA=YES
 
 This step installs a mutating webhook and a service resource to application pods in the namespace labeled as `cpx-injection=enabled`.
 
@@ -104,8 +111,8 @@ The following table lists the configurable parameters and their default values i
 
 | Parameter                      | Description                   | Default                   |
 |--------------------------------|-------------------------------|---------------------------|
-| `istioAdaptor.image`                    | Image of the Citrix Istio Adaptor container                    | quay.io/citrix/citrix-istio-adaptor                  |
-| `istioAdaptor.tag`             | Tag of the Istio-adaptor image       | 1.0.0                 |
+| `istioAdaptor.image`                    | Image of the Citrix Istio Adaptor container                    |    quay.io/citrix/citrix-istio-adaptor               |
+| `istioAdaptor.tag`             | Tag of the Istio-adaptor image       | 1.1.0                 |
 | `istioAdaptor.imagePullPolicy`   | Image pull policy for Istio-adaptor | IfNotPresent        |
 | `istioAdaptor.secureConnect`     | If this value is set to true, Istio-adaptor establishes secure gRPC channel with Istio Pilot   | TRUE                       |
 | `istioAdaptor.netProfile`          | Network profile name used by CNC to configure Citrix ADC VPX or MPX being deployed as Ingress Gateway  | null           
@@ -117,7 +124,7 @@ The following table lists the configurable parameters and their default values i
 | `istioPilot.netscalerUrl`   |    URL or IP address of the Citrix ADC which will be configured by Istio-adaptor.                                                            | http://127.0.0.1 |
 | `istioPilot.SAN`                 | Subject alternative name for Istio Pilot which is the Secure Production Identity Framework For Everyone (SPIFFE) ID of Istio Pilot.                                   | spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account |
 | `cpxProxy.image`          | Citrix ADC CPX image used as sidecar proxy                                                                                                    | quay.io/citrix/citrix-k8s-cpx-ingress                                        |
-| `cpxProxy.tag`             | Version of the Citrix ADC CPX                                                                                   |13.0-36.29                            |
+| `cpxProxy.tag`             | Version of the Citrix ADC CPX                                                                                   |13.0-36.29                         |
 | `cpxProxy.imagePullPolicy`           | Image pull policy for Citrix ADC                                                                                  | IfNotPresent                                                               |
 | `cpxProxy.EULA`              |  End User License Agreement(EULA) terms and conditions. If yes, then user agrees to EULA terms and conditions.                                                     | Yes                                                               |
 | `cpxProxy.cpxSidecarMode`            | Environment variable for Citrix ADC CPX. It indicates that Citrix ADC CPX is running as sidecar mode or not.                                                                                               | NO                                                                    |

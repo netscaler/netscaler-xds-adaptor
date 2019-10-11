@@ -15,8 +15,8 @@ For information on deploying Citrix ADC with Istio using Helm charts, see [this]
 
 ## <a name="prerequisites">A) Prerequisites</a>
 
--  Ensure that **Istio version 1.1.2** is installed
--  Ensure that your cluster has Kubernetes version 1.9.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
+-  Ensure that **Istio version 1.3.0** is installed
+-  Ensure that your cluster has Kubernetes version 1.14.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
 
 You can verify the API by using the following command:
 
@@ -64,7 +64,7 @@ To deploy Citrix ADC CPX as an Ingress Gateway, perform the following steps.
     >To use particular images for Citrix ADC CPX and istio-adaptor, you can provide image details to the generate_yaml.sh script using `cpx-image-name` and `istio-adaptor-image-name` arguments. You can also provide licensing server IP address and port information using `license-server-ip` and `license-server-port` arguments. The following example shows how to specify the image details and licensing information while running the script to create the YAML file.
 
 
-        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-36.29 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.0.0 --license-server-ip 10.102.101.101 --license-server-port 27000
+        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-36.29 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --license-server-ip 10.102.101.101 --license-server-port 27000
 
 6.  Deploy Citrix ADC CPX using the YAML file and specify the name space.
 
@@ -112,7 +112,7 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
     >**Note:**
     >To use particular image for istio-adaptor, you can provide image details to the generate_yaml.sh script using the `istio-bdg-image-name` argument. The following example shows how to specify the image details while running the script to create the YAML file.
 
-           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.0.0 --netscaler-url https://<nsip>[:port]
+           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --netscaler-url https://<nsip>[:port]
 
 1.  Deploy Citrix ADC VPX or MPX using the `ingressgateway.yaml` file and specify the name space.
 

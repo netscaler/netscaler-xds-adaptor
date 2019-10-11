@@ -31,6 +31,12 @@ The following table describes the destination rule settings supported by Citrix 
 | [trafficPolicy.tls.sni](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#TLSSettings)                                      |  1.0.0         |
 | [host](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#DestinationRule) | 1.0.0         |
 | [subsets](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#Subset)    | 1.0.0      |
+| [OutlierDetection.consecutiveErrors](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#OutlierDetection)    | 1.1.0      |
+| [OutlierDetection.interval](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#OutlierDetection)    | 1.1.0      |
+| [OutlierDetection.baseEjectionTime](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#OutlierDetection)    | 1.1.0      |
+
+> Notes: `istio-adaptor` supports only HTTP based Outlier Detection
+
 
 ## [Virtual Service](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/)
 
@@ -99,10 +105,10 @@ Using authentication policies you can specify authentication requirements for se
 |--------------------------------|----------------------|-----------| 
 | [jwt](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#OriginAuthenticationMethod)| 1.0.0 |  |
 | [jwt.issuer](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#OriginAuthenticationMethod) | 1.0.0 |  |
-| [jwt.audiences](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt) | 1.0.0 |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-38.13, and later versions.|
+| [jwt.audiences](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt) | 1.1.0 |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-41.27, and later versions.|
 | [jwt.jwksUri](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt) | 1.0.0 |  |
-| [jwt.jwtHeaders](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt) | 1.0.0  |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-38.13, and later versions.|
-| [jwt.jwtParams](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt)| 1.0.0 |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-38.13, and later versions.|
+| [jwt.jwtHeaders](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt) | 1.0.0  |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-41.27, and later versions.|
+| [jwt.jwtParams](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt)| 1.1.0 |This feature is supported on Citrix ADC CPX 12.1-54, 13.0-41.27, and later versions.|
 | [jwt.triggerRules.excludedPaths](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt-TriggerRule) | 1.0.0 |  |
 | [jwt.triggerRules.includedPaths](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Jwt-TriggerRule) | 1.0.0 | |
 | [mtls](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#PeerAuthenticationMethod) | 1.0.0  |    |

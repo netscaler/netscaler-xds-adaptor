@@ -12,7 +12,7 @@
 
 ## Description
 
-This repository contains various integrations of [Citrix ADC](https://www.citrix.com/products/citrix-adc/platforms.html) with [Istio 1.1.2](https://istio.io/).
+This repository contains various integrations of [Citrix ADC](https://www.citrix.com/products/citrix-adc/platforms.html) with [Istio 1.3.0](https://istio.io/).
 
 # Table of Contents
 
@@ -110,7 +110,7 @@ The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Desti
 
 ## <a name="release-notes">Release Notes</a>
 
-Click [here](docs/release-notes.md) for the release notes of the latest Citrix `istio-adaptor`.
+Click [here](https://github.com/citrix/citrix-istio-adaptor/releases) for the release notes of the latest Citrix `istio-adaptor`.
 
 ## <a name="contributions">Contributions</a>
 

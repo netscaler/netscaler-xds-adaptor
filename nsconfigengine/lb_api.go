@@ -21,7 +21,17 @@ import (
 	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"net"
+	"strings"
 )
+
+// LBMonitor specifies attributes associated with Outlier Detection feature
+type LBMonitor struct {
+	Retries       int    // consecutive[Gateway]Errors of Istio's Outlier Detection (OD)
+	Interval      int    // interval of Istio's OD
+	IntervalUnits string // Units of Interval field.
+	DownTime      int    // baseEjectionTime of Istio's OD
+	DownTimeUnits string // Units of DownTime
+}
 
 // LBApi specifies the attributes associated with a load balancng entity on the Citrix-ADC
 type LBApi struct {
@@ -34,6 +44,70 @@ type LBApi struct {
 	MaxRequestsPerConnection  int
 	NetprofileName            string
 	BackendTLS                []SSLSpec
+	LbMonitorObj              *LBMonitor
+}
+
+type timeUnit int
+
+// MSEC, SEC and MIN represents milliseconds, seconds and minutes.
+const (
+	MSEC timeUnit = iota
+	SEC
+	MIN
+	maxInterval     = 20940
+	maxDownTime     = 20939
+	defaultInterval = 5 // in seconds
+	defaultDownTime = 30
+	defaultRetries  = 1
+)
+
+func (t timeUnit) String() string {
+	return [...]string{"MSEC", "SEC", "MIN"}[t]
+}
+
+func (t timeUnit) ToNextLevel() int {
+	return [...]int{1000, 60, 60}[t]
+}
+
+// getLbMonName function gives the shortened name for lb monitor if entityName length is more than 56 chars
+// LB monitor can max be 63 chars long!
+func getLbMonName(entityName string) string {
+	name := entityName + "_lbmon"
+	if len(name) > 63 {
+		s := strings.Split(name, "_")
+		name = strings.Join([]string{s[2], s[3], s[4], "lbmon"}, "_")
+	}
+	return name
+}
+
+// convertTimeUnits function converts msec to sec or min if the value is more than maxLimit.
+// inUnit should not be minutes (MIN)
+func convertTimeUnits(inTime int, inUnit string, maxLimit int, defaultValue int) (int, string) {
+	var outTime int
+	var outUnit timeUnit
+
+	if inTime == 0 || inUnit == "" {
+		return defaultValue, "SEC" // default value in always seconds
+	}
+
+	var units = map[string]timeUnit{
+		"MSEC": MSEC,
+		"SEC":  SEC,
+		"MIN":  MIN,
+	}
+
+	inUnitIdx := units[inUnit]
+	for outUnit, outTime = inUnitIdx, inTime; outUnit <= MIN; outUnit++ {
+		if outTime > maxLimit && outUnit != MIN {
+			outTime = outTime / outUnit.ToNextLevel()
+		} else {
+			if outTime > maxLimit { // At this stage, it means unit is definitely MIN
+				outTime = maxLimit
+			}
+			break
+		}
+	}
+	return outTime, outUnit.String()
 }
 
 // NewLBApi returns a new LBApi object
@@ -46,7 +120,8 @@ func NewLBApi(name string, frontendServiceType string, backendServiceType string
 	return lbObj
 }
 
-// Add method adds/updates an LB vserver and associated servicegroup on Citrix-ADC
+// Add method adds/updates an LB vserver and associated servicegroup on Citrix-ADC.
+// It also adds httpprofile and http-inline monitor if needed.
 func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 	log.Printf("[TRACE] LBApi add: %v", lbObj)
 	confErr := newNitroError()
@@ -69,6 +144,23 @@ func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 	if lbObj.BackendServiceType == "SSL" || lbObj.BackendServiceType == "SSL_TCP" {
 		addSSLServiceGroup(client, lbObj.Name, lbObj.BackendTLS, confErr)
 	}
+	// Creating LB Monitor for outlier detection purpose
+	lbMonName := getLbMonName(lbObj.Name)
+	if lbObj.LbMonitorObj == nil {
+		// Remove HTTP-Inline LB monitor bound to servicegroup if outlier detection field is not passed in cluster resource
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup_lbmonitor_binding.Type(), lbObj.Name, map[string]string{"servicegroupname": lbObj.Name, "monitor_name": lbMonName}, "delete"}, []string{"No such resource"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, map[string]string{"monitorname": lbMonName, "type": "HTTP-INLINE"}, "delete"}, []string{"No such resource"}, nil))
+	} else { // Adds lb monitor, and bind it to the servicegroup
+		if lbObj.LbMonitorObj.Retries == 0 {
+			lbObj.LbMonitorObj.Retries = defaultRetries
+		}
+		// Citrix ADC can have max value of 20940 and 20939 for Interval and Downtime resp. but it can accept various types for duration.
+		// Convert the time to next level of unit in case time-value is more than max-allowed value.
+		lbObj.LbMonitorObj.Interval, lbObj.LbMonitorObj.IntervalUnits = convertTimeUnits(lbObj.LbMonitorObj.Interval, lbObj.LbMonitorObj.IntervalUnits, maxInterval, defaultInterval)
+		lbObj.LbMonitorObj.DownTime, lbObj.LbMonitorObj.DownTimeUnits = convertTimeUnits(lbObj.LbMonitorObj.DownTime, lbObj.LbMonitorObj.DownTimeUnits, maxDownTime, defaultDownTime)
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, lb.Lbmonitor{Monitorname: lbMonName, Type: "HTTP-INLINE", Action: "DOWN", Respcode: []int{200}, Httprequest: "HEAD /", Retries: lbObj.LbMonitorObj.Retries, Interval: lbObj.LbMonitorObj.Interval, Units2: lbObj.LbMonitorObj.IntervalUnits, Downtime: lbObj.LbMonitorObj.DownTime, Units3: lbObj.LbMonitorObj.DownTimeUnits}, "add"}, []string{"Resource already exists"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup_lbmonitor_binding.Type(), lbObj.Name, basic.Servicegrouplbmonitorbinding{Servicegroupname: lbObj.Name, Monitorname: lbMonName}, "add"}, []string{"The monitor is already bound to the service"}, nil))
+	}
 	return confErr.getError()
 }
 
@@ -80,6 +172,9 @@ func (lbObj *LBApi) Delete(client *netscaler.NitroClient) error {
 		[]nitroConfig{{netscaler.Lbvserver.Type(), lbObj.Name, lb.Lbvserver{Name: lbObj.Name, Newname: lbObj.Name + "_stale"}, "rename"},
 			{netscaler.Lbvserver.Type(), lbObj.Name, lb.Lbvserver{Name: lbObj.Name + "_stale"}, "disable"}}))
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup.Type(), lbObj.Name, nil, "delete"}, nil, nil))
+	// Get rid of HTTP-Inline lbmonitor also if present.
+	lbMonName := getLbMonName(lbObj.Name)
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, map[string]string{"monitorname": lbMonName, "type": "HTTP-INLINE"}, "delete"}, []string{"No such resource"}, nil))
 	return confErr.getError()
 }
 
