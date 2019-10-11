@@ -3,12 +3,12 @@ entries:
   citrix-adc-istio-ingress-gateway:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2019-09-12T14:41:10.888381939+05:30"
+    created: "2019-10-11T14:47:38.662119507+05:30"
     description: A Helm chart for Citrix ADC as Ingress Gateway installation in Istio
       Service Mesh on Kubernetes platform
-    digest: 0564aa55e8282cbbe248d6453c894dfdfcc62507a761d05280ba312cf16a6fdd
+    digest: 8c925081c7fb0f0cca1f00b70a43de463bad01eaef9c6492d558a17a13880950
     home: https://www.citrix.com
-    icon: https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/media/Citrix_icon.png
+    icon: https://raw.githubusercontent.com/citrix/citrix-k8s-ingress-controller/gh-pages/icon.png
     maintainers:
     - email: dhiraj.gedam@citrix.com
       name: Dhiraj Gedam
@@ -18,17 +18,17 @@ entries:
     sources:
     - https://github.com/citrix/citrix-istio-adaptor
     urls:
-    - https://citrix.github.io/citrix-istio-adaptor/citrix-adc-istio-ingress-gateway-1.0.0.tgz
-    version: 1.0.0
+    - citrix-adc-istio-ingress-gateway-1.1.0.tgz
+    version: 1.1.0
   citrix-cpx-istio-sidecar-injector:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2019-09-12T14:41:10.889220251+05:30"
+    created: "2019-10-11T14:47:38.662864814+05:30"
     description: A Helm chart to deploy resources which install Citrix ADC CPX in
       Istio Service Mesh as sidecar in application pod
-    digest: f7b909817230a898e62a308a417d016201eafa4261c24a9a1b19a25c9e11e147
+    digest: 5344f4beb6682cbe2efa2b76a5fd5b51299e3251fc14bb58d6c7ed504e90eaa3
     home: https://www.citrix.com
-    icon: https://github.com/citrix/citrix-istio-adaptor/blob/master/docs/media/Citrix_icon.png
+    icon: https://raw.githubusercontent.com/citrix/citrix-k8s-ingress-controller/gh-pages/icon.png
     maintainers:
     - email: dhiraj.gedam@citrix.com
       name: Dhiraj Gedam
@@ -38,6 +38,6 @@ entries:
     sources:
     - https://github.com/citrix/citrix-istio-adaptor
     urls:
-    - https://citrix.github.io/citrix-istio-adaptor/citrix-cpx-istio-sidecar-injector-1.0.0.tgz
-    version: 1.0.0
-generated: "2019-09-12T14:41:10.887236123+05:30"
+    - citrix-cpx-istio-sidecar-injector-1.1.0.tgz
+    version: 1.1.0
+generated: "2019-10-11T14:47:38.66129227+05:30"
