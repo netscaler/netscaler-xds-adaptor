@@ -3,10 +3,10 @@ entries:
   citrix-adc-istio-ingress-gateway:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2019-10-11T14:47:38.662119507+05:30"
+    created: "2019-11-04T14:23:00.264684266+05:30"
     description: A Helm chart for Citrix ADC as Ingress Gateway installation in Istio
       Service Mesh on Kubernetes platform
-    digest: 8c925081c7fb0f0cca1f00b70a43de463bad01eaef9c6492d558a17a13880950
+    digest: 69a455a3100603e79e11b5439a25963726e3ddad507a0de21a2b44b1ad104181
     home: https://www.citrix.com
     icon: https://raw.githubusercontent.com/citrix/citrix-k8s-ingress-controller/gh-pages/icon.png
     maintainers:
@@ -18,15 +18,15 @@ entries:
     sources:
     - https://github.com/citrix/citrix-istio-adaptor
     urls:
-    - citrix-adc-istio-ingress-gateway-1.1.0.tgz
+    - https://citrix.github.io/citrix-istio-adaptor/citrix-adc-istio-ingress-gateway-1.1.0.tgz
     version: 1.1.0
   citrix-cpx-istio-sidecar-injector:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2019-10-11T14:47:38.662864814+05:30"
+    created: "2019-11-04T14:23:00.265638025+05:30"
     description: A Helm chart to deploy resources which install Citrix ADC CPX in
       Istio Service Mesh as sidecar in application pod
-    digest: 5344f4beb6682cbe2efa2b76a5fd5b51299e3251fc14bb58d6c7ed504e90eaa3
+    digest: 908058443aba00aba9671069d930fdc78c34ec7d7998667236fa6660cee41509
     home: https://www.citrix.com
     icon: https://raw.githubusercontent.com/citrix/citrix-k8s-ingress-controller/gh-pages/icon.png
     maintainers:
@@ -38,6 +38,6 @@ entries:
     sources:
     - https://github.com/citrix/citrix-istio-adaptor
     urls:
-    - citrix-cpx-istio-sidecar-injector-1.1.0.tgz
+    - https://citrix.github.io/citrix-istio-adaptor/citrix-cpx-istio-sidecar-injector-1.1.0.tgz
     version: 1.1.0
-generated: "2019-10-11T14:47:38.66129227+05:30"
+generated: "2019-11-04T14:23:00.262686637+05:30"
