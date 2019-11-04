@@ -11,7 +11,7 @@ usage() {
     where
       <yaml_file_template> is the yaml file's template.
       <cpx-image-name> CPX image name. default value = quay.io/citrix/citrix-k8s-cpx-ingress"
-      <cpx-image-tag> CPX Image tag. default value = 13.0-36.29"
+      <cpx-image-tag> CPX Image tag. default value = 13.0-41.28"
       <istio-adaptor-image-name> Istio Adaptor image name. default value = quay.io/citrix/citrix-istio-adaptor"
       <istio-adaptor-image-tag> Istio Adaptor image's tag. default value = 1.1.0"
       <netscaler-url> URL for connecting with Citrix ADC via Nitro. Default value = http://127.0.0.1"
@@ -111,7 +111,7 @@ fi
 
 # default values
 [ -z ${CPX_IMAGE_NAME} ] && CPX_IMAGE_NAME=quay.io/citrix/citrix-k8s-cpx-ingress
-[ -z ${CPX_IMAGE_TAG} ] && CPX_IMAGE_TAG=13.0-36.29
+[ -z ${CPX_IMAGE_TAG} ] && CPX_IMAGE_TAG=13.0-41.28
 [ -z ${ISTIO_ADAPTOR_IMAGE} ] && ISTIO_ADAPTOR_IMAGE=quay.io/citrix/citrix-istio-adaptor
 [ -z ${ISTIO_ADAPTOR_IMAGE_TAG} ] && ISTIO_ADAPTOR_IMAGE_TAG=1.1.0
 [ -z ${USERNAME} ] && USERNAME=nsroot

@@ -64,7 +64,7 @@ To deploy Citrix ADC CPX as an Ingress Gateway, perform the following steps.
     >To use particular images for Citrix ADC CPX and istio-adaptor, you can provide image details to the generate_yaml.sh script using `cpx-image-name` and `istio-adaptor-image-name` arguments. You can also provide licensing server IP address and port information using `license-server-ip` and `license-server-port` arguments. The following example shows how to specify the image details and licensing information while running the script to create the YAML file.
 
 
-        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-36.29 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --license-server-ip 10.102.101.101 --license-server-port 27000
+        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-41.28 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --license-server-ip 10.102.101.101 --license-server-port 27000
 
 6.  Deploy Citrix ADC CPX using the YAML file and specify the name space.
 

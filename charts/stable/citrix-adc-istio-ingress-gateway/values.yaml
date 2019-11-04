@@ -33,7 +33,7 @@ istioPilot:
 
 ingressGateway:
     image: quay.io/citrix/citrix-k8s-cpx-ingress
-    tag: 13.0-36.29
+    tag: 13.0-41.28
     imagePullPolicy: IfNotPresent
     EULA: NO
     mgmtHttpPort: 10080

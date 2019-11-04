@@ -20,7 +20,7 @@ metadata:
 spec:
 ...
       - name: ingressgateway
-        image: quay.io/citrix/citrix-k8s-cpx-ingress:13.0-36.29
+        image: quay.io/citrix/citrix-k8s-cpx-ingress:13.0-41.28
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
