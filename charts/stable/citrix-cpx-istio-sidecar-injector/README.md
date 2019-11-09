@@ -14,6 +14,7 @@ Citrix ADC CPX can be deployed as a sidecar proxy in an application pod in the I
 
 ## <a name="tldr">TL; DR;</a>
 
+    kubectl create namespace citrix-system
     
     curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/charts/stable/citrix-cpx-istio-sidecar-injector/create-certs-for-cpx-istio-chart.sh > create-certs-for-cpx-istio-chart.sh 
 
@@ -44,7 +45,10 @@ The following prerequisites are required for deploying Citrix ADC as a sidecar t
 - Ensure that **Istio version 1.3.0** is installed
 - Ensure that Helm is installed. Follow this [step](../../README.md) to install the same.
 - Ensure that your cluster has Kubernetes version 1.14.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
-
+- Create namespace `citrix-system`
+        
+        kubectl create namespace citrix-system
+        
 You can verify the API by using the following command:
 
         kubectl api-versions | grep admissionregistration.k8s.io/v1beta1
