@@ -1,11 +1,20 @@
-apiVersion: extensions/v1beta1
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {NAMESPACE}
+---
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: citrix-ingressgateway
+  namespace: {NAMESPACE}
   labels:
     app: {INGRESSGATEWAY_LABEL}
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: {INGRESSGATEWAY_LABEL}
   template:
     metadata:
       labels:
@@ -80,7 +89,7 @@ spec:
         - -secure-connect=true
         - -adm-ip
         - {LS_IP}
-      - name: ingressgateway
+      - name: citrix-ingressgateway
         image: {CPX_IMAGE_NAME}:{CPX_IMAGE_TAG}
         imagePullPolicy: IfNotPresent
         securityContext:
@@ -141,6 +150,7 @@ apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
     name: citrix-ingressgateway
+    namespace: {NAMESPACE}
 spec:
     maxReplicas: 3
     minReplicas: 1
@@ -153,6 +163,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: citrix-ingressgateway
+  namespace: {NAMESPACE}
   annotations:
   labels:
     app: {INGRESSGATEWAY_LABEL}
@@ -175,6 +186,7 @@ kind: Service
 apiVersion: v1
 metadata:
    name: exporter
+   namespace: {NAMESPACE}
    annotations:
    labels:
      service-type: citrix-adc-monitor

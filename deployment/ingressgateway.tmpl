@@ -1,7 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {NAMESPACE}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: citrix-ingressgateway
+  namespace: {NAMESPACE}
   labels:
     app: {INGRESSGATEWAY_LABEL}
 spec:
@@ -119,6 +125,7 @@ apiVersion: v1
 kind: Service
 metadata:
     name: citrix-ingressgateway
+    namespace: {NAMESPACE}
     annotations:
     labels:
       app: {INGRESSGATEWAY_LABEL}
@@ -139,6 +146,7 @@ kind: Service
 apiVersion: v1
 metadata:
    name: exporter
+   namespace: {NAMESPACE}
    annotations:
    labels:
      service-type: citrix-adc-monitor
