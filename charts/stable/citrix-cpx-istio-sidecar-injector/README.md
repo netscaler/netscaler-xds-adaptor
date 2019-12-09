@@ -42,7 +42,7 @@ For detailed information on different deployment options, see [Deployment Archit
 
 The following prerequisites are required for deploying Citrix ADC as a sidecar to an application pod.
 
-- Ensure that **Istio version 1.3.0** is installed
+- Ensure that **Istio version 1.1.11** is installed
 - Ensure that Helm is installed. Follow this [step](../../README.md) to install the same.
 - Ensure that your cluster has Kubernetes version 1.14.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
 - Create namespace `citrix-system`
@@ -116,7 +116,7 @@ The following table lists the configurable parameters and their default values i
 | Parameter                      | Description                   | Default                   |
 |--------------------------------|-------------------------------|---------------------------|
 | `istioAdaptor.image`                    | Image of the Citrix Istio Adaptor container                    |    quay.io/citrix/citrix-istio-adaptor               |
-| `istioAdaptor.tag`             | Tag of the Istio-adaptor image       | 1.1.0                 |
+| `istioAdaptor.tag`             | Tag of the Istio-adaptor image       | 1.0.1                 |
 | `istioAdaptor.imagePullPolicy`   | Image pull policy for Istio-adaptor | IfNotPresent        |
 | `istioAdaptor.secureConnect`     | If this value is set to true, Istio-adaptor establishes secure gRPC channel with Istio Pilot   | TRUE                       |
 | `istioAdaptor.netProfile`          | Network profile name used by CNC to configure Citrix ADC VPX or MPX being deployed as Ingress Gateway  | null           

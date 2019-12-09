@@ -73,8 +73,7 @@ import "google/protobuf/wrappers.proto";
 //   hosts:
 //   - reviews.prod.svc.cluster.local
 //   http:
-//   - name: "reviews-v2-routes"
-//     match:
+//   - match:
 //     - uri:
 //         prefix: "/wpcatalog"
 //     - uri:
@@ -85,8 +84,7 @@ import "google/protobuf/wrappers.proto";
 //     - destination:
 //         host: reviews.prod.svc.cluster.local
 //         subset: v2
-//   - name: "reviews-v1-route"
-//     route:
+//   - route:
 //     - destination:
 //         host: reviews.prod.svc.cluster.local
 //         subset: v1
@@ -128,7 +126,7 @@ message VirtualService {
   // HTTP and TCP ports. Alternatively, the traffic properties of a host
   // can be defined using more than one VirtualService, with certain
   // caveats. Refer to the
-  // [Operations Guide](https://istio.io/docs/ops/traffic-management/deploy-guidelines/#multiple-virtual-services-and-destination-rules-for-the-same-host)
+  // [Operations Guide](/help/ops/traffic-management/deploy-guidelines/#multiple-virtual-services-and-destination-rules-for-the-same-host)
   // for details.
   //
   // *Note for Kubernetes users*: When short names are used (e.g. "reviews"
@@ -205,7 +203,7 @@ message VirtualService {
 // registry. Istio's service registry is composed of all the services found
 // in the platform's service registry (e.g., Kubernetes services, Consul
 // services), as well as services declared through the
-// [ServiceEntry](https://istio.io/docs/reference/config/networking/v1alpha3/service-entry/#ServiceEntry) resource.
+// [ServiceEntry](/docs/reference/config/networking/v1alpha3/service-entry/#ServiceEntry) resource.
 //
 // *Note for Kubernetes users*: When short names are used (e.g. "reviews"
 // instead of "reviews.default.svc.cluster.local"), Istio will interpret
@@ -330,7 +328,7 @@ message Destination {
   // REQUIRED. The name of a service from the service registry. Service
   // names are looked up from the platform's service registry (e.g.,
   // Kubernetes services, Consul services, etc.) and from the hosts
-  // declared by [ServiceEntry](https://istio.io/docs/reference/config/networking/v1alpha3/service-entry/#ServiceEntry). Traffic forwarded to
+  // declared by [ServiceEntry](/docs/reference/config/networking/v1alpha3/service-entry/#ServiceEntry). Traffic forwarded to
   // destinations that are not found in either of the two, will be dropped.
   //
   // *Note for Kubernetes users*: When short names are used (e.g. "reviews"
@@ -357,12 +355,6 @@ message Destination {
 // Describes match conditions and actions for routing HTTP/1.1, HTTP2, and
 // gRPC traffic. See VirtualService for usage examples.
 message HTTPRoute {
-  // The name assigned to the route for debugging purposes. The
-  // route's name will be concatenated with the match's name and will
-  // be logged in the access logs for requests matching this
-  // route/match.
-  string name = 17;
-
   // Match conditions to be satisfied for the rule to be
   // activated. All conditions inside a single match block have AND
   // semantics, while the list of match blocks have OR semantics. The rule
@@ -413,60 +405,31 @@ message HTTPRoute {
   // for further details about cross origin resource sharing.
   CorsPolicy cors_policy = 10;
 
-  // $hide_from_docs
+  // Use of `append_headers` is deprecated. Use the `headers`
+  // field instead.
   map<string, string> append_headers = 11 [deprecated=true];
 
-  // $hide_from_docs
+  // Use of `remove_response_header` is deprecated. Use the `headers`
+  // field instead.
   repeated string remove_response_headers = 12 [deprecated=true];
 
-  // $hide_from_docs
+  // Use of `append_response_headers` is deprecated. Use the `headers`
+  // field instead.
   map<string, string> append_response_headers = 13 [deprecated=true];
 
-  // $hide_from_docs
+  // Use of `remove_request_headers` is deprecated. Use the `headers`
+  // field instead.
   repeated string remove_request_headers = 14 [deprecated=true];
 
-  // $hide_from_docs
+  // Use of `append_request_headers` is deprecated. Use the `headers`
+  // field instead.
   map<string, string> append_request_headers = 15 [deprecated=true];
 
   // Header manipulation rules
   Headers headers = 16;
 }
 
-// Message headers can be manipulated when Envoy forwards requests to,
-// or responses from, a destination service. Header manipulation rules can
-// be specified for a specific route destination or for all destinations.
-// The following VirtualService adds a `test` header with the value `true`
-// to requests that are routed to any `reviews` service destination.
-// It also romoves the `foo` response header, but only from responses
-// coming from the `v1` subset (version) of the `reviews` service.
-//
-// ```yaml
-// apiVersion: networking.istio.io/v1alpha3
-// kind: VirtualService
-// metadata:
-//   name: reviews-route
-// spec:
-//   hosts:
-//   - reviews.prod.svc.cluster.local
-//   http:
-//   - headers:
-//       request:
-//         set:
-//           test: true
-//     route:
-//     - destination:
-//         host: reviews.prod.svc.cluster.local
-//         subset: v2
-//       weight: 25
-//     - destination:
-//         host: reviews.prod.svc.cluster.local
-//         subset: v1
-//       headers:
-//         response:
-//           remove:
-//           - foo
-//       weight: 75
-// ```
+// Header manipulation rules
 message Headers {
   // Header manipulation rules to apply before forwarding a request
   // to the destination service
@@ -582,7 +545,6 @@ message TCPRoute {
 //           exact: jason
 //       uri:
 //         prefix: "/ratings/v2/"
-//       ignoreUriCase: true
 //     route:
 //     - destination:
 //         host: ratings.prod.svc.cluster.local
@@ -590,11 +552,6 @@ message TCPRoute {
 //
 // HTTPMatchRequest CANNOT be empty.
 message HTTPMatchRequest {
-  // The name assigned to a match. The match's name will be
-  // concatenated with the parent route's name and will be logged in
-  // the access logs for requests matching this route.
-  string name = 11;
-
   // URI to match
   // values are case-sensitive and formatted as follows:
   //
@@ -604,8 +561,6 @@ message HTTPMatchRequest {
   //
   // - `regex: "value"` for ECMAscript style regex-based match
   //
-  // **Note:** Case-insensitive matching could be enabled via the
-  // `ignore_uri_case` flag.
   StringMatch uri = 1;
 
   // URI Scheme
@@ -660,31 +615,16 @@ message HTTPMatchRequest {
   // in these cases it is not required to explicitly select the port.
   uint32 port = 6;
 
-  // $hide_from_docs
+  // One or more labels that constrain the applicability of a rule to
+  // workloads with the given labels. If the VirtualService has a list of
+  // gateways specified at the top, it should include the reserved gateway
+  // `mesh` in order for this field to be applicable.
   map<string, string> source_labels = 7;
 
-  // $hide_from_docs
+  // Names of gateways where the rule should be applied to. Gateway names
+  // at the top of the VirtualService (if any) are overridden. The gateway match is
+  // independent of sourceLabels.
   repeated string gateways = 8;
-
-  // Query parameters for matching.
-  //
-  // Ex:
-  // - For a query parameter like "?key=true", the map key would be "key" and
-  //   the string match could be defined as `exact: "true"`.
-  // - For a query parameter like "?key", the map key would be "key" and the
-  //   string match could be defined as `exact: ""`.
-  // - For a query parameter like "?key=123", the map key would be "key" and the
-  //   string match could be defined as `regex: "\d+$"`. Note that this
-  //   configuration will only match values like "123" but not "a123" or "123a".
-  //
-  // **Note:** `prefix` matching is currently not supported.
-  map<string, StringMatch> query_params = 9;
-
-  // Flag to specify whether the URI matching should be case-insensitive.
-  //
-  // **Note:** The case will be ignored only in the case of `exact` and `prefix`
-  // URI matches.
-  bool ignore_uri_case = 10;
 }
 
 // Each routing rule is associated with one or more service versions (see
@@ -892,10 +832,6 @@ message HTTPRedirect {
   // On a redirect, overwrite the Authority/Host portion of the URL with
   // this value.
   string authority = 2;
-
-  // On a redirect, Specifies the HTTP status code to use in the redirect
-  // response. The default response code is MOVED_PERMANENTLY (301).
-  uint32 redirect_code = 3;
 }
 
 // HTTPRewrite can be used to rewrite specific parts of a HTTP request
@@ -1091,7 +1027,7 @@ message HTTPFaultInjection {
   //     fault:
   //       delay:
   //         percentage:
-  //           value: 0.1
+  //           value: 0.001
   //         fixedDelay: 5s
   // ```
   //
@@ -1137,7 +1073,7 @@ message HTTPFaultInjection {
   //     fault:
   //       abort:
   //         percentage:
-  //           value: 0.1
+  //           value: 0.001
   //         httpStatus: 400
   // ```
   //

@@ -39,7 +39,7 @@ This chart deploys Citrix ADC VPX, MPX, or CPX as an Ingress Gateway in the Isti
 
 The following prerequisites are required for deploying Citrix ADC as an Ingress Gateway in Istio service mesh:
 
-- Ensure that **Istio version 1.3.0** is installed
+- Ensure that **Istio version 1.1.11** is installed
 - Ensure that Helm is installed. Follow this [step](../../README.md) to install the same.
 - Ensure that your cluster has Kubernetes version 1.14.0 or later and the `admissionregistration.k8s.io/v1beta1` API is enabled
 
@@ -174,7 +174,7 @@ The following table lists the configurable parameters in the Helm chart and thei
 | `nslogin.username`             | User name for Citrix ADC       | nsroot                 | Mandatory for Citrix ADC MPX or VPX|
 | `nslogin.password`             | Password for Citrix ADC       |                 |Mandatory for Citrix ADC MPX or VPX|
 | `istioAdaptor.image`            | Image of the Citrix Istio-adaptor container |quay.io/citrix/citrix-istio-adaptor| Mandatory|
-| `istioAdaptor.tag`               | Tag of the Istio adaptor image | 1.1.0                 | Mandatory|
+| `istioAdaptor.tag`               | Tag of the Istio adaptor image | 1.0.1                 | Mandatory|
 | `istioAdaptor.imagePullPolicy`   | Image pull policy for Istio-adaptor | IfNotPresent       | Optional|
 | `istioAdaptor.vserverIP`       | Virtual server IP address on Citrix ADC (Mandatory if citrixCPX=false) | null | Mandatory for Citrix ADC MPX or VPX|
 | `istioAdaptor.netscalerUrl`       | URL or IP address of the Citrix ADC which Istio-adaptor configures (Mandatory if citrixCPX=false)| null   |Mandatory for Citrix ADC MPX or VPX|

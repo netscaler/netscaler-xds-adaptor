@@ -5,11 +5,12 @@ package v2
 
 import (
 	fmt "fmt"
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
-	proto "github.com/gogo/protobuf/proto"
-	types "github.com/gogo/protobuf/types"
 	io "io"
 	math "math"
+
+	proto "github.com/gogo/protobuf/proto"
+	types "github.com/gogo/protobuf/types"
+	_ "github.com/lyft/protoc-gen-validate/validate"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.

@@ -7,11 +7,12 @@ import (
 	bytes "bytes"
 	encoding_binary "encoding/binary"
 	fmt "fmt"
-	_ "github.com/envoyproxy/protoc-gen-validate/validate"
-	_ "github.com/gogo/protobuf/gogoproto"
-	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+
+	_ "github.com/gogo/protobuf/gogoproto"
+	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/lyft/protoc-gen-validate/validate"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.

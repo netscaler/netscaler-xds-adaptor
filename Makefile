@@ -19,13 +19,18 @@ lint:
 
 check: check_format lint
 
+create_certs:
+	sh tests/create_cert.sh
+
 # Run Unit Tests with code-coverage
 utest: unit_test integration_test coverage_report
 
 unit_test:
+	make create_certs
 	go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v citrix-istio-adaptor/nsconfigengine citrix-istio-adaptor/adsclient citrix-istio-adaptor/istio-adaptor
 
 integration_test:
+	make create_certs
 	go test -race -timeout 1m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-istio-adaptor/adsclient,citrix-istio-adaptor/nsconfigengine -v citrix-istio-adaptor/tests
 
 coverage_report:

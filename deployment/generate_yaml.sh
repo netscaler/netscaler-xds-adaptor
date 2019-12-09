@@ -13,7 +13,7 @@ usage() {
       <cpx-image-name> CPX image name. default value = quay.io/citrix/citrix-k8s-cpx-ingress"
       <cpx-image-tag> CPX Image tag. default value = 13.0-41.28"
       <istio-adaptor-image-name> Istio Adaptor image name. default value = quay.io/citrix/citrix-istio-adaptor"
-      <istio-adaptor-image-tag> Istio Adaptor image's tag. default value = 1.1.0"
+      <istio-adaptor-image-tag> Istio Adaptor image's tag. default value = 1.0.1"
       <netscaler-url> URL for connecting with Citrix ADC via Nitro. Default value = http://127.0.0.1"
       <vserver-ip> IP Address to be used for Virtual Server."
       <namespace> Namespace of CPX sidecar injector webhook"
@@ -113,7 +113,7 @@ fi
 [ -z ${CPX_IMAGE_NAME} ] && CPX_IMAGE_NAME=quay.io/citrix/citrix-k8s-cpx-ingress
 [ -z ${CPX_IMAGE_TAG} ] && CPX_IMAGE_TAG=13.0-41.28
 [ -z ${ISTIO_ADAPTOR_IMAGE} ] && ISTIO_ADAPTOR_IMAGE=quay.io/citrix/citrix-istio-adaptor
-[ -z ${ISTIO_ADAPTOR_IMAGE_TAG} ] && ISTIO_ADAPTOR_IMAGE_TAG=1.1.0
+[ -z ${ISTIO_ADAPTOR_IMAGE_TAG} ] && ISTIO_ADAPTOR_IMAGE_TAG=1.0.1
 [ -z ${USERNAME} ] && USERNAME=nsroot
 [ -z ${PASSWORD} ] && PASSWORD=nsroot
 [ -z ${NETSCALER_URL} ] && NETSCALER_URL=http://127.0.0.1

@@ -131,7 +131,7 @@ type ServiceEndpoint struct {
 }
 
 func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsapi.ClusterLoadAssignment {
-	lbEndpoints := make([]*endpoint.LbEndpoint, 0)
+	lbEndpoints := make([]endpoint.LbEndpoint, 0)
 	for _, ep := range serviceEndpoints {
 		lbEndpoint := endpoint.LbEndpoint{
 			HostIdentifier: &endpoint.LbEndpoint_Endpoint{
@@ -148,12 +148,12 @@ func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsap
 				},
 			},
 		}
-		lbEndpoints = append(lbEndpoints, &lbEndpoint)
+		lbEndpoints = append(lbEndpoints, lbEndpoint)
 	}
 	return &xdsapi.ClusterLoadAssignment{
 		ClusterName: clusterName,
-		Endpoints: []*endpoint.LocalityLbEndpoints{
-			&endpoint.LocalityLbEndpoints{
+		Endpoints: []endpoint.LocalityLbEndpoints{
+			endpoint.LocalityLbEndpoints{
 				LbEndpoints: lbEndpoints,
 			},
 		},
@@ -161,10 +161,9 @@ func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsap
 }
 
 func MakeCluster(clusterName string) *xdsapi.Cluster {
-	var to time.Duration = 1 * time.Second
 	return &xdsapi.Cluster{
 		Name:           clusterName,
-		ConnectTimeout: &to,
+		ConnectTimeout: 1 * time.Second,
 		ClusterDiscoveryType: &xdsapi.Cluster_Type{
 			Type: xdsapi.Cluster_EDS,
 		},
@@ -178,37 +177,27 @@ func MakeCluster(clusterName string) *xdsapi.Cluster {
 func MakeRoute(routeName string, domain string, clusterName string) *xdsapi.RouteConfiguration {
 	return &xdsapi.RouteConfiguration{
 		Name: routeName,
-		VirtualHosts: []*route.VirtualHost{
-			&route.VirtualHost{
-				Name:    routeName,
-				Domains: []string{domain},
-				Routes: []*route.Route{
-					&route.Route{
-						Name:  "default",
-						Match: &route.RouteMatch{PathSpecifier: &route.RouteMatch_Prefix{Prefix: "/"}},
-						Action: &route.Route_Route{
-							Route: &route.RouteAction{
-								ClusterSpecifier: &route.RouteAction_Cluster{Cluster: clusterName},
-							},
-						},
-					},
-				},
-			},
-		},
+		VirtualHosts: []route.VirtualHost{{
+			Name:    routeName,
+			Domains: []string{domain},
+			Routes: []route.Route{{
+				Match: route.RouteMatch{PathSpecifier: &route.RouteMatch_Prefix{Prefix: "/"}},
+				Action: &route.Route_Route{Route: &route.RouteAction{
+					ClusterSpecifier: &route.RouteAction_Cluster{Cluster: clusterName},
+				}},
+			}},
+		}},
 	}
 }
 
 func MakeListener(listenerName string, ip string, port uint16, filter listener.Filter) (*xdsapi.Listener, error) {
 	return &xdsapi.Listener{
 		Name: listenerName,
-		Address: &core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
+		Address: core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
 			Address:       ip,
 			PortSpecifier: &core.SocketAddress_PortValue{PortValue: uint32(port)}}}},
-		FilterChains: []*listener.FilterChain{
-			&listener.FilterChain{
-				Filters: []*listener.Filter{&filter},
-			},
-		},
+		FilterChains: []listener.FilterChain{
+			{Filters: []listener.Filter{filter}}},
 	}, nil
 }
 
@@ -307,7 +296,7 @@ type SniInfo struct {
 }
 
 func MakeHttpsSniListener(listenerName string, ip string, port uint16, sniInfos []SniInfo) (*xdsapi.Listener, error) {
-	filterChains := make([]*listener.FilterChain, 0)
+	filterChains := make([]listener.FilterChain, 0)
 	for _, sniInfo := range sniInfos {
 		filter, err := MakeHttpFilter(listenerName, sniInfo.RouteName)
 		if err != nil {
@@ -315,15 +304,15 @@ func MakeHttpsSniListener(listenerName string, ip string, port uint16, sniInfos 
 		}
 		tlsContext := &auth.DownstreamTlsContext{CommonTlsContext: MakeTLSContext(sniInfo.CertFile, sniInfo.KeyFile, sniInfo.RootFile)}
 		filterChain := listener.FilterChain{
-			Filters:          []*listener.Filter{&filter},
+			Filters:          []listener.Filter{filter},
 			TlsContext:       tlsContext,
 			FilterChainMatch: &listener.FilterChainMatch{ServerNames: []string{sniInfo.ServerName}},
 		}
-		filterChains = append(filterChains, &filterChain)
+		filterChains = append(filterChains, filterChain)
 	}
 	return &xdsapi.Listener{
 		Name: listenerName,
-		Address: &core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
+		Address: core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
 			Address:       ip,
 			PortSpecifier: &core.SocketAddress_PortValue{PortValue: uint32(port)}}}},
 		FilterChains: filterChains,

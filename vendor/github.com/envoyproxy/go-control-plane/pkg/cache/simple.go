@@ -16,13 +16,13 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/envoyproxy/go-control-plane/pkg/log"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
 )
 
 // SnapshotCache is a snapshot-based cache that maintains a single versioned
@@ -46,9 +46,6 @@ type SnapshotCache interface {
 	// This method will cause the server to respond to all open watches, for which
 	// the version differs from the snapshot version.
 	SetSnapshot(node string, snapshot Snapshot) error
-
-	// GetSnapshots gets the snapshot for a node.
-	GetSnapshot(node string) (Snapshot, error)
 
 	// ClearSnapshot removes all status and snapshot information associated with a node.
 	ClearSnapshot(node string)
@@ -123,18 +120,6 @@ func (cache *snapshotCache) SetSnapshot(node string, snapshot Snapshot) error {
 	}
 
 	return nil
-}
-
-// GetSnapshots gets the snapshot for a node, and returns an error if not found.
-func (cache *snapshotCache) GetSnapshot(node string) (Snapshot, error) {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	snap, ok := cache.snapshots[node]
-	if !ok {
-		return Snapshot{}, fmt.Errorf("no snapshot found for node %s", node)
-	}
-	return snap, nil
 }
 
 // ClearSnapshot clears snapshot and info for a node.
@@ -286,7 +271,7 @@ func (cache *snapshotCache) Fetch(ctx context.Context, request Request) (*Respon
 		// It might be beneficial to hold the request since Envoy will re-attempt the refresh.
 		version := snapshot.GetVersion(request.TypeUrl)
 		if request.VersionInfo == version {
-			return nil, &util.SkipFetchError{}
+			return nil, errors.New("skip fetch: version up to date")
 		}
 
 		resources := snapshot.GetResources(request.TypeUrl)

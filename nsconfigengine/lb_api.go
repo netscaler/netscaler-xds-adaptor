@@ -47,6 +47,16 @@ type LBApi struct {
 	LbMonitorObj              *LBMonitor
 }
 
+// NewLBApi returns a new LBApi object
+func NewLBApi(name string, frontendServiceType string, backendServiceType string, lbMethod string) *LBApi {
+	lbObj := new(LBApi)
+	lbObj.Name = name
+	lbObj.FrontendServiceType = frontendServiceType
+	lbObj.BackendServiceType = backendServiceType
+	lbObj.LbMethod = lbMethod
+	return lbObj
+}
+
 type timeUnit int
 
 // MSEC, SEC and MIN represents milliseconds, seconds and minutes.
@@ -108,16 +118,6 @@ func convertTimeUnits(inTime int, inUnit string, maxLimit int, defaultValue int)
 		}
 	}
 	return outTime, outUnit.String()
-}
-
-// NewLBApi returns a new LBApi object
-func NewLBApi(name string, frontendServiceType string, backendServiceType string, lbMethod string) *LBApi {
-	lbObj := new(LBApi)
-	lbObj.Name = name
-	lbObj.FrontendServiceType = frontendServiceType
-	lbObj.BackendServiceType = backendServiceType
-	lbObj.LbMethod = lbMethod
-	return lbObj
 }
 
 // Add method adds/updates an LB vserver and associated servicegroup on Citrix-ADC.

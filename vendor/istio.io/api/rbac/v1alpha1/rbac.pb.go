@@ -8,9 +8,7 @@
 // the following standard fields:
 //
 //   * services: a list of services.
-//   * methods: A list of HTTP methods. You can set the value to `*` to include all HTTP methods.
-//              This field should not be set for TCP services. The policy will be ignored.
-//              For gRPC services, only `POST` is allowed; other methods will result in denying services.
+//   * methods: HTTP methods. In the case of gRPC, this field is ignored because the value is always "POST".
 //   * paths: HTTP paths or gRPC methods. Note that gRPC methods should be
 //     presented in the form of "/packageName.serviceName/methodName" and are case sensitive.
 //
@@ -73,7 +71,6 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -124,10 +121,10 @@ func (EnforcementMode) EnumDescriptor() ([]byte, []int) {
 type RbacConfig_Mode int32
 
 const (
-	// Disable Istio RBAC completely, Istio RBAC policies will not be enforced.
+	// Disable Istio RBAC completely, any other config in RbacConfig will be ignored and Istio RBAC policies
+	// will not be enforced.
 	RbacConfig_OFF RbacConfig_Mode = 0
-	// Enable Istio RBAC for all services and namespaces. Note Istio RBAC is deny-by-default
-	// which means all requests will be denied if it's not allowed by RBAC rules.
+	// Enable Istio RBAC for all services and namespaces.
 	RbacConfig_ON RbacConfig_Mode = 1
 	// Enable Istio RBAC only for services and namespaces specified in the inclusion field. Any other
 	// services and namespaces not in the inclusion field will not be enforced by Istio RBAC policies.
@@ -156,7 +153,134 @@ func (x RbacConfig_Mode) String() string {
 }
 
 func (RbacConfig_Mode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{5, 0}
+	return fileDescriptor_3462954d26c055c0, []int{7, 0}
+}
+
+// $hide_from_docs
+// This is forked from the networking/v1alpha3/sidecar.proto to avoid a direct
+// dependency from the rbac API on networking API.
+// TODO: Move the WorkloadSelector to a common place to be shared by other packages.
+// WorkloadSelector specifies the criteria used to determine if the Gateway
+// or Sidecar resource can be applied to a proxy. The matching criteria
+// includes the metadata associated with a proxy, workload info such as
+// labels attached to the pod/VM, or any other info that the proxy provides
+// to Istio during the initial handshake. If multiple conditions are
+// specified, all conditions need to match in order for the workload to be
+// selected. Currently, only label based selection mechanism is supported.
+type WorkloadSelector struct {
+	// One or more labels that indicate a specific set of pods/VMs on which
+	// this sidecar configuration should be applied. The scope of label
+	// search is restricted to the configuration namespace in which the the
+	// resource is present.
+	Labels               map[string]string `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *WorkloadSelector) Reset()         { *m = WorkloadSelector{} }
+func (m *WorkloadSelector) String() string { return proto.CompactTextString(m) }
+func (*WorkloadSelector) ProtoMessage()    {}
+func (*WorkloadSelector) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3462954d26c055c0, []int{0}
+}
+func (m *WorkloadSelector) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *WorkloadSelector) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_WorkloadSelector.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *WorkloadSelector) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WorkloadSelector.Merge(m, src)
+}
+func (m *WorkloadSelector) XXX_Size() int {
+	return m.Size()
+}
+func (m *WorkloadSelector) XXX_DiscardUnknown() {
+	xxx_messageInfo_WorkloadSelector.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WorkloadSelector proto.InternalMessageInfo
+
+func (m *WorkloadSelector) GetLabels() map[string]string {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+// $hide_from_docs
+// AuthorizationPolicy to enforce access control on a selected workload.
+type AuthorizationPolicy struct {
+	// $hide_from_docs
+	// Optional. One or more labels that indicate a specific set of pods/VMs
+	// on which this authorization policy should be applied. Leave this empty to
+	// select all pods/VMs.
+	// The scope of label search is platform dependent. On Kubernetes, for example,
+	// the scope includes pods running in the same namespace as the authorization policy itself.
+	WorkloadSelector *WorkloadSelector `protobuf:"bytes,1,opt,name=workload_selector,json=workloadSelector,proto3" json:"workload_selector,omitempty"`
+	// $hide_from_docs
+	// A list of bindings that specify the subjects and permissions to the selected workload.
+	Allow                []*ServiceRoleBinding `protobuf:"bytes,2,rep,name=allow,proto3" json:"allow,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *AuthorizationPolicy) Reset()         { *m = AuthorizationPolicy{} }
+func (m *AuthorizationPolicy) String() string { return proto.CompactTextString(m) }
+func (*AuthorizationPolicy) ProtoMessage()    {}
+func (*AuthorizationPolicy) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3462954d26c055c0, []int{1}
+}
+func (m *AuthorizationPolicy) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AuthorizationPolicy) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AuthorizationPolicy.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AuthorizationPolicy) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AuthorizationPolicy.Merge(m, src)
+}
+func (m *AuthorizationPolicy) XXX_Size() int {
+	return m.Size()
+}
+func (m *AuthorizationPolicy) XXX_DiscardUnknown() {
+	xxx_messageInfo_AuthorizationPolicy.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AuthorizationPolicy proto.InternalMessageInfo
+
+func (m *AuthorizationPolicy) GetWorkloadSelector() *WorkloadSelector {
+	if m != nil {
+		return m.WorkloadSelector
+	}
+	return nil
+}
+
+func (m *AuthorizationPolicy) GetAllow() []*ServiceRoleBinding {
+	if m != nil {
+		return m.Allow
+	}
+	return nil
 }
 
 // ServiceRole specification contains a list of access rules (permissions).
@@ -172,7 +296,7 @@ func (m *ServiceRole) Reset()         { *m = ServiceRole{} }
 func (m *ServiceRole) String() string { return proto.CompactTextString(m) }
 func (*ServiceRole) ProtoMessage()    {}
 func (*ServiceRole) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{0}
+	return fileDescriptor_3462954d26c055c0, []int{2}
 }
 func (m *ServiceRole) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -182,7 +306,7 @@ func (m *ServiceRole) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_ServiceRole.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +347,6 @@ type AccessRule struct {
 	// For example, the host "test.abc.com" matches "test.abc.com" (exact match),
 	// or "*.abc.com" (prefix match), or "test.abc.*" (suffix match).
 	// If not specified, it matches to any host.
-	// This field should not be set for TCP services. The policy will be ignored.
 	Hosts []string `protobuf:"bytes,5,rep,name=hosts,proto3" json:"hosts,omitempty"`
 	// $hide_from_docs
 	// Optional. A list of HTTP hosts that must not be matched.
@@ -235,15 +358,13 @@ type AccessRule struct {
 	// the path "/books/review" matches "/books/review" (exact match),
 	// or "/books/*" (prefix match), or "*/review" (suffix match).
 	// If not specified, it matches to any path.
-	// This field should not be set for TCP services. The policy will be ignored.
 	Paths []string `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
 	// $hide_from_docs
 	// Optional. A list of HTTP paths or gRPC methods that must not be matched.
 	NotPaths []string `protobuf:"bytes,7,rep,name=not_paths,json=notPaths,proto3" json:"not_paths,omitempty"`
 	// Optional. A list of HTTP methods (e.g., "GET", "POST").
-	// If not specified or specified as "*", it matches to any methods.
-	// This field should not be set for TCP services. The policy will be ignored.
-	// For gRPC services, only `POST` is allowed; other methods will result in denying services.
+	// It is ignored in gRPC case because the value is always "POST".
+	// If not specified, it matches to any methods.
 	Methods []string `protobuf:"bytes,3,rep,name=methods,proto3" json:"methods,omitempty"`
 	// $hide_from_docs
 	// Optional. A list of HTTP methods that must not be matched.
@@ -269,7 +390,7 @@ func (m *AccessRule) Reset()         { *m = AccessRule{} }
 func (m *AccessRule) String() string { return proto.CompactTextString(m) }
 func (*AccessRule) ProtoMessage()    {}
 func (*AccessRule) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{1}
+	return fileDescriptor_3462954d26c055c0, []int{3}
 }
 func (m *AccessRule) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -279,7 +400,7 @@ func (m *AccessRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_AccessRule.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +507,7 @@ func (m *AccessRule_Constraint) Reset()         { *m = AccessRule_Constraint{} }
 func (m *AccessRule_Constraint) String() string { return proto.CompactTextString(m) }
 func (*AccessRule_Constraint) ProtoMessage()    {}
 func (*AccessRule_Constraint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{1, 0}
+	return fileDescriptor_3462954d26c055c0, []int{3, 0}
 }
 func (m *AccessRule_Constraint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -396,7 +517,7 @@ func (m *AccessRule_Constraint) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_AccessRule_Constraint.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -437,55 +558,17 @@ type ServiceRoleBinding struct {
 	RoleRef *RoleRef `protobuf:"bytes,2,opt,name=roleRef,proto3" json:"roleRef,omitempty"`
 	// $hide_from_docs
 	// Indicates enforcement mode of the ServiceRoleBinding.
-	Mode EnforcementMode `protobuf:"varint,3,opt,name=mode,proto3,enum=istio.rbac.v1alpha1.EnforcementMode" json:"mode,omitempty"`
-	// $hide_from_docs
-	// Inline role definition. An inline role is a role that is defined inside an
-	// authorization policy, instead of explicitly defined in a ServiceRole object.
-	// Inline roles can be used for the role definitions that are not intended to
-	// be reused in other bindings, while explicit roles are reusable. Both inline
-	// roles (defined in "actions" field) and explicit roles (defined in ServiceRole)
-	// are supported. Users should use only one of them in a single binding.
-	// For example, the following “product-frontend” AuthorizationPolicy allows “frontend”
-	// service to view “product” service on “/info” path.
-	// ```yaml
-	// apiVersion: "rbac.istio.io/v1alpha1"
-	// kind: AuthorizationPolicy
-	// metadata:
-	//  name: product-frontend
-	//  namespace: ns1
-	// spec:
-	//  selector:
-	//    labels:
-	//      app: product
-	//  allow:
-	//  - subjects:
-	//    - names: ["cluster.local/ns/default/sa/frontend"]
-	//    actions:
-	//    - paths: ["/info"]
-	//      methods: ["GET"]
-	// Required. The set of access rules (permissions) that the role has.
-	Actions []*AccessRule `protobuf:"bytes,4,rep,name=actions,proto3" json:"actions,omitempty"`
-	// $hide_from_docs
-	// A `role` inside a ServiceRoleBinding refers to the ServiceRole that this
-	// ServiceRoleBinding binds to. A ServiceRoleBinding can bind to a ServiceRole
-	// in the same namespace or the root namespace. A ServiceRole in the root namespace
-	// represents a mesh global ServiceRole.
-	// The value of `role` is the name of the ServiceRole, and it can start with or without a forward slash ("/").
-	// When a `role` starts with "/", e.g. "/service-viewer", it means that this ServiceRoleBinding
-	// refers to the ServiceRole in the configurable Istio root namespace.
-	// When a `role` starts without "/", this ServiceRoleBinding refers to the ServiceRole in the
-	// same namespace as the AuthorizationPolicy's, which contains said ServiceRoleBinding.
-	Role                 string   `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Mode                 EnforcementMode `protobuf:"varint,3,opt,name=mode,proto3,enum=istio.rbac.v1alpha1.EnforcementMode" json:"mode,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
 }
 
 func (m *ServiceRoleBinding) Reset()         { *m = ServiceRoleBinding{} }
 func (m *ServiceRoleBinding) String() string { return proto.CompactTextString(m) }
 func (*ServiceRoleBinding) ProtoMessage()    {}
 func (*ServiceRoleBinding) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{2}
+	return fileDescriptor_3462954d26c055c0, []int{4}
 }
 func (m *ServiceRoleBinding) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -495,7 +578,7 @@ func (m *ServiceRoleBinding) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ServiceRoleBinding.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -533,20 +616,6 @@ func (m *ServiceRoleBinding) GetMode() EnforcementMode {
 		return m.Mode
 	}
 	return EnforcementMode_ENFORCED
-}
-
-func (m *ServiceRoleBinding) GetActions() []*AccessRule {
-	if m != nil {
-		return m.Actions
-	}
-	return nil
-}
-
-func (m *ServiceRoleBinding) GetRole() string {
-	if m != nil {
-		return m.Role
-	}
-	return ""
 }
 
 // Subject defines an identity. The identity is either a user or identified by a set of `properties`.
@@ -598,7 +667,7 @@ func (m *Subject) Reset()         { *m = Subject{} }
 func (m *Subject) String() string { return proto.CompactTextString(m) }
 func (*Subject) ProtoMessage()    {}
 func (*Subject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{3}
+	return fileDescriptor_3462954d26c055c0, []int{5}
 }
 func (m *Subject) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -608,7 +677,7 @@ func (m *Subject) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Subject.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -722,7 +791,7 @@ func (m *RoleRef) Reset()         { *m = RoleRef{} }
 func (m *RoleRef) String() string { return proto.CompactTextString(m) }
 func (*RoleRef) ProtoMessage()    {}
 func (*RoleRef) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{4}
+	return fileDescriptor_3462954d26c055c0, []int{6}
 }
 func (m *RoleRef) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -732,7 +801,7 @@ func (m *RoleRef) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_RoleRef.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -765,16 +834,19 @@ func (m *RoleRef) GetName() string {
 	return ""
 }
 
-// RbacConfig implements the ClusterRbaConfig Custom Resource Definition for controlling Istio RBAC behavior.
-// The ClusterRbaConfig Custom Resource is a singleton where only one ClusterRbaConfig should be created
-// globally in the mesh and the namespace should be the same to other Istio components, which usually is `istio-system`.
+// $hide_from_docs
+// RbacConfig is deprecated.  RbacConfig defined the global config to control Istio RBAC behavior.
+// This Custom Resource is a singleton where only one Custom Resource should be created globally in
+// the mesh and the namespace should be the same to other Istio components, which usually is `istio-system`.
+// Note: This is enforced in both `istioctl` and server side, new Custom Resource will be rejected if found any
+// existing one, the user should either delete the existing one or change the existing one directly.
 //
-// Below is an example of an `ClusterRbacConfig` resource called `istio-rbac-config` which enables Istio RBAC for all
+// Below is an example of an `RbacConfig` resource called `istio-rbac-config` which enables Istio RBAC for all
 // services in the default namespace.
 //
 // ```yaml
 // apiVersion: "rbac.istio.io/v1alpha1"
-// kind: ClusterRbacConfig
+// kind: RbacConfig
 // metadata:
 //   name: default
 //   namespace: istio-system
@@ -808,7 +880,7 @@ func (m *RbacConfig) Reset()         { *m = RbacConfig{} }
 func (m *RbacConfig) String() string { return proto.CompactTextString(m) }
 func (*RbacConfig) ProtoMessage()    {}
 func (*RbacConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{5}
+	return fileDescriptor_3462954d26c055c0, []int{7}
 }
 func (m *RbacConfig) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -818,7 +890,7 @@ func (m *RbacConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_RbacConfig.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -869,6 +941,9 @@ func (m *RbacConfig) GetEnforcementMode() EnforcementMode {
 type RbacConfig_Target struct {
 	// A list of services.
 	Services []string `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+	// $hide_from_docs
+	// A list of workloads.
+	WorkloadSelectors []*WorkloadSelector `protobuf:"bytes,3,rep,name=workload_selectors,json=workloadSelectors,proto3" json:"workload_selectors,omitempty"`
 	// A list of namespaces.
 	Namespaces           []string `protobuf:"bytes,2,rep,name=namespaces,proto3" json:"namespaces,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -880,7 +955,7 @@ func (m *RbacConfig_Target) Reset()         { *m = RbacConfig_Target{} }
 func (m *RbacConfig_Target) String() string { return proto.CompactTextString(m) }
 func (*RbacConfig_Target) ProtoMessage()    {}
 func (*RbacConfig_Target) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3462954d26c055c0, []int{5, 0}
+	return fileDescriptor_3462954d26c055c0, []int{7, 0}
 }
 func (m *RbacConfig_Target) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -890,7 +965,7 @@ func (m *RbacConfig_Target) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_RbacConfig_Target.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -916,6 +991,13 @@ func (m *RbacConfig_Target) GetServices() []string {
 	return nil
 }
 
+func (m *RbacConfig_Target) GetWorkloadSelectors() []*WorkloadSelector {
+	if m != nil {
+		return m.WorkloadSelectors
+	}
+	return nil
+}
+
 func (m *RbacConfig_Target) GetNamespaces() []string {
 	if m != nil {
 		return m.Namespaces
@@ -926,6 +1008,9 @@ func (m *RbacConfig_Target) GetNamespaces() []string {
 func init() {
 	proto.RegisterEnum("istio.rbac.v1alpha1.EnforcementMode", EnforcementMode_name, EnforcementMode_value)
 	proto.RegisterEnum("istio.rbac.v1alpha1.RbacConfig_Mode", RbacConfig_Mode_name, RbacConfig_Mode_value)
+	proto.RegisterType((*WorkloadSelector)(nil), "istio.rbac.v1alpha1.WorkloadSelector")
+	proto.RegisterMapType((map[string]string)(nil), "istio.rbac.v1alpha1.WorkloadSelector.LabelsEntry")
+	proto.RegisterType((*AuthorizationPolicy)(nil), "istio.rbac.v1alpha1.AuthorizationPolicy")
 	proto.RegisterType((*ServiceRole)(nil), "istio.rbac.v1alpha1.ServiceRole")
 	proto.RegisterType((*AccessRule)(nil), "istio.rbac.v1alpha1.AccessRule")
 	proto.RegisterType((*AccessRule_Constraint)(nil), "istio.rbac.v1alpha1.AccessRule.Constraint")
@@ -940,63 +1025,151 @@ func init() {
 func init() { proto.RegisterFile("rbac/v1alpha1/rbac.proto", fileDescriptor_3462954d26c055c0) }
 
 var fileDescriptor_3462954d26c055c0 = []byte{
-	// 796 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x55, 0xdd, 0x6e, 0xf3, 0x44,
-	0x10, 0xfd, 0x6c, 0xc7, 0x71, 0x3c, 0x81, 0xd6, 0x2c, 0x05, 0xac, 0x00, 0x69, 0x14, 0x01, 0x8a,
-	0x2a, 0x94, 0xa8, 0x45, 0x54, 0x05, 0x89, 0x0b, 0x9a, 0xb8, 0x34, 0x52, 0x9b, 0x54, 0x9b, 0xf2,
-	0x23, 0x6e, 0x22, 0xc7, 0xd9, 0x26, 0xa6, 0xc9, 0xae, 0x65, 0x6f, 0x2a, 0x7a, 0xcb, 0x0b, 0xf0,
-	0x0a, 0x3c, 0x02, 0x8f, 0xc1, 0x25, 0x8f, 0x80, 0xfa, 0x24, 0x68, 0x77, 0xbd, 0x4e, 0x5a, 0xe5,
-	0x6b, 0xd5, 0xbb, 0x99, 0x39, 0xe7, 0xec, 0xac, 0x67, 0xce, 0x26, 0xe0, 0xa7, 0x93, 0x30, 0xea,
-	0xdc, 0x1d, 0x86, 0x8b, 0x64, 0x1e, 0x1e, 0x76, 0x44, 0xd6, 0x4e, 0x52, 0xc6, 0x19, 0x7a, 0x3f,
-	0xce, 0x78, 0xcc, 0xda, 0xb2, 0xa2, 0xf1, 0x66, 0x0f, 0xaa, 0x23, 0x92, 0xde, 0xc5, 0x11, 0xc1,
-	0x6c, 0x41, 0xd0, 0xd7, 0x60, 0xa7, 0xab, 0x05, 0xc9, 0x7c, 0xa3, 0x61, 0xb5, 0xaa, 0x47, 0xfb,
-	0xed, 0x2d, 0x9a, 0xf6, 0xf7, 0x51, 0x44, 0xb2, 0x0c, 0xaf, 0x16, 0x04, 0x2b, 0x76, 0xf3, 0x0f,
-	0x0b, 0x60, 0x5d, 0x45, 0x35, 0xa8, 0x64, 0xea, 0x50, 0x75, 0x90, 0x8b, 0x8b, 0x1c, 0xed, 0x81,
-	0x3d, 0x67, 0x19, 0xcf, 0x7c, 0x5b, 0x02, 0x2a, 0x41, 0x1f, 0x83, 0x4b, 0x19, 0x1f, 0x2b, 0xa4,
-	0xac, 0x24, 0x94, 0xf1, 0x73, 0x09, 0xee, 0x81, 0x9d, 0x84, 0x7c, 0x9e, 0xf9, 0xa6, 0x92, 0xc8,
-	0x44, 0x4b, 0x14, 0xe2, 0x14, 0x92, 0x2b, 0x09, 0xfa, 0xe0, 0x2c, 0x09, 0x9f, 0xb3, 0x69, 0xe6,
-	0x5b, 0x12, 0xd2, 0x29, 0xda, 0x87, 0xaa, 0x90, 0x69, 0xb4, 0x22, 0x51, 0xa0, 0x8c, 0x5f, 0xe6,
-	0x04, 0xd1, 0x8d, 0xa5, 0x3c, 0xf3, 0xdd, 0x86, 0xd5, 0xb2, 0xb1, 0x4a, 0x8a, 0x6e, 0x12, 0x01,
-	0x89, 0xc8, 0x6e, 0x12, 0xbc, 0x80, 0x6a, 0xc4, 0x68, 0xc6, 0xd3, 0x30, 0xa6, 0x3c, 0xf3, 0x4b,
-	0x72, 0x76, 0x07, 0x2f, 0xcc, 0xae, 0xdd, 0x2d, 0x24, 0x78, 0x53, 0x5e, 0x3b, 0x06, 0x58, 0x43,
-	0xc8, 0x03, 0xeb, 0x96, 0xdc, 0xfb, 0x46, 0xc3, 0x68, 0xb9, 0x58, 0x84, 0xe8, 0x43, 0x28, 0xdf,
-	0x85, 0x8b, 0x15, 0xd1, 0xf3, 0xc8, 0xb3, 0xe6, 0x9f, 0x26, 0xa0, 0x8d, 0x5d, 0x9e, 0xc6, 0x74,
-	0x1a, 0xd3, 0x19, 0x3a, 0x81, 0x4a, 0xb6, 0x9a, 0xfc, 0x46, 0x22, 0xae, 0xb7, 0xfa, 0xc9, 0xd6,
-	0x9b, 0x8d, 0x14, 0x09, 0x17, 0x6c, 0x74, 0x0c, 0x4e, 0xca, 0x16, 0x04, 0x93, 0x1b, 0xdf, 0x6c,
-	0x18, 0x6f, 0x15, 0x62, 0xc5, 0xc1, 0x9a, 0x8c, 0x4e, 0xa0, 0xb4, 0x64, 0x53, 0xe2, 0x5b, 0x0d,
-	0xa3, 0xb5, 0x73, 0xf4, 0xd9, 0x56, 0x51, 0x40, 0x6f, 0x58, 0x1a, 0x91, 0x25, 0xa1, 0xfc, 0x92,
-	0x4d, 0x09, 0x96, 0x0a, 0xf4, 0x0d, 0x38, 0x61, 0xc4, 0x63, 0x46, 0xf5, 0x10, 0x5f, 0x34, 0xa0,
-	0xe6, 0x23, 0x04, 0x25, 0xd1, 0xdf, 0xb7, 0xe5, 0xa0, 0x64, 0xdc, 0xfc, 0xcb, 0x02, 0x27, 0xff,
-	0x2c, 0x81, 0xaf, 0x32, 0x92, 0xe6, 0x83, 0x94, 0xb1, 0x58, 0x35, 0x0d, 0x97, 0x44, 0x35, 0x73,
-	0xb1, 0x4a, 0xf4, 0xaa, 0x15, 0x62, 0x17, 0xc6, 0x1a, 0x48, 0xd0, 0x07, 0x7b, 0x96, 0xb2, 0x55,
-	0x22, 0x27, 0xe2, 0x9e, 0x9a, 0xbe, 0x81, 0x55, 0x41, 0xac, 0x45, 0x06, 0xda, 0xbf, 0x79, 0x86,
-	0x3e, 0x05, 0xe1, 0xae, 0x71, 0x8e, 0x29, 0xa3, 0x8a, 0x06, 0x3f, 0x28, 0xb8, 0x0e, 0x20, 0x3b,
-	0x25, 0xa1, 0x78, 0x2d, 0xda, 0x8e, 0x45, 0x05, 0x7d, 0x0e, 0x3b, 0xc5, 0x6d, 0x14, 0xc7, 0x95,
-	0x9c, 0x77, 0xf5, 0x95, 0x14, 0xcd, 0x03, 0x2b, 0x4e, 0x94, 0x33, 0x5d, 0x2c, 0x42, 0xf4, 0x11,
-	0x38, 0x42, 0x28, 0xaa, 0x55, 0x75, 0x21, 0xca, 0x78, 0x3f, 0x11, 0x6e, 0x85, 0x24, 0x65, 0x09,
-	0x49, 0x79, 0x4c, 0xd4, 0xf3, 0xa8, 0x1e, 0x7d, 0xf9, 0x9c, 0x25, 0xda, 0x57, 0x05, 0x3d, 0xa0,
-	0x3c, 0xbd, 0xc7, 0x1b, 0xfa, 0xda, 0x77, 0xb0, 0xfb, 0x04, 0xde, 0x62, 0xd9, 0x3d, 0xb0, 0xa5,
-	0x49, 0xd5, 0xd4, 0xb0, 0x4a, 0xbe, 0x35, 0x4f, 0x8c, 0xe6, 0x21, 0x38, 0xb9, 0x7f, 0xc4, 0x86,
-	0x6e, 0x63, 0x3a, 0xd5, 0x1b, 0x12, 0xb1, 0xa8, 0x89, 0x2f, 0xcf, 0x75, 0x32, 0x6e, 0xfe, 0x6d,
-	0x01, 0xe0, 0x49, 0x18, 0x75, 0x19, 0xbd, 0x89, 0x67, 0x85, 0xdb, 0x8c, 0x67, 0xdc, 0xb6, 0xa6,
-	0xb7, 0x37, 0xdc, 0xd6, 0x03, 0x37, 0xa6, 0xd1, 0x62, 0x95, 0xc5, 0x8c, 0xe6, 0x0e, 0xff, 0xe2,
-	0x25, 0xf9, 0x75, 0x98, 0xce, 0x08, 0xc7, 0x6b, 0xa1, 0x38, 0x85, 0xfc, 0xae, 0x4f, 0xb1, 0x5e,
-	0x77, 0x4a, 0x21, 0x44, 0x43, 0xf0, 0xc8, 0xfa, 0x49, 0x8c, 0xe5, 0x17, 0x95, 0x5e, 0xf1, 0x7e,
-	0x76, 0xc9, 0xe3, 0x42, 0xad, 0x07, 0x65, 0xd5, 0xe5, 0xd9, 0x5f, 0xe3, 0xc7, 0xee, 0x33, 0x9f,
-	0xba, 0xaf, 0x19, 0x40, 0x49, 0x9c, 0x86, 0x1c, 0xb0, 0x86, 0x67, 0x67, 0xde, 0x1b, 0x54, 0x06,
-	0x73, 0x38, 0xf0, 0x0c, 0xf4, 0x01, 0xbc, 0x37, 0x1c, 0x8c, 0x7f, 0xee, 0x5f, 0x9f, 0x8f, 0xfb,
-	0x83, 0xee, 0xc5, 0x8f, 0xa3, 0xfe, 0x70, 0xe0, 0x99, 0x9b, 0xe5, 0xe0, 0x17, 0x5d, 0xb6, 0x0e,
-	0x3a, 0xb0, 0xfb, 0xe4, 0xc2, 0xe8, 0x1d, 0xa8, 0x04, 0x83, 0xb3, 0x21, 0xee, 0x06, 0x3d, 0xef,
-	0x0d, 0xda, 0x01, 0xb8, 0x0a, 0xf0, 0x65, 0x7f, 0x34, 0xea, 0xff, 0x14, 0x78, 0xc6, 0x69, 0xeb,
-	0x9f, 0x87, 0xba, 0xf1, 0xef, 0x43, 0xdd, 0xf8, 0xef, 0xa1, 0x6e, 0xfc, 0x5a, 0x53, 0x13, 0x88,
-	0x59, 0x27, 0x4c, 0xe2, 0xce, 0xa3, 0x3f, 0xb8, 0x49, 0x59, 0xfe, 0xb9, 0x7d, 0xf5, 0x7f, 0x00,
-	0x00, 0x00, 0xff, 0xff, 0x90, 0x8d, 0x80, 0x52, 0xf8, 0x06, 0x00, 0x00,
+	// 898 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x56, 0xcd, 0x6e, 0x23, 0x45,
+	0x10, 0xde, 0xf1, 0xf8, 0x27, 0x53, 0x86, 0x64, 0xd2, 0xbb, 0xc0, 0xc8, 0x40, 0x36, 0xb2, 0x58,
+	0xb0, 0x56, 0xc8, 0x56, 0x82, 0x58, 0x05, 0xa4, 0x3d, 0x6c, 0x12, 0x87, 0xb5, 0x94, 0xd8, 0x51,
+	0x3b, 0xb0, 0x88, 0x8b, 0x35, 0x1e, 0x77, 0xe2, 0x26, 0x93, 0xee, 0x51, 0x4f, 0x4f, 0x42, 0x38,
+	0x72, 0xe1, 0x15, 0x10, 0x27, 0x8e, 0x3c, 0x06, 0x47, 0x8e, 0x3c, 0x02, 0xca, 0x93, 0xa0, 0xee,
+	0x9e, 0x1e, 0x7b, 0xbd, 0x26, 0x9b, 0xdc, 0xba, 0xea, 0xab, 0xaf, 0xaa, 0xab, 0xea, 0xf3, 0xb4,
+	0x21, 0x10, 0xe3, 0x30, 0xea, 0x5c, 0x6e, 0x85, 0x71, 0x32, 0x0d, 0xb7, 0x3a, 0xca, 0x6a, 0x27,
+	0x82, 0x4b, 0x8e, 0x1e, 0xd2, 0x54, 0x52, 0xde, 0xd6, 0x1e, 0x8b, 0x37, 0x7f, 0x73, 0xc0, 0x7f,
+	0xc5, 0xc5, 0x79, 0xcc, 0xc3, 0xc9, 0x90, 0xc4, 0x24, 0x92, 0x5c, 0xa0, 0x1e, 0x54, 0xe3, 0x70,
+	0x4c, 0xe2, 0x34, 0x70, 0x36, 0xdd, 0x56, 0x7d, 0x7b, 0xab, 0xbd, 0x84, 0xda, 0x5e, 0xa4, 0xb5,
+	0x0f, 0x35, 0xa7, 0xcb, 0xa4, 0xb8, 0xc6, 0x79, 0x82, 0xc6, 0x57, 0x50, 0x9f, 0x73, 0x23, 0x1f,
+	0xdc, 0x73, 0x72, 0x1d, 0x38, 0x9b, 0x4e, 0xcb, 0xc3, 0xea, 0x88, 0x1e, 0x41, 0xe5, 0x32, 0x8c,
+	0x33, 0x12, 0x94, 0xb4, 0xcf, 0x18, 0x5f, 0x97, 0x76, 0x9c, 0xe6, 0x9f, 0x0e, 0x3c, 0x7c, 0x91,
+	0xc9, 0x29, 0x17, 0xf4, 0xe7, 0x50, 0x52, 0xce, 0x8e, 0x79, 0x4c, 0xa3, 0x6b, 0x84, 0x61, 0xfd,
+	0x2a, 0x2f, 0x3d, 0x4a, 0xf3, 0xda, 0x3a, 0x63, 0x7d, 0xfb, 0xc9, 0x9d, 0x2e, 0x8a, 0xfd, 0xab,
+	0xc5, 0x8e, 0x9f, 0x43, 0x25, 0x8c, 0x63, 0x7e, 0x15, 0x94, 0x74, 0xc3, 0x9f, 0x2d, 0xcd, 0x33,
+	0x24, 0xe2, 0x92, 0x46, 0x04, 0xf3, 0x98, 0xec, 0x52, 0x36, 0xa1, 0xec, 0x0c, 0x1b, 0x56, 0x73,
+	0x1f, 0xea, 0x73, 0x20, 0xfa, 0x12, 0x2a, 0x22, 0x8b, 0x89, 0x1d, 0xdf, 0xe3, 0xa5, 0xd9, 0x5e,
+	0x44, 0x11, 0x49, 0x53, 0x9c, 0xc5, 0x04, 0x9b, 0xe8, 0xe6, 0x2f, 0x2e, 0xc0, 0xcc, 0x8b, 0x1a,
+	0xb0, 0x92, 0x9a, 0xa4, 0x26, 0x91, 0x87, 0x0b, 0x5b, 0x4d, 0x6d, 0xca, 0x53, 0x99, 0x06, 0x15,
+	0x0d, 0x18, 0x03, 0x7d, 0x08, 0x1e, 0xe3, 0x72, 0x64, 0x90, 0xaa, 0xa1, 0x30, 0x2e, 0x5f, 0x6a,
+	0xf0, 0x11, 0x54, 0x92, 0x50, 0x4e, 0x53, 0xdd, 0xa2, 0x87, 0x8d, 0x61, 0x29, 0x06, 0xa9, 0x15,
+	0x94, 0x63, 0x0d, 0x06, 0x50, 0xbb, 0x20, 0x72, 0xca, 0x27, 0x69, 0xe0, 0x6a, 0xc8, 0x9a, 0xe8,
+	0x31, 0xd4, 0x15, 0xcd, 0xa2, 0x2b, 0x1a, 0x05, 0xc6, 0xe5, 0x51, 0x1e, 0xa0, 0xaa, 0x71, 0x21,
+	0xd3, 0xc0, 0xdb, 0x74, 0x5b, 0x15, 0x6c, 0x8c, 0xa2, 0x9a, 0x46, 0x40, 0x23, 0xba, 0x9a, 0x06,
+	0x0f, 0xa1, 0x1e, 0x71, 0x96, 0x4a, 0x11, 0x52, 0x26, 0xd3, 0xa0, 0xac, 0x67, 0xf7, 0xf4, 0x2d,
+	0xb3, 0x6b, 0xef, 0x15, 0x14, 0x3c, 0x4f, 0x6f, 0x3c, 0x03, 0x98, 0x41, 0x4b, 0x74, 0xf7, 0x3e,
+	0x54, 0xb5, 0xd4, 0xec, 0x3c, 0x72, 0xab, 0xf9, 0x97, 0x03, 0xe8, 0xcd, 0x45, 0xa3, 0x1d, 0x58,
+	0x49, 0xb3, 0xf1, 0x8f, 0x24, 0x92, 0x76, 0xab, 0x1f, 0x2d, 0xd7, 0x88, 0x09, 0xc2, 0x45, 0x34,
+	0x7a, 0x06, 0x35, 0xc1, 0x63, 0x82, 0xc9, 0xa9, 0x96, 0xf8, 0xff, 0x11, 0xb1, 0x89, 0xc1, 0x36,
+	0x18, 0xed, 0x40, 0xf9, 0x82, 0x4f, 0x48, 0xe0, 0x6e, 0x3a, 0xad, 0xd5, 0xed, 0x4f, 0x96, 0x92,
+	0xba, 0xec, 0x94, 0x8b, 0x88, 0x5c, 0x10, 0x26, 0x8f, 0xf8, 0x84, 0x60, 0xcd, 0x68, 0xfe, 0xe1,
+	0x42, 0x2d, 0xbf, 0x07, 0x42, 0x50, 0xce, 0x52, 0x22, 0xf2, 0xce, 0xf5, 0x59, 0xed, 0x86, 0x85,
+	0x17, 0xc4, 0x8c, 0xd8, 0xc3, 0xc6, 0xb0, 0xbb, 0x31, 0x48, 0xa5, 0x50, 0x42, 0x5f, 0x83, 0x01,
+	0x54, 0xce, 0x04, 0xcf, 0x12, 0xf3, 0x2b, 0xdd, 0x2d, 0x05, 0x0e, 0x36, 0x0e, 0x35, 0x47, 0x7d,
+	0xb0, 0x82, 0xcb, 0x2d, 0xf4, 0x31, 0x28, 0x39, 0x8c, 0x72, 0xcc, 0x28, 0x4b, 0x15, 0xf8, 0xc6,
+	0xc0, 0x1b, 0x00, 0xba, 0x52, 0x12, 0x2a, 0x79, 0x5b, 0xfd, 0x14, 0x1e, 0xf4, 0x04, 0x56, 0x8b,
+	0xdb, 0x98, 0x18, 0x4f, 0xc7, 0xbc, 0x6b, 0xaf, 0x64, 0xc2, 0x7c, 0x70, 0x69, 0x62, 0xa4, 0xe4,
+	0x61, 0x75, 0x44, 0x1f, 0x40, 0x4d, 0x11, 0x95, 0xb7, 0x6e, 0x2e, 0xc4, 0xb8, 0xec, 0x25, 0x4a,
+	0x5e, 0x90, 0x08, 0x9e, 0x10, 0x21, 0x29, 0x31, 0x7a, 0xae, 0x6f, 0x7f, 0x7e, 0xdb, 0x0e, 0xdb,
+	0xc7, 0x45, 0xb8, 0xf9, 0xa6, 0xcd, 0xf1, 0x1b, 0xcf, 0x61, 0x6d, 0x01, 0xbe, 0xd7, 0xb7, 0x6d,
+	0x0b, 0x6a, 0xf9, 0xc2, 0xd5, 0x86, 0xce, 0x29, 0x9b, 0xd8, 0x0d, 0xa9, 0xb3, 0xf2, 0xa9, 0xce,
+	0x73, 0x9e, 0x3e, 0x37, 0x7f, 0x2d, 0x03, 0xe0, 0x71, 0x18, 0xed, 0x71, 0x76, 0x4a, 0xcf, 0x0a,
+	0x79, 0x38, 0xb7, 0xc8, 0x63, 0x16, 0xde, 0x9e, 0xc9, 0x03, 0xed, 0x83, 0x47, 0x59, 0x14, 0x67,
+	0x29, 0xe5, 0x2c, 0x97, 0xe4, 0xa7, 0x6f, 0xa3, 0x9f, 0x84, 0xe2, 0x8c, 0x48, 0x3c, 0x23, 0xaa,
+	0x2c, 0xe4, 0x27, 0x9b, 0xc5, 0xbd, 0x5f, 0x96, 0x82, 0x88, 0x06, 0xe0, 0x93, 0x99, 0x86, 0x47,
+	0xba, 0xa3, 0xf2, 0x3d, 0x04, 0xbf, 0x46, 0x5e, 0x77, 0x34, 0x7e, 0x77, 0xa0, 0x6a, 0xca, 0xdc,
+	0xfa, 0xfd, 0x3c, 0x01, 0xf4, 0xc6, 0x1b, 0x62, 0x45, 0x71, 0xc7, 0x47, 0x64, 0x7d, 0xf1, 0x11,
+	0x59, 0x14, 0x75, 0x69, 0x51, 0xd4, 0xcd, 0x2e, 0x94, 0xd5, 0x25, 0x51, 0x0d, 0xdc, 0xc1, 0xc1,
+	0x81, 0xff, 0x00, 0x55, 0xa1, 0x34, 0xe8, 0xfb, 0x0e, 0x7a, 0x0f, 0xd6, 0x07, 0xfd, 0xd1, 0xab,
+	0xde, 0xc9, 0xcb, 0x51, 0xaf, 0xbf, 0x77, 0xf8, 0xed, 0xb0, 0x37, 0xe8, 0xfb, 0xa5, 0x79, 0x77,
+	0xf7, 0x7b, 0xeb, 0x76, 0x9f, 0x76, 0x60, 0x6d, 0x61, 0x0e, 0xe8, 0x1d, 0x58, 0xe9, 0xf6, 0x0f,
+	0x06, 0x78, 0xaf, 0xbb, 0xef, 0x3f, 0x40, 0xab, 0x00, 0xc7, 0x5d, 0x7c, 0xd4, 0x1b, 0x0e, 0x7b,
+	0xdf, 0x75, 0x7d, 0x67, 0xb7, 0xf5, 0xf7, 0xcd, 0x86, 0xf3, 0xcf, 0xcd, 0x86, 0xf3, 0xef, 0xcd,
+	0x86, 0xf3, 0x43, 0xc3, 0xb4, 0x47, 0x79, 0x27, 0x4c, 0x68, 0xe7, 0xb5, 0xbf, 0x0b, 0xe3, 0xaa,
+	0xfe, 0xab, 0xf0, 0xc5, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x63, 0x73, 0xac, 0x2f, 0x46, 0x08,
+	0x00, 0x00,
+}
+
+func (m *WorkloadSelector) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WorkloadSelector) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Labels) > 0 {
+		for k, _ := range m.Labels {
+			dAtA[i] = 0xa
+			i++
+			v := m.Labels[k]
+			mapSize := 1 + len(k) + sovRbac(uint64(len(k))) + 1 + len(v) + sovRbac(uint64(len(v)))
+			i = encodeVarintRbac(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *AuthorizationPolicy) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AuthorizationPolicy) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.WorkloadSelector != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.WorkloadSelector.Size()))
+		n1, err := m.WorkloadSelector.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n1
+	}
+	if len(m.Allow) > 0 {
+		for _, msg := range m.Allow {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ServiceRole) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1004,40 +1177,32 @@ func (m *ServiceRole) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ServiceRole) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ServiceRole) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Rules) > 0 {
-		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRbac(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Rules {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *AccessRule) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1045,141 +1210,173 @@ func (m *AccessRule) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AccessRule) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AccessRule) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.NotPorts) > 0 {
-		dAtA2 := make([]byte, len(m.NotPorts)*10)
-		var j1 int
-		for _, num1 := range m.NotPorts {
-			num := uint64(num1)
-			for num >= 1<<7 {
-				dAtA2[j1] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j1++
+	if len(m.Services) > 0 {
+		for _, s := range m.Services {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
 			}
-			dAtA2[j1] = uint8(num)
-			j1++
-		}
-		i -= j1
-		copy(dAtA[i:], dAtA2[:j1])
-		i = encodeVarintRbac(dAtA, i, uint64(j1))
-		i--
-		dAtA[i] = 0x52
-	}
-	if len(m.Ports) > 0 {
-		dAtA4 := make([]byte, len(m.Ports)*10)
-		var j3 int
-		for _, num1 := range m.Ports {
-			num := uint64(num1)
-			for num >= 1<<7 {
-				dAtA4[j3] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j3++
-			}
-			dAtA4[j3] = uint8(num)
-			j3++
-		}
-		i -= j3
-		copy(dAtA[i:], dAtA4[:j3])
-		i = encodeVarintRbac(dAtA, i, uint64(j3))
-		i--
-		dAtA[i] = 0x4a
-	}
-	if len(m.NotMethods) > 0 {
-		for iNdEx := len(m.NotMethods) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotMethods[iNdEx])
-			copy(dAtA[i:], m.NotMethods[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotMethods[iNdEx])))
-			i--
-			dAtA[i] = 0x42
-		}
-	}
-	if len(m.NotPaths) > 0 {
-		for iNdEx := len(m.NotPaths) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotPaths[iNdEx])
-			copy(dAtA[i:], m.NotPaths[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotPaths[iNdEx])))
-			i--
-			dAtA[i] = 0x3a
-		}
-	}
-	if len(m.NotHosts) > 0 {
-		for iNdEx := len(m.NotHosts) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotHosts[iNdEx])
-			copy(dAtA[i:], m.NotHosts[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotHosts[iNdEx])))
-			i--
-			dAtA[i] = 0x32
-		}
-	}
-	if len(m.Hosts) > 0 {
-		for iNdEx := len(m.Hosts) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Hosts[iNdEx])
-			copy(dAtA[i:], m.Hosts[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Hosts[iNdEx])))
-			i--
-			dAtA[i] = 0x2a
-		}
-	}
-	if len(m.Constraints) > 0 {
-		for iNdEx := len(m.Constraints) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Constraints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRbac(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if len(m.Methods) > 0 {
-		for iNdEx := len(m.Methods) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Methods[iNdEx])
-			copy(dAtA[i:], m.Methods[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Methods[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
 	if len(m.Paths) > 0 {
-		for iNdEx := len(m.Paths) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Paths[iNdEx])
-			copy(dAtA[i:], m.Paths[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Paths[iNdEx])))
-			i--
+		for _, s := range m.Paths {
 			dAtA[i] = 0x12
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.Services) > 0 {
-		for iNdEx := len(m.Services) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Services[iNdEx])
-			copy(dAtA[i:], m.Services[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Services[iNdEx])))
-			i--
-			dAtA[i] = 0xa
+	if len(m.Methods) > 0 {
+		for _, s := range m.Methods {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	return len(dAtA) - i, nil
+	if len(m.Constraints) > 0 {
+		for _, msg := range m.Constraints {
+			dAtA[i] = 0x22
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.Hosts) > 0 {
+		for _, s := range m.Hosts {
+			dAtA[i] = 0x2a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.NotHosts) > 0 {
+		for _, s := range m.NotHosts {
+			dAtA[i] = 0x32
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.NotPaths) > 0 {
+		for _, s := range m.NotPaths {
+			dAtA[i] = 0x3a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.NotMethods) > 0 {
+		for _, s := range m.NotMethods {
+			dAtA[i] = 0x42
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.Ports) > 0 {
+		dAtA3 := make([]byte, len(m.Ports)*10)
+		var j2 int
+		for _, num1 := range m.Ports {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA3[j2] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j2++
+			}
+			dAtA3[j2] = uint8(num)
+			j2++
+		}
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(j2))
+		i += copy(dAtA[i:], dAtA3[:j2])
+	}
+	if len(m.NotPorts) > 0 {
+		dAtA5 := make([]byte, len(m.NotPorts)*10)
+		var j4 int
+		for _, num1 := range m.NotPorts {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA5[j4] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j4++
+			}
+			dAtA5[j4] = uint8(num)
+			j4++
+		}
+		dAtA[i] = 0x52
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(j4))
+		i += copy(dAtA[i:], dAtA5[:j4])
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *AccessRule_Constraint) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1187,42 +1384,41 @@ func (m *AccessRule_Constraint) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AccessRule_Constraint) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AccessRule_Constraint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if len(m.Values) > 0 {
-		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Values[iNdEx])
-			copy(dAtA[i:], m.Values[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Values[iNdEx])))
-			i--
+		for _, s := range m.Values {
 			dAtA[i] = 0x12
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ServiceRoleBinding) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1230,78 +1426,47 @@ func (m *ServiceRoleBinding) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ServiceRoleBinding) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ServiceRoleBinding) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Role) > 0 {
-		i -= len(m.Role)
-		copy(dAtA[i:], m.Role)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.Role)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.Actions) > 0 {
-		for iNdEx := len(m.Actions) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Actions[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRbac(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if m.Mode != 0 {
-		i = encodeVarintRbac(dAtA, i, uint64(m.Mode))
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.RoleRef != nil {
-		{
-			size, err := m.RoleRef.MarshalToSizedBuffer(dAtA[:i])
+	if len(m.Subjects) > 0 {
+		for _, msg := range m.Subjects {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintRbac(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
+	}
+	if m.RoleRef != nil {
 		dAtA[i] = 0x12
-	}
-	if len(m.Subjects) > 0 {
-		for iNdEx := len(m.Subjects) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Subjects[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRbac(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0xa
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.RoleRef.Size()))
+		n6, err := m.RoleRef.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
+		i += n6
 	}
-	return len(dAtA) - i, nil
+	if m.Mode != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.Mode))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Subject) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1309,131 +1474,169 @@ func (m *Subject) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Subject) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Subject) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.User) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(len(m.User)))
+		i += copy(dAtA[i:], m.User)
 	}
-	if len(m.NotIps) > 0 {
-		for iNdEx := len(m.NotIps) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotIps[iNdEx])
-			copy(dAtA[i:], m.NotIps[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotIps[iNdEx])))
-			i--
-			dAtA[i] = 0x5a
-		}
+	if len(m.Group) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(len(m.Group)))
+		i += copy(dAtA[i:], m.Group)
 	}
-	if len(m.Ips) > 0 {
-		for iNdEx := len(m.Ips) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Ips[iNdEx])
-			copy(dAtA[i:], m.Ips[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Ips[iNdEx])))
-			i--
-			dAtA[i] = 0x52
-		}
-	}
-	if len(m.NotNamespaces) > 0 {
-		for iNdEx := len(m.NotNamespaces) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotNamespaces[iNdEx])
-			copy(dAtA[i:], m.NotNamespaces[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotNamespaces[iNdEx])))
-			i--
-			dAtA[i] = 0x4a
-		}
-	}
-	if len(m.Namespaces) > 0 {
-		for iNdEx := len(m.Namespaces) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Namespaces[iNdEx])
-			copy(dAtA[i:], m.Namespaces[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Namespaces[iNdEx])))
-			i--
-			dAtA[i] = 0x42
-		}
-	}
-	if len(m.NotGroups) > 0 {
-		for iNdEx := len(m.NotGroups) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotGroups[iNdEx])
-			copy(dAtA[i:], m.NotGroups[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotGroups[iNdEx])))
-			i--
-			dAtA[i] = 0x3a
-		}
-	}
-	if len(m.Groups) > 0 {
-		for iNdEx := len(m.Groups) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Groups[iNdEx])
-			copy(dAtA[i:], m.Groups[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Groups[iNdEx])))
-			i--
-			dAtA[i] = 0x32
-		}
-	}
-	if len(m.NotNames) > 0 {
-		for iNdEx := len(m.NotNames) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.NotNames[iNdEx])
-			copy(dAtA[i:], m.NotNames[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.NotNames[iNdEx])))
-			i--
-			dAtA[i] = 0x2a
+	if len(m.Properties) > 0 {
+		for k, _ := range m.Properties {
+			dAtA[i] = 0x1a
+			i++
+			v := m.Properties[k]
+			mapSize := 1 + len(k) + sovRbac(uint64(len(k))) + 1 + len(v) + sovRbac(uint64(len(v)))
+			i = encodeVarintRbac(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
 		}
 	}
 	if len(m.Names) > 0 {
-		for iNdEx := len(m.Names) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Names[iNdEx])
-			copy(dAtA[i:], m.Names[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Names[iNdEx])))
-			i--
+		for _, s := range m.Names {
 			dAtA[i] = 0x22
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.Properties) > 0 {
-		for k := range m.Properties {
-			v := m.Properties[k]
-			baseI := i
-			i -= len(v)
-			copy(dAtA[i:], v)
-			i = encodeVarintRbac(dAtA, i, uint64(len(v)))
-			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintRbac(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintRbac(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x1a
+	if len(m.NotNames) > 0 {
+		for _, s := range m.NotNames {
+			dAtA[i] = 0x2a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.Group) > 0 {
-		i -= len(m.Group)
-		copy(dAtA[i:], m.Group)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.Group)))
-		i--
-		dAtA[i] = 0x12
+	if len(m.Groups) > 0 {
+		for _, s := range m.Groups {
+			dAtA[i] = 0x32
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
-	if len(m.User) > 0 {
-		i -= len(m.User)
-		copy(dAtA[i:], m.User)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.User)))
-		i--
-		dAtA[i] = 0xa
+	if len(m.NotGroups) > 0 {
+		for _, s := range m.NotGroups {
+			dAtA[i] = 0x3a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
-	return len(dAtA) - i, nil
+	if len(m.Namespaces) > 0 {
+		for _, s := range m.Namespaces {
+			dAtA[i] = 0x42
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.NotNamespaces) > 0 {
+		for _, s := range m.NotNamespaces {
+			dAtA[i] = 0x4a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.Ips) > 0 {
+		for _, s := range m.Ips {
+			dAtA[i] = 0x52
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.NotIps) > 0 {
+		for _, s := range m.NotIps {
+			dAtA[i] = 0x5a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RoleRef) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1441,40 +1644,32 @@ func (m *RoleRef) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RoleRef) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RoleRef) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Kind) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(len(m.Kind)))
+		i += copy(dAtA[i:], m.Kind)
 	}
 	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.Name)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
 	}
-	if len(m.Kind) > 0 {
-		i -= len(m.Kind)
-		copy(dAtA[i:], m.Kind)
-		i = encodeVarintRbac(dAtA, i, uint64(len(m.Kind)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *RbacConfig) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1482,60 +1677,50 @@ func (m *RbacConfig) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RbacConfig) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RbacConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.EnforcementMode != 0 {
-		i = encodeVarintRbac(dAtA, i, uint64(m.EnforcementMode))
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.Exclusion != nil {
-		{
-			size, err := m.Exclusion.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRbac(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
+	if m.Mode != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.Mode))
 	}
 	if m.Inclusion != nil {
-		{
-			size, err := m.Inclusion.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRbac(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.Inclusion.Size()))
+		n7, err := m.Inclusion.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n7
 	}
-	if m.Mode != 0 {
-		i = encodeVarintRbac(dAtA, i, uint64(m.Mode))
-		i--
-		dAtA[i] = 0x8
+	if m.Exclusion != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.Exclusion.Size()))
+		n8, err := m.Exclusion.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n8
 	}
-	return len(dAtA) - i, nil
+	if m.EnforcementMode != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintRbac(dAtA, i, uint64(m.EnforcementMode))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RbacConfig_Target) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1543,51 +1728,109 @@ func (m *RbacConfig_Target) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RbacConfig_Target) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RbacConfig_Target) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Services) > 0 {
+		for _, s := range m.Services {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
 	if len(m.Namespaces) > 0 {
-		for iNdEx := len(m.Namespaces) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Namespaces[iNdEx])
-			copy(dAtA[i:], m.Namespaces[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Namespaces[iNdEx])))
-			i--
+		for _, s := range m.Namespaces {
 			dAtA[i] = 0x12
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.Services) > 0 {
-		for iNdEx := len(m.Services) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Services[iNdEx])
-			copy(dAtA[i:], m.Services[iNdEx])
-			i = encodeVarintRbac(dAtA, i, uint64(len(m.Services[iNdEx])))
-			i--
-			dAtA[i] = 0xa
+	if len(m.WorkloadSelectors) > 0 {
+		for _, msg := range m.WorkloadSelectors {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintRbac(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintRbac(dAtA []byte, offset int, v uint64) int {
-	offset -= sovRbac(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
+func (m *WorkloadSelector) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovRbac(uint64(len(k))) + 1 + len(v) + sovRbac(uint64(len(v)))
+			n += mapEntrySize + 1 + sovRbac(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AuthorizationPolicy) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.WorkloadSelector != nil {
+		l = m.WorkloadSelector.Size()
+		n += 1 + l + sovRbac(uint64(l))
+	}
+	if len(m.Allow) > 0 {
+		for _, e := range m.Allow {
+			l = e.Size()
+			n += 1 + l + sovRbac(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *ServiceRole) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1720,16 +1963,6 @@ func (m *ServiceRoleBinding) Size() (n int) {
 	}
 	if m.Mode != 0 {
 		n += 1 + sovRbac(uint64(m.Mode))
-	}
-	if len(m.Actions) > 0 {
-		for _, e := range m.Actions {
-			l = e.Size()
-			n += 1 + l + sovRbac(uint64(l))
-		}
-	}
-	l = len(m.Role)
-	if l > 0 {
-		n += 1 + l + sovRbac(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1877,6 +2110,12 @@ func (m *RbacConfig_Target) Size() (n int) {
 			n += 1 + l + sovRbac(uint64(l))
 		}
 	}
+	if len(m.WorkloadSelectors) > 0 {
+		for _, e := range m.WorkloadSelectors {
+			l = e.Size()
+			n += 1 + l + sovRbac(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1884,10 +2123,322 @@ func (m *RbacConfig_Target) Size() (n int) {
 }
 
 func sovRbac(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozRbac(x uint64) (n int) {
 	return sovRbac(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *WorkloadSelector) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRbac
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WorkloadSelector: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WorkloadSelector: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRbac
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRbac
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRbac
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRbac
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthRbac
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthRbac
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRbac
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthRbac
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthRbac
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipRbac(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthRbac
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRbac(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AuthorizationPolicy) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRbac
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AuthorizationPolicy: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AuthorizationPolicy: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WorkloadSelector", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRbac
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRbac
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.WorkloadSelector == nil {
+				m.WorkloadSelector = &WorkloadSelector{}
+			}
+			if err := m.WorkloadSelector.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Allow", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRbac
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRbac
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Allow = append(m.Allow, &ServiceRoleBinding{})
+			if err := m.Allow[len(m.Allow)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRbac(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *ServiceRole) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -2677,72 +3228,6 @@ func (m *ServiceRoleBinding) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Actions", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRbac
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRbac
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRbac
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Actions = append(m.Actions, &AccessRule{})
-			if err := m.Actions[len(m.Actions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Role", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRbac
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthRbac
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRbac
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Role = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRbac(dAtA[iNdEx:])
@@ -3643,6 +4128,40 @@ func (m *RbacConfig_Target) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Namespaces = append(m.Namespaces, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WorkloadSelectors", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRbac
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRbac
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRbac
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WorkloadSelectors = append(m.WorkloadSelectors, &WorkloadSelector{})
+			if err := m.WorkloadSelectors[len(m.WorkloadSelectors)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

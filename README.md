@@ -12,7 +12,7 @@
 
 ## Description
 
-This repository contains various integrations of [Citrix ADC](https://www.citrix.com/products/citrix-adc/platforms.html) with [Istio 1.3.0](https://istio.io/).
+This repository contains various integrations of [Citrix ADC](https://www.citrix.com/products/citrix-adc/platforms.html) with [Istio 1.1.11](https://istio.io/).
 
 # Table of Contents
 

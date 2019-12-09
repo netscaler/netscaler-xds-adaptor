@@ -126,7 +126,6 @@ func Test_LBApi_http(t *testing.T) {
 	if err != nil {
 		t.Errorf("Config verification failed for Update %v, error %v", "lbent1", err)
 	}
-
 	t.Logf("Test LBApi update with LB Monitor removal")
 	lbObj.LbMonitorObj = nil
 	lbObj.MaxConnections = 100
@@ -259,7 +258,6 @@ func Test_LBApi_http_tls(t *testing.T) {
 	configs = []env.VerifyNitroConfig{
 		{"lbvserver", "lbent1s", map[string]interface{}{"name": "lbent1s", "servicetype": "SSL"}},
 		{"servicegroup", "lbent1s", map[string]interface{}{"servicegroupname": "lbent1s", "servicetype": "HTTP"}},
-		{"lbmonitor", "lbent1s_lbmon", map[string]interface{}{"monitorname": "lbent1s_lbmon", "type": "HTTP-INLINE", "action": "DOWN", "respcode": []int{200}, "httprequest": "HEAD /", "retries": 7, "interval": 3, "downtime": 10}},
 	}
 	err = env.VerifyConfigBlockAbsence(client, configs)
 	if err != nil {

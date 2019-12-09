@@ -114,11 +114,9 @@ func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	clusterNames := make(map[string]bool)
 	edsResources := make(map[string]interface{})
 	requestEds := false
-	// Before Istio v1.3, DiscoveryResponse had Resources field declared as []types.Any.
-	// From v1.3 onwards, Resources field is declared as []*types.Any.
 	cdsResource := &xdsapi.Cluster{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, cdsResource); err != nil {
+		if err := types.UnmarshalAny(&resource, cdsResource); err != nil {
 			continue
 		}
 		clusterNames[cdsResource.Name] = true
@@ -149,11 +147,9 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	ldsResources := make(map[string]interface{})
 	requestRds := false
 	requestCds := false
-	// Before Istio v1.3, DiscoveryResponse had Resources field declared as []types.Any.
-	// From v1.3 onwards, Resources field is declared as []*types.Any.
 	ldsResource := &xdsapi.Listener{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, ldsResource); err != nil {
+		if err := types.UnmarshalAny(&resource, ldsResource); err != nil {
 		}
 		ldsResources[ldsResource.Name] = true
 		dependentResources := client.ldsAddHandler(client.nsConfigAdaptor, ldsResource)
@@ -194,7 +190,7 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 func edsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	edsResource := &xdsapi.ClusterLoadAssignment{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, edsResource); err != nil {
+		if err := types.UnmarshalAny(&resource, edsResource); err != nil {
 		}
 		if _, ok := client.apiRequests[edsURL].resources[edsResource.GetClusterName()]; !ok {
 			log.Printf("[ERROR]: received an EDS resource that we haven't yet subscribed for %s ... ignoring", edsResource.GetClusterName())
@@ -209,7 +205,7 @@ func rdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	rdsToLds := make(map[string][]*xdsapi.RouteConfiguration)
 	for _, resource := range m.Resources {
 		rdsResource := &xdsapi.RouteConfiguration{}
-		if err := types.UnmarshalAny(resource, rdsResource); err != nil {
+		if err := types.UnmarshalAny(&resource, rdsResource); err != nil {
 			continue
 		}
 		if _, ok := client.apiRequests[rdsURL].resources[rdsResource.GetName()]; !ok {

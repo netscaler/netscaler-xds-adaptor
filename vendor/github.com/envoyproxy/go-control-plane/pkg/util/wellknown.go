@@ -46,8 +46,6 @@ const (
 	Squash = "envoy.squash"
 	// HTTPExternalAuthorization HTTP filter
 	HTTPExternalAuthorization = "envoy.ext_authz"
-	// HTTPRoleBasedAccessControl HTTP filter
-	HTTPRoleBasedAccessControl = "envoy.filters.http.rbac"
 )
 
 // Network filter names
@@ -72,8 +70,6 @@ const (
 	MySQLProxy = "envoy.filters.network.mysql_proxy"
 	// ExternalAuthorization network filter
 	ExternalAuthorization = "envoy.ext_authz"
-	// RoleBasedAccessControl network filter
-	RoleBasedAccessControl = "envoy.filters.network.rbac"
 )
 
 // Listener filter names
@@ -113,12 +109,3 @@ const (
 	// HTTPGRPCAccessLog sink for the HTTP gRPC access log service
 	HTTPGRPCAccessLog = "envoy.http_grpc_access_log"
 )
-
-// SkipFetchError is the error returned when the cache fetch is short
-// circuited due to the client's version already being up-to-date.
-type SkipFetchError struct{}
-
-// Error satisfies the error interface
-func (e SkipFetchError) Error() string {
-	return "skip fetch: version up to date"
-}

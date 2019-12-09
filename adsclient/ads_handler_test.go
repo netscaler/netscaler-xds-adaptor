@@ -160,6 +160,7 @@ func Test_clusterAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
+
 }
 
 func Test_clusterDel(t *testing.T) {

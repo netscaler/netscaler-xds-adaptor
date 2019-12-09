@@ -7,7 +7,7 @@ citrixCPX: false
 metricExporter:
     required: true
     image: quay.io/citrix/citrix-adc-metrics-exporter
-    version: 1.2
+    version: 1.3
     port: 8888
     secure: "YES"
     logLevel: ERROR
@@ -15,7 +15,7 @@ metricExporter:
 
 istioAdaptor:
     image: quay.io/citrix/citrix-istio-adaptor
-    tag: 1.1.0
+    tag: 1.0.1
     imagePullPolicy: IfNotPresent
     netscalerUrl: null 
     proxyType: router

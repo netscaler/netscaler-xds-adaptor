@@ -1,6 +1,6 @@
 # Citrix ADC CPX in Istio Helm Chart
 
-This repository contains [helm](https://helm.sh) charts for installing Citrix ADC CPX as Ingress Gateway and sidecar proxy in [Istio](https://istio.io)v1.3.0.
+This repository contains [helm](https://helm.sh) charts for installing Citrix ADC CPX as Ingress Gateway and sidecar proxy in [Istio](https://istio.io)v1.1.11.
 
 
 > Note: Charts may require access to kube-system namespace and/or cluster wide permissions for full functionality. Install/configure helm/tiller appropriately.
