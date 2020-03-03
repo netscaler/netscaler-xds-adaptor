@@ -1,8 +1,13 @@
 # Project information
-site_name: Citrix ADC Istio Adapter
+site_name: Citrix ADC Istio Adaptor
 site_title: Developer Docs
 site_description: Documentation for the Citrix ADC integration with Istio
 site_url: https://developer-docs.citrix.com
+
+# Repository
+repo_name: "Citrix Istio Adaptor"
+repo_url: "https://github.com/citrix/citrix-istio-adaptor"
+edit_uri: "edit/master/docs"
 
 # Copyright
 copyright: 'Copyright &copy; 1999-2019 Citrix Systems, Inc. All rights reserved. '
@@ -60,9 +65,9 @@ nav:
 - Overview: index.md
 - Release notes: https://github.com/citrix/citrix-istio-adaptor/releases
 - Deployment topologies: architecture.md
-- Deploy the Citrix Istio adaptor:
-  - Using YAML: deployment/README.md
-  - Using Helm charts: charts/README.md
+- Deploy the Citrix istio adaptor:
+  - Using YAML: deploy-istio-adaptor-yaml.md
+  - Using Helm chart: deploy-istio-adaptor-helm-chart.md
 - Licensing: licensing.md
 - Developer Guide: developer_guide.md
 - Questions?: https://discussions.citrix.com/forum/1385-citrix-developer-exchange/
