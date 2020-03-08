@@ -1,6 +1,6 @@
 # Features supported according to Istio resources
 
-The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, Service Entry) is mentioned below.
+The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, Service Entry) is mentioned as follows.
 
 ## [Destination Rule](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/)
 
@@ -8,7 +8,7 @@ Destination rule allows you to define policies that apply to traffic intended fo
 
 The following table describes the destination rule settings supported by Citrix ADC with Istio.
 
-| Field                                                      | Istio-adaptor version| 
+| Field                                                      | Istio-adaptor version|
 |------------------------------------------------------------|---------------|
 | [trafficPolicy.connectionPool.tcp.maxConnections](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#ConnectionPoolSettings-TCPSettings)          | 1.0.0 |
 | [trafficPolicy.connectionPool.http.http2MaxRequests](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#ConnectionPoolSettings-HTTPSettings)       | 1.0.0 |
@@ -36,7 +36,6 @@ The following table describes the destination rule settings supported by Citrix 
 | [OutlierDetection.baseEjectionTime](https://istio.io/docs/reference/config/networking/v1alpha3/destination-rule/#OutlierDetection)    | 1.1.0      |
 
 > Notes: `istio-adaptor` supports only HTTP based Outlier Detection
-
 
 ## [Virtual Service](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/)
 
@@ -99,7 +98,7 @@ You can use service entry to enable adding additional entries into Istio’s int
 
 ## [Authentication Policy](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/)
 
-Using authentication policies you can specify authentication requirements for services receiving requests in an Istio service mesh. The following table describes the authentication policy settings supported by Citrix ADC with Istio.
+Using authentication policies, you can specify authentication requirements for services receiving requests in an Istio service mesh. The following table describes the authentication policy settings supported by Citrix ADC with Istio.
 
 | Field                          | Istio-adaptor version| Remarks   |
 |--------------------------------|----------------------|-----------| 
@@ -114,8 +113,6 @@ Using authentication policies you can specify authentication requirements for se
 | [mtls](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#PeerAuthenticationMethod) | 1.0.0  |    |
 | [mutualtls.mode.strict](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#MutualTls-Mode) | 1.0.0 |  |
 
+## Limitations
 
-
-# Limitations
-
-Citrix servicemesh solution currently does not support Mixer interaction. Thus, features associated with the Mixer are not supported. Citrix has plans to support Mixer integration in future releases.
+Citrix servicemesh solution currently does not support Mixer interaction. Thus, features associated with the Mixer are not supported.
