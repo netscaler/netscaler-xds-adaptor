@@ -60,21 +60,27 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
 1.  Download the `generate_yaml.sh` script.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/generate_yaml.sh > generate_yaml.sh
+
 1.  Change permissions of the script to executable mode.
    
         chmod +x generate_yaml.sh
+
 1.  Download the `ingressgateway.tmpl` template.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/ingressgateway.tmpl > ingressgateway.tmpl
+
 1.  Download the `secret.tmpl` YAML file template.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/secret.tmpl > secret.tmpl
+
 1.  Generate the Kubernetes secret YAML file from the `secret.tmpl`template for Citrix ADC VPX or MPX credentials.
 
         ./generate_yaml.sh --inputfile secret.tmpl --outputfile secret.yaml --username <username> --password <password>
+
 1.  Create the Kubernetes secret object in the cluster.
 
         kubectl create -f secret.yaml -n citrix-system
+
 1.  Create a YAML file from the `ingressgateway.tmpl` template using the generate_yaml.sh script.
    
         ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --netscaler-url https://<nsip>[:port] --vserver-ip <Virtual Server IPv4 Address>
@@ -84,6 +90,7 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
     The following example shows how to specify the image details while running the script to create the YAML file.
 
           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --netscaler-url https://<nsip>[:port]
+
 1. Deploy Citrix ADC VPX or MPX using the `ingressgateway.yaml` file and specify the name space.
    
        kubectl create -f ingressgateway.yaml -n citrix-system
@@ -117,6 +124,7 @@ You must create the resources required for automatic sidecar injection by perfor
 2.  Change the permissions of the script to executable mode.
 
         chmod +x webhook-create-signed-cert.sh
+
 3.  Create a signed certificate, key pair and store it in a Kubernetes secret.
 
         ./webhook-create-signed-cert.sh \
@@ -255,6 +263,6 @@ To delete a Citrix ADC MPX or VPX which is deployed as an Ingress Gateway, perfo
 
 To delete Citrix ADC CPX resources created for automatic injection, perform the following step.
 
-1.  Use the `kubectl delete` command and specify the `cpx-sidecar-injection-all-in-one.yaml` file generated in [Deploy Citrix ADC CPX as a sidecar using automatic injection](#deploy-citrix-adc-cpx-as-a-sidecar-using-automatic-injection).
+Use the `kubectl delete` command and specify the `cpx-sidecar-injection-all-in-one.yaml` file generated in [Deploy Citrix ADC CPX as a sidecar using automatic injection](#deploy-citrix-adc-cpx-as-a-sidecar-using-automatic-injection).
 
         kubectl delete -f cpx-sidecar-injection-all-in-one.yaml -n citrix-system

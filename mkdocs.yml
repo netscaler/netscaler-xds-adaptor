@@ -68,6 +68,6 @@ nav:
 - Deploy the Citrix istio adaptor:
   - Using YAML: deploy-istio-adaptor-yaml.md
   - Using Helm chart: deploy-istio-adaptor-helm-chart.md
-- Licensing: licensing.md
+- Licensing: cpx-licensing.md
 - Developer Guide: developer-guide.md
 - Questions?: https://discussions.citrix.com/forum/1385-citrix-developer-exchange/
