@@ -18,19 +18,19 @@ Release notes may include one or more of the following sections:
 
 Traffic mirroring provides a way to minimize the risk in bringing your application changes to production. Instead of routing production traffic to a newly deployed service, you can send a copy of the production traffic to a mirrored service. You can then observe the service that is receiving mirrored traffic for errors.
 
-Citrix istio-adaptor now supports  [HTTP Traffic Mirroring](https://istio.io/docs/tasks/traffic-management/mirroring/). [NSNET-13891](https://issues.citrite.net/browse/NSNET-13891)
+Citrix `istio-adaptor` now supports  [HTTP Traffic Mirroring](https://istio.io/docs/tasks/traffic-management/mirroring/). [NSNET-13891](https://issues.citrite.net/browse/NSNET-13891)
 
 #### Support for Weighted Service Entry
 
 A service entry describes the properties of a service (DNS name, VIPs, ports, protocols, endpoints). Using a weighted service entry, you can associate a load balancing weight with an endpoint. Endpoints with higher weights receive proportionally high traffic compared to endpoints with lower weights.
 
-Citrix istio-adaptor now supports  [Weighted Service Entries](https://istio.io/docs/reference/config/networking/service-entry/#ServiceEntry-Endpoint). [NSNET-13514](https://issues.citrite.net/browse/NSNET-13514)
+Citrix `istio-adaptor` now supports  [Weighted Service Entries](https://istio.io/docs/reference/config/networking/service-entry/#ServiceEntry-Endpoint). [NSNET-13514](https://issues.citrite.net/browse/NSNET-13514)
 
 #### Support for Desired State API
 
 Service group configuration on a Citrix ADC appliance requires frequent updates depending on the scale requirements or runtime changes to application servers. You can use desired state API and accept the intended member set for a service group in a single API and effectively update the configuration. Usage of desired state API improves the performance of updating servicegroup members significantly. 
 
-Citrix istio-adaptor now supports  [Desired State APIs](https://developer-docs.citrix.com/projects/citrix-adc-nitro-api-reference/en/latest/usecases/#update-service-group-with-desired-member-set-seamlessly-using-desired-state-api). [NSNET-12761](https://issues.citrite.net/browse/NSNET-12761)
+Citrix `istio-adaptor` now supports  [Desired State APIs](https://developer-docs.citrix.com/projects/citrix-adc-nitro-api-reference/en/latest/usecases/#update-service-group-with-desired-member-set-seamlessly-using-desired-state-api). [NSNET-12761](https://issues.citrite.net/browse/NSNET-12761)
 
 #### Integration with Citrix Observability Exporter
 
