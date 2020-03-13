@@ -1,6 +1,9 @@
 {
   "type" : "object",
   "properties" : {
+    "analyticsprofile" : {
+      "type" : "string"
+    },
     "logcompact" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
@@ -11,6 +14,10 @@
     },
     "logprofilename" : {
       "type" : "string"
+    },
+    "logsessdeletion" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
     },
     "logsubscrinfo" : {
       "type" : "string",

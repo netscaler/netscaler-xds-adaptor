@@ -1,6 +1,10 @@
 {
   "type" : "object",
   "properties" : {
+    "cookieipport" : {
+      "type" : "string",
+      "readonly" : true
+    },
     "hits" : {
       "type" : "integer",
       "readonly" : true
@@ -13,6 +17,10 @@
     },
     "targetvserver" : {
       "type" : "string"
+    },
+    "vserverid" : {
+      "type" : "string",
+      "readonly" : true
     }
   },
   "$schema" : "http://json-schema.org/draft-04/schema#",

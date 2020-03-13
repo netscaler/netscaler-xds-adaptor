@@ -3,6 +3,7 @@ package cache
 type Cachepolicy struct {
 	Action       string      `json:"action,omitempty"`
 	Builtin      interface{} `json:"builtin,omitempty"`
+	Feature      string      `json:"feature,omitempty"`
 	Flags        int         `json:"flags,omitempty"`
 	Hits         int         `json:"hits,omitempty"`
 	Invalgroups  interface{} `json:"invalgroups,omitempty"`

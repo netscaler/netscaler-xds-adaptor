@@ -19,6 +19,9 @@
     "creditcardnumberpercentthreshold" : {
       "type" : "integer"
     },
+    "crosssitescriptingautodeploygraceperiod" : {
+      "type" : "integer"
+    },
     "crosssitescriptingminthreshold" : {
       "type" : "integer"
     },
@@ -37,6 +40,9 @@
     "fieldconsistencypercentthreshold" : {
       "type" : "integer"
     },
+    "fieldformatautodeploygraceperiod" : {
+      "type" : "integer"
+    },
     "fieldformatminthreshold" : {
       "type" : "integer"
     },
@@ -46,10 +52,16 @@
     "profilename" : {
       "type" : "string"
     },
+    "sqlinjectionautodeploygraceperiod" : {
+      "type" : "integer"
+    },
     "sqlinjectionminthreshold" : {
       "type" : "integer"
     },
     "sqlinjectionpercentthreshold" : {
+      "type" : "integer"
+    },
+    "starturlautodeploygraceperiod" : {
       "type" : "integer"
     },
     "starturlminthreshold" : {

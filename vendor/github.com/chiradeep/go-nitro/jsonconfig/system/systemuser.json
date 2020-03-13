@@ -1,6 +1,15 @@
 {
   "type" : "object",
   "properties" : {
+    "allowedmanagementinterface" : {
+      "type" : "object",
+      "enum" : [ "CLI", "API" ]
+    },
+    "allowedmanagementinterfacekind" : {
+      "type" : "string",
+      "enum" : [ "User", "Group", "Global", "Climode" ],
+      "readonly" : true
+    },
     "encrypted" : {
       "type" : "boolean",
       "readonly" : true

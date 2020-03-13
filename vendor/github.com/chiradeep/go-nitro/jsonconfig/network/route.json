@@ -176,6 +176,9 @@
       "type" : "boolean",
       "readonly" : true
     },
+    "vlan" : {
+      "type" : "integer"
+    },
     "weight" : {
       "type" : "integer"
     }

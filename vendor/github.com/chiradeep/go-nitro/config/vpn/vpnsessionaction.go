@@ -27,9 +27,11 @@ type Vpnsessionaction struct {
 	Dnsvservername             string      `json:"dnsvservername,omitempty"`
 	Emailhome                  string      `json:"emailhome,omitempty"`
 	Epaclienttype              string      `json:"epaclienttype,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Forcecleanup               interface{} `json:"forcecleanup,omitempty"`
 	Forcedtimeout              int         `json:"forcedtimeout,omitempty"`
 	Forcedtimeoutwarning       int         `json:"forcedtimeoutwarning,omitempty"`
+	Fqdnspoofedip              string      `json:"fqdnspoofedip,omitempty"`
 	Ftpproxy                   string      `json:"ftpproxy,omitempty"`
 	Gopherproxy                string      `json:"gopherproxy,omitempty"`
 	Homepage                   string      `json:"homepage,omitempty"`
@@ -46,6 +48,7 @@ type Vpnsessionaction struct {
 	Logoutscript               string      `json:"logoutscript,omitempty"`
 	Macpluginupgrade           string      `json:"macpluginupgrade,omitempty"`
 	Name                       string      `json:"name,omitempty"`
+	Netmask                    string      `json:"netmask,omitempty"`
 	Ntdomain                   string      `json:"ntdomain,omitempty"`
 	Pcoipprofilename           string      `json:"pcoipprofilename,omitempty"`
 	Proxy                      string      `json:"proxy,omitempty"`

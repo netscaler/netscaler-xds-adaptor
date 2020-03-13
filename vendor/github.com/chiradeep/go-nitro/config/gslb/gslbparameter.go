@@ -2,7 +2,9 @@ package gslb
 
 type Gslbparameter struct {
 	Automaticconfigsync   string      `json:"automaticconfigsync,omitempty"`
+	Builtin               interface{} `json:"builtin,omitempty"`
 	Dropldnsreq           string      `json:"dropldnsreq,omitempty"`
+	Feature               string      `json:"feature,omitempty"`
 	Flags                 int         `json:"flags,omitempty"`
 	Gslbsvcstatedelaytime int         `json:"gslbsvcstatedelaytime,omitempty"`
 	Ldnsentrytimeout      int         `json:"ldnsentrytimeout,omitempty"`

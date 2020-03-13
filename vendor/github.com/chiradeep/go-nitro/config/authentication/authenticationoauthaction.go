@@ -17,7 +17,9 @@ type Authenticationoauthaction struct {
 	Attribute7                 string `json:"attribute7,omitempty"`
 	Attribute8                 string `json:"attribute8,omitempty"`
 	Attribute9                 string `json:"attribute9,omitempty"`
+	Attributes                 string `json:"attributes,omitempty"`
 	Audience                   string `json:"audience,omitempty"`
+	Authentication             string `json:"authentication,omitempty"`
 	Authorizationendpoint      string `json:"authorizationendpoint,omitempty"`
 	Certendpoint               string `json:"certendpoint,omitempty"`
 	Certfilepath               string `json:"certfilepath,omitempty"`

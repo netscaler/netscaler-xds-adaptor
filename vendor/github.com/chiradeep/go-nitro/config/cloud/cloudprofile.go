@@ -1,6 +1,9 @@
 package cloud
 
 type Cloudprofile struct {
+	Azurepollperiod          int    `json:"azurepollperiod,omitempty"`
+	Azuretagname             string `json:"azuretagname,omitempty"`
+	Azuretagvalue            string `json:"azuretagvalue,omitempty"`
 	Boundservicegroupsvctype string `json:"boundservicegroupsvctype,omitempty"`
 	Delay                    int    `json:"delay,omitempty"`
 	Graceful                 string `json:"graceful,omitempty"`

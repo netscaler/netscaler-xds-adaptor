@@ -18,13 +18,32 @@ package netscaler
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
+
+// Idempotent flag can't be added for these resources
+var idempotentInvalidResources = []string{"login", "logout", "reboot", "shutdown", "ping", "ping6", "traceroute", "traceroute6", "install"}
+
+const (
+	nsErrSessionExpired = 444
+	nsErrAuthTimeout    = 1027
+)
+
+func contains(slice []string, val string) bool {
+	for _, item := range slice {
+		if strings.EqualFold(item, val) {
+			return true
+		}
+	}
+	return false
+}
 
 type responseHandlerFunc func(resp *http.Response) ([]byte, error)
 
@@ -103,18 +122,32 @@ func (c *NitroClient) createHTTPRequest(method string, url string, buff *bytes.B
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	splitStrings := strings.Split(strings.Split(url, "?")[0], "/")
+	resourceName := splitStrings[len(splitStrings)-1]
 	if c.proxiedNs == "" {
-		req.Header.Set("X-NITRO-USER", c.username)
-		req.Header.Set("X-NITRO-PASS", c.password)
+		if len(c.sessionid) > 0 {
+			req.Header.Set("Set-Cookie", "NITRO_AUTH_TOKEN="+c.sessionid)
+		} else {
+			if resourceName != "login" {
+				req.Header.Set("X-NITRO-USER", c.username)
+				req.Header.Set("X-NITRO-PASS", c.password)
+			}
+		}
 	} else {
-		req.SetBasicAuth(c.username, c.password)
+		if len(c.sessionid) > 0 {
+			req.Header.Set("Set-Cookie", "NITRO_AUTH_TOKEN="+c.sessionid)
+		} else {
+			if resourceName != "login" {
+				req.SetBasicAuth(c.username, c.password)
+			}
+		}
 		req.Header.Set("_MPS_API_PROXY_MANAGED_INSTANCE_IP", c.proxiedNs)
 	}
 	return req, nil
 }
 
-func (c *NitroClient) doHTTPRequest(method string, url string, bytes *bytes.Buffer, respHandler responseHandlerFunc) ([]byte, error) {
-	req, err := c.createHTTPRequest(method, url, bytes)
+func (c *NitroClient) doHTTPRequest(method string, urlstr string, bytes *bytes.Buffer, respHandler responseHandlerFunc) ([]byte, error) {
+	req, err := c.createHTTPRequest(method, urlstr, bytes)
 
 	resp, err := c.client.Do(req)
 	if resp != nil {
@@ -123,8 +156,29 @@ func (c *NitroClient) doHTTPRequest(method string, url string, bytes *bytes.Buff
 	if err != nil {
 		return []byte{}, err
 	}
+	// For login request 'sessionid' is present in cookies
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "sessionid" {
+			sessionid, err := url.QueryUnescape(cookie.Value)
+			if err == nil {
+				c.sessionid = sessionid
+			}
+		}
+	}
 	log.Println("[DEBUG] go-nitro: response Status:", resp.Status)
-	return respHandler(resp)
+	body, err := respHandler(resp)
+	// Clear sessionid in case of session-expiry
+	if resp.Status == "401 Unauthorized" {
+		var data map[string]interface{}
+		err2 := json.Unmarshal(body, &data)
+		if err2 == nil {
+			data["errorcode"] = int(data["errorcode"].(float64))
+			if data["errorcode"] == nsErrSessionExpired || data["errorcode"] == nsErrAuthTimeout {
+				c.sessionid = ""
+			}
+		}
+	}
+	return body, err
 }
 
 func (c *NitroClient) createResource(resourceType string, resourceJSON []byte) ([]byte, error) {
@@ -132,7 +186,7 @@ func (c *NitroClient) createResource(resourceType string, resourceJSON []byte) (
 
 	url := c.url + resourceType
 
-	if !strings.HasSuffix(resourceType, "_binding") {
+	if !strings.HasSuffix(resourceType, "_binding") && !contains(idempotentInvalidResources, resourceType) {
 		url = url + "?idempotent=yes"
 	}
 	log.Println("[TRACE] go-nitro: url is ", url)
@@ -325,9 +379,33 @@ func (c *NitroClient) enableFeatures(featureJSON []byte) ([]byte, error) {
 
 }
 
+func (c *NitroClient) disableFeatures(featureJSON []byte) ([]byte, error) {
+	log.Println("[DEBUG] go-nitro Disabling features")
+	url := c.url + "nsfeature?action=disable"
+
+	return c.doHTTPRequest("POST", url, bytes.NewBuffer(featureJSON), createResponseHandler)
+
+}
+
 func (c *NitroClient) listEnabledFeatures() ([]byte, error) {
 	log.Println("[DEBUG] go-nitro: listing features")
 	url := c.url + "nsfeature"
+
+	return c.doHTTPRequest("GET", url, bytes.NewBuffer([]byte{}), readResponseHandler)
+
+}
+
+func (c *NitroClient) enableModes(modeJSON []byte) ([]byte, error) {
+	log.Println("[DEBUG] go-nitro Enabling modes")
+	url := c.url + "nsmode?action=enable"
+
+	return c.doHTTPRequest("POST", url, bytes.NewBuffer(modeJSON), createResponseHandler)
+
+}
+
+func (c *NitroClient) listEnabledModes() ([]byte, error) {
+	log.Println("[DEBUG] go-nitro: listing modes")
+	url := c.url + "nsmode"
 
 	return c.doHTTPRequest("GET", url, bytes.NewBuffer([]byte{}), readResponseHandler)
 

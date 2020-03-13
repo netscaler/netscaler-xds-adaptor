@@ -15,13 +15,14 @@ package nsconfigengine
 
 import (
 	"fmt"
-	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/chiradeep/go-nitro/netscaler"
 )
 
 const cpxHttpdPort = 80
@@ -60,6 +61,16 @@ type nitroConfig struct {
 
 func commitConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
 	var err error
+	// Establish session with ADC if not already established.
+	for i := 0; i <= 2; i++ { // Try login attempt thrice
+		err = client.Login()
+		if err == nil { // Login successful
+			break
+		} else if i == 2 {
+			log.Printf("[DEBUG]: Token based Login is not successful!")
+		}
+	}
+
 	if operation == "add" {
 		_, err = client.AddResource(resourceType, resourceName, resource)
 	} else if operation == "set" {

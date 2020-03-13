@@ -34,6 +34,7 @@ type Vpnparameter struct {
 	Forcecleanup               interface{} `json:"forcecleanup,omitempty"`
 	Forcedtimeout              int         `json:"forcedtimeout,omitempty"`
 	Forcedtimeoutwarning       int         `json:"forcedtimeoutwarning,omitempty"`
+	Fqdnspoofedip              string      `json:"fqdnspoofedip,omitempty"`
 	Ftpproxy                   string      `json:"ftpproxy,omitempty"`
 	Gopherproxy                string      `json:"gopherproxy,omitempty"`
 	Homepage                   string      `json:"homepage,omitempty"`
@@ -53,6 +54,7 @@ type Vpnparameter struct {
 	Macpluginupgrade           string      `json:"macpluginupgrade,omitempty"`
 	Mdxtokentimeout            int         `json:"mdxtokentimeout,omitempty"`
 	Name                       string      `json:"name,omitempty"`
+	Netmask                    string      `json:"netmask,omitempty"`
 	Ntdomain                   string      `json:"ntdomain,omitempty"`
 	Pcoipprofilename           string      `json:"pcoipprofilename,omitempty"`
 	Proxy                      string      `json:"proxy,omitempty"`

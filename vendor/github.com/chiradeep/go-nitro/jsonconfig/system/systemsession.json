@@ -6,7 +6,7 @@
     },
     "clienttype" : {
       "type" : "string",
-      "enum" : [ "CLI", "API", "GUI" ],
+      "enum" : [ "CLI", "CONSOLE", "API", "GUI" ],
       "readonly" : true
     },
     "currentconn" : {
@@ -21,7 +21,15 @@
       "type" : "string",
       "readonly" : true
     },
+    "lastactivitytimelocal" : {
+      "type" : "string",
+      "readonly" : true
+    },
     "logintime" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "logintimelocal" : {
       "type" : "string",
       "readonly" : true
     },

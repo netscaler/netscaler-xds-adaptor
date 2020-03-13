@@ -1,7 +1,16 @@
 {
   "type" : "object",
   "properties" : {
+    "builtin" : {
+      "type" : "object",
+      "enum" : [ "MODIFIABLE", "DELETABLE", "IMMUTABLE", "PARTITION_ALL" ],
+      "readonly" : true
+    },
     "enablesronhafailover" : {
+      "type" : "string",
+      "enum" : [ "YES", "NO" ]
+    },
+    "hdxinsightnonnsap" : {
       "type" : "string",
       "enum" : [ "YES", "NO" ]
     }

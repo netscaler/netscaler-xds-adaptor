@@ -27,7 +27,6 @@ type Vpnvserver struct {
 	Dtls                     string `json:"dtls,omitempty"`
 	Epaprofileoptional       bool   `json:"epaprofileoptional,omitempty"`
 	Failedlogintimeout       int    `json:"failedlogintimeout,omitempty"`
-	Gotopriorityexpression   string `json:"gotopriorityexpression,omitempty"`
 	Groupextraction          bool   `json:"groupextraction,omitempty"`
 	Httpprofilename          string `json:"httpprofilename,omitempty"`
 	Icaonly                  string `json:"icaonly,omitempty"`
@@ -52,10 +51,8 @@ type Vpnvserver struct {
 	Ngname                   string `json:"ngname,omitempty"`
 	Nodefaultbindings        string `json:"nodefaultbindings,omitempty"`
 	Pcoipvserverprofilename  string `json:"pcoipvserverprofilename,omitempty"`
-	Policy                   string `json:"policy,omitempty"`
 	Port                     int    `json:"port,omitempty"`
 	Precedence               string `json:"precedence,omitempty"`
-	Priority                 int    `json:"priority,omitempty"`
 	Range                    int    `json:"range,omitempty"`
 	Rdpserverprofilename     string `json:"rdpserverprofilename,omitempty"`
 	Redirect                 string `json:"redirect,omitempty"`

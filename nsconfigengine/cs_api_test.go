@@ -407,3 +407,114 @@ func Test_CSBindingsAPI(t *testing.T) {
 	}
 
 }
+
+func Test_mirror(t *testing.T) {
+	client := env.GetNitroClient()
+	lbObj := NewLBApi("lbent2", "HTTP", "HTTP", "ROUNDROBIN")
+	t.Logf("Test LBApi.Add")
+	err := lbObj.Add(client)
+	if err != nil {
+		t.Errorf("LBApi add failed with %v", err)
+	}
+	t.Logf("Test CSBindingsAPI Add")
+	csObj := NewCSApi("cs5", "HTTP", "*", 80)
+	err = csObj.Add(client)
+	if err != nil {
+		t.Errorf("CSApi Add failed with err %v", err)
+	}
+	csBindings := NewCSBindingsAPI(csObj.Name)
+	calloutPolicy := NewHTTPCalloutPolicy("lbent2", "bool", "http.req.full_header + http.req.body(10000000)", "", "", "true")
+	csBindings.Bindings = []CSBinding{
+		{Rule: RouteMatch{Domains: []string{"www.abc.com", "www.abc.in"}, Path: "/login"}, CsPolicy: CsPolicy{Canary: []Canary{{LbVserverName: "v5", LbVserverType: "HTTP"}}}, MirrorPolicy: &HTTPMirror{Callout: calloutPolicy, Weight: 100}},
+	}
+	err = csBindings.Add(client)
+	if err != nil {
+		t.Errorf("CSBindingsAPI Update for cs5 failed with err %v", err)
+	}
+	configs := []env.VerifyNitroConfig{
+		{"csaction", "cs5_10", map[string]interface{}{"name": "cs5_10", "targetlbvserver": "v5"}},
+		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10)))"}},
+		{"policyhttpcallout", "cs5_10", map[string]interface{}{"name": "cs5_10", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
+		{"rewriteaction", "lbent2", map[string]interface{}{"name": "lbent2", "target": "HTTP.REQ.HEADER(\"HOST\")", "stringbuilderexpr": "http.req.header(\"host\").prefix(':', 0).append(\"-shadow:\").append(http.req.header(\"host\").after_str(\":\")).STRIP_END_CHARS(\":\")", "type": "replace"}},
+		{"rewritepolicy", "lbent2", map[string]interface{}{"action": "lbent2", "name": "lbent2", "rule": "true"}},
+	}
+	err = env.VerifyConfigBlockPresence(client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for Add/Update cs5, error %v", err)
+	}
+	err = env.VerifyBindings(client, "lbvserver", "lbent2", "rewritepolicy", []map[string]interface{}{
+		{"name": "lbent2", "policyname": "lbent2", "priority": "80"},
+	})
+	if err != nil {
+		t.Errorf("Config verification failed for Add rewrite policy binding lbent2, error %v", err)
+	}
+
+	t.Logf("Test CSBindingsAPI Update")
+	csBindings = NewCSBindingsAPI(csObj.Name)
+	csBindings.Bindings = []CSBinding{
+		{Rule: RouteMatch{Domains: []string{"www.abc.com", "www.abc.in"}, Path: "/login"}, CsPolicy: CsPolicy{Canary: []Canary{{LbVserverName: "v5", LbVserverType: "HTTP"}}}, MirrorPolicy: nil},
+	}
+	err = csBindings.Add(client)
+	if err != nil {
+		t.Errorf("CSBindingsAPI Update for cs5 failed with err %v", err)
+	}
+	configs = []env.VerifyNitroConfig{
+		{"policyhttpcallout", "cs5_10", nil},
+		{"rewritepolicy", "lbent2", nil},
+		{"rewriteaction", "lbent2", nil},
+		{"lbvserver", "lbent2", nil},
+	}
+	err = env.VerifyConfigBlockAbsence(client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for Delete stale bindings for cs5, error %v", err)
+	}
+	t.Logf("Test CSBindingsAPI Update")
+	err = lbObj.Add(client)
+	if err != nil {
+		t.Errorf("LBApi add failed with %v", err)
+	}
+
+	csBindings = NewCSBindingsAPI(csObj.Name)
+	csBindings.Bindings = []CSBinding{
+		{Rule: RouteMatch{Domains: []string{"www.abc.com", "www.abc.in"}, Path: "/login"}, CsPolicy: CsPolicy{Canary: []Canary{{LbVserverName: "v5", LbVserverType: "HTTP"}}}, MirrorPolicy: &HTTPMirror{Callout: calloutPolicy, Weight: 100}},
+	}
+	err = csBindings.Add(client)
+	if err != nil {
+		t.Errorf("CSBindingsAPI Update for cs5 failed with err %v", err)
+	}
+	configs = []env.VerifyNitroConfig{
+		{"csaction", "cs5_10", map[string]interface{}{"name": "cs5_10", "targetlbvserver": "v5"}},
+		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10)))"}},
+		{"policyhttpcallout", "cs5_10", map[string]interface{}{"name": "cs5_10", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
+		{"rewriteaction", "lbent2", map[string]interface{}{"name": "lbent2", "target": "HTTP.REQ.HEADER(\"HOST\")", "stringbuilderexpr": "http.req.header(\"host\").prefix(':', 0).append(\"-shadow:\").append(http.req.header(\"host\").after_str(\":\")).STRIP_END_CHARS(\":\")", "type": "replace"}},
+		{"rewritepolicy", "lbent2", map[string]interface{}{"action": "lbent2", "name": "lbent2", "rule": "true"}},
+	}
+	err = env.VerifyConfigBlockPresence(client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for Add/Update cs5, error %v", err)
+	}
+	err = env.VerifyBindings(client, "lbvserver", "lbent2", "rewritepolicy", []map[string]interface{}{
+		{"name": "lbent2", "policyname": "lbent2", "priority": "80"},
+	})
+	if err != nil {
+		t.Errorf("Config verification failed for Add rewrite policy binding lbent2, error %v", err)
+	}
+	t.Logf("Test CSBindingsAPI Delete")
+	t.Logf("CSApi delete")
+	err = csObj.Delete(client)
+	if err != nil {
+		t.Errorf("Config verification failed for cs5, error %v", err)
+	}
+	configs = []env.VerifyNitroConfig{
+		{"csaction", "cs5_10", nil},
+		{"cspolicy", "cs5_10", nil},
+		{"policyhttpcallout", "cs5_10", nil},
+		{"rewritepolicy", "lbent2", nil},
+		{"rewriteaction", "lbent2", nil},
+		{"lbvserver", "lbent2", nil},
+	}
+	err = env.VerifyConfigBlockAbsence(client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for Delete stale bindings for cs5, error %v", err)
+	}
+}

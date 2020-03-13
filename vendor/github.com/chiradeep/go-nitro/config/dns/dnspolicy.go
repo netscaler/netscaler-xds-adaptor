@@ -6,6 +6,7 @@ type Dnspolicy struct {
 	Cachebypass       string      `json:"cachebypass,omitempty"`
 	Description       string      `json:"description,omitempty"`
 	Drop              string      `json:"drop,omitempty"`
+	Feature           string      `json:"feature,omitempty"`
 	Hits              int         `json:"hits,omitempty"`
 	Logaction         string      `json:"logaction,omitempty"`
 	Name              string      `json:"name,omitempty"`

@@ -1,9 +1,16 @@
 {
   "type" : "object",
   "properties" : {
+    "advertiseondefaultpartition" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "arp" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "arpowner" : {
+      "type" : "integer"
     },
     "arpresponse" : {
       "type" : "string",
@@ -77,6 +84,10 @@
     "networkroute" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "operationalarpowner" : {
+      "type" : "integer",
+      "readonly" : true
     },
     "ospf" : {
       "type" : "string",

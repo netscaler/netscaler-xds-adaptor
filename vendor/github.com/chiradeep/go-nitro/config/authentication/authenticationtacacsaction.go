@@ -18,6 +18,7 @@ type Authenticationtacacsaction struct {
 	Attribute7                 string `json:"attribute7,omitempty"`
 	Attribute8                 string `json:"attribute8,omitempty"`
 	Attribute9                 string `json:"attribute9,omitempty"`
+	Attributes                 string `json:"attributes,omitempty"`
 	Auditfailedcmds            string `json:"auditfailedcmds,omitempty"`
 	Authorization              string `json:"authorization,omitempty"`
 	Authtimeout                int    `json:"authtimeout,omitempty"`

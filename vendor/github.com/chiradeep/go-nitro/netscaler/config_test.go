@@ -411,6 +411,33 @@ func TestEnableFeatures(t *testing.T) {
 	}
 }
 
+func TestEnableModes(t *testing.T) {
+	modes := []string{"ULFD", "MBF"}
+	err := client.EnableModes(modes)
+	if err != nil {
+		t.Error("Failed to enable modes", err)
+		log.Println("Cannot continue")
+		return
+	}
+	result, err := client.ListEnabledModes()
+	if err != nil {
+		t.Error("Failed to retrieve modes", err)
+		log.Println("Cannot continue")
+		return
+	}
+	found := 0
+	for _, m := range modes {
+		for _, r := range result {
+			if m == r {
+				found = found + 1
+			}
+		}
+	}
+	if found != len(modes) {
+		t.Error("Requested modes do not match enabled modes=", modes, "result=", result)
+	}
+}
+
 func TestSaveConfig(t *testing.T) {
 	err := client.SaveConfig()
 	if err != nil {
@@ -691,5 +718,109 @@ func TestFindFilteredResource(t *testing.T) {
 		return
 	} else {
 		t.Error("Error finding Rnat", fmt.Errorf("Discovered RNAT does not match"))
+	}
+}
+
+// TestDesiredStateServicegroupAPI tests the servicegroup_servicegroupmemberlist_binding API
+// which is used to bind multiple IP-only members to servicegroup in single Nitro call
+func TestDesiredStateServicegroupAPI(t *testing.T) {
+	svcGrpName := "test_sg_" + randomString(5)
+	sg1 := basic.Servicegroup{
+		Servicegroupname: svcGrpName,
+		Servicetype:      "http",
+		Autoscale:        "API",
+	}
+
+	_, err := client.AddResource(Servicegroup.Type(), svcGrpName, &sg1)
+	if err != nil {
+		t.Error("Could not add resource autoscale service group", err)
+		log.Println("Cannot continue")
+		return
+	}
+
+	ipmembers := []basic.Member{
+		{
+			Ip:   "1.1.1.1",
+			Port: 80,
+		},
+		{
+			Ip:   "2.2.2.2",
+			Port: 80,
+		},
+		{
+			Ip:   "3.3.3.3",
+			Port: 80,
+		},
+	}
+
+	bindSvcGrpToServer := basic.Servicegroupservicegroupmemberlistbinding{
+		Servicegroupname: svcGrpName,
+		Members:          ipmembers,
+	}
+
+	_, err = client.AddResource(Servicegroup_servicegroupmemberlist_binding.Type(), "test-svcgroup", &bindSvcGrpToServer)
+	if err != nil {
+		t.Error("Could not bind resource server", err)
+		log.Println("Cannot continue")
+		return
+	}
+
+}
+
+// TestTokenBasedAuth tests token-based authentication and tests if session-is is cleared in case of session-expiry
+func TestTokenBasedAuth(t *testing.T) {
+	var err error
+	err = client.Login()
+	if err != nil {
+		t.Error("Login Failed")
+		return
+	}
+	rndIP := randomIP()
+	lbName := "test_lb_" + randomString(5)
+	lb1 := lb.Lbvserver{
+		Name:        lbName,
+		Ipv46:       rndIP,
+		Lbmethod:    "ROUNDROBIN",
+		Servicetype: "HTTP",
+		Port:        8000,
+	}
+	_, err = client.AddResource(Lbvserver.Type(), lbName, &lb1)
+	if err != nil {
+		t.Error("Could not add Lbvserver: ", err)
+		log.Println("Not continuing test")
+		return
+	}
+
+	rsrc, err := client.FindResource(Lbvserver.Type(), lbName)
+	if err != nil {
+		t.Error("Did not find resource of type ", err, Lbvserver.Type(), ":", lbName)
+	} else {
+		log.Println("LB-METHOD: ", rsrc["lbmethod"])
+	}
+	err = client.DeleteResource(Lbvserver.Type(), lbName)
+	if err != nil {
+		t.Error("Could not delete LB", lbName, err)
+		log.Println("Cannot continue")
+		return
+	}
+	err = client.Logout()
+	if err != nil {
+		t.Error("Logout Failed")
+		return
+	}
+
+	// Test if session-id is cleared in case of session-expiry
+	client.timeout = 10
+	client.Login()
+	time.Sleep(15 * time.Second)
+	_, err = client.AddResource(Lbvserver.Type(), lbName, &lb1)
+	if err != nil {
+		if len(client.sessionid) > 0 {
+			t.Error("Sessionid not cleared")
+			return
+		}
+		log.Println("sessionid cleared because of session-expiry")
+	} else {
+		t.Error("Adding lbvserver should have failed because of session-expiry")
 	}
 }

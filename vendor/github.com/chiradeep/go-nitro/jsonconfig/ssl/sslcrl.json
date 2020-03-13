@@ -49,7 +49,7 @@
     },
     "interval" : {
       "type" : "string",
-      "enum" : [ "MONTHLY", "WEEKLY", "DAILY", "NONE" ]
+      "enum" : [ "MONTHLY", "WEEKLY", "DAILY", "NOW", "NONE" ]
     },
     "issuer" : {
       "type" : "string",

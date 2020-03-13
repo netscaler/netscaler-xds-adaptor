@@ -12,7 +12,13 @@
     "hostheader" : {
       "type" : "string"
     },
+    "inserthttprequest" : {
+      "type" : "string"
+    },
     "inserticapheaders" : {
+      "type" : "string"
+    },
+    "logaction" : {
       "type" : "string"
     },
     "mode" : {

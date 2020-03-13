@@ -15,15 +15,16 @@ package adsclient
 
 import (
 	"context"
+	"log"
+	"strings"
+	"sync"
+	"time"
+
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	envoy_api_v2_core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc"
-	"log"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -268,7 +269,7 @@ func (client *AdsClient) reloadCds() {
 func NewAdsClient(adsServerURL string, adsServerSpiffeID string, secureConnect bool,
 	nodeID string, applicationName string, netscalerURL string,
 	netscalerUsername string, netscalerPassword string, netscalerVIP string,
-	netProfile string, analyticsServerIP string) (*AdsClient, error) {
+	netProfile string, analyticsServerIP string, logProxyURL string) (*AdsClient, error) {
 	var err error
 	adsClient := new(AdsClient)
 	adsClient.adsServerURL = adsServerURL
@@ -287,7 +288,7 @@ func NewAdsClient(adsServerURL string, adsServerSpiffeID string, secureConnect b
 	if len(s) > 1 {
 		adsServerPort = s[1]
 	}
-	adsClient.nsConfigAdaptor, err = newConfigAdaptor(netscalerURL, netscalerUsername, netscalerPassword, adsServerPort, netscalerVIP, netProfile, analyticsServerIP)
+	adsClient.nsConfigAdaptor, err = newConfigAdaptor(netscalerURL, netscalerUsername, netscalerPassword, adsServerPort, netscalerVIP, netProfile, analyticsServerIP, logProxyURL)
 	if err != nil {
 		return nil, err
 	}

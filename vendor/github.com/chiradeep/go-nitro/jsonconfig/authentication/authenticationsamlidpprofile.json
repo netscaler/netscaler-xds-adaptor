@@ -273,7 +273,13 @@
     "samlissuername" : {
       "type" : "string"
     },
+    "samlsigningcertversion" : {
+      "type" : "string"
+    },
     "samlspcertname" : {
+      "type" : "string"
+    },
+    "samlspcertversion" : {
       "type" : "string"
     },
     "sendpassword" : {
@@ -290,6 +296,9 @@
     "signaturealg" : {
       "type" : "string",
       "enum" : [ "RSA-SHA1", "RSA-SHA256" ]
+    },
+    "signatureservice" : {
+      "type" : "string"
     },
     "skewtime" : {
       "type" : "integer"

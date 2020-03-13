@@ -2,6 +2,7 @@ package ica
 
 type Icalatencyprofile struct {
 	Builtin                  interface{} `json:"builtin,omitempty"`
+	Feature                  string      `json:"feature,omitempty"`
 	Isdefault                bool        `json:"isdefault,omitempty"`
 	L7latencymaxnotifycount  int         `json:"l7latencymaxnotifycount,omitempty"`
 	L7latencymonitoring      string      `json:"l7latencymonitoring,omitempty"`

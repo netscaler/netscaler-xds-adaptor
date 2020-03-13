@@ -1,6 +1,8 @@
 package sc
 
 type Scparameter struct {
-	Sessionlife int    `json:"sessionlife,omitempty"`
-	Vsr         string `json:"vsr,omitempty"`
+	Builtin     interface{} `json:"builtin,omitempty"`
+	Feature     string      `json:"feature,omitempty"`
+	Sessionlife int         `json:"sessionlife,omitempty"`
+	Vsr         string      `json:"vsr,omitempty"`
 }

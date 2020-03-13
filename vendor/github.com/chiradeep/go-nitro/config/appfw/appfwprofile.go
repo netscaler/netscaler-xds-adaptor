@@ -3,6 +3,7 @@ package appfw
 type Appfwprofile struct {
 	Addcookieflags                             string      `json:"addcookieflags,omitempty"`
 	Archivename                                string      `json:"archivename,omitempty"`
+	Autodeployrule                             bool        `json:"autodeployrule,omitempty"`
 	Bufferoverflowaction                       interface{} `json:"bufferoverflowaction,omitempty"`
 	Bufferoverflowmaxcookielength              int         `json:"bufferoverflowmaxcookielength,omitempty"`
 	Bufferoverflowmaxheaderlength              int         `json:"bufferoverflowmaxheaderlength,omitempty"`
@@ -33,6 +34,7 @@ type Appfwprofile struct {
 	Defaults                                   string      `json:"defaults,omitempty"`
 	Denyurlaction                              interface{} `json:"denyurlaction,omitempty"`
 	Dosecurecreditcardlogging                  string      `json:"dosecurecreditcardlogging,omitempty"`
+	Dynamiclearning                            interface{} `json:"dynamiclearning,omitempty"`
 	Enableformtagging                          string      `json:"enableformtagging,omitempty"`
 	Errorurl                                   string      `json:"errorurl,omitempty"`
 	Excludefileuploadfromchecks                string      `json:"excludefileuploadfromchecks,omitempty"`
@@ -40,15 +42,22 @@ type Appfwprofile struct {
 	Fieldconsistencyaction                     interface{} `json:"fieldconsistencyaction,omitempty"`
 	Fieldformataction                          interface{} `json:"fieldformataction,omitempty"`
 	Fileuploadmaxnum                           int         `json:"fileuploadmaxnum,omitempty"`
+	Fileuploadtypesaction                      interface{} `json:"fileuploadtypesaction,omitempty"`
 	Htmlerrorobject                            string      `json:"htmlerrorobject,omitempty"`
 	Inspectcontenttypes                        interface{} `json:"inspectcontenttypes,omitempty"`
 	Invalidpercenthandling                     string      `json:"invalidpercenthandling,omitempty"`
+	Jsondosaction                              interface{} `json:"jsondosaction,omitempty"`
+	Jsonerrorobject                            string      `json:"jsonerrorobject,omitempty"`
+	Jsonsqlinjectionaction                     interface{} `json:"jsonsqlinjectionaction,omitempty"`
+	Jsonsqlinjectiontype                       string      `json:"jsonsqlinjectiontype,omitempty"`
+	Jsonxssaction                              interface{} `json:"jsonxssaction,omitempty"`
 	Logeverypolicyhit                          string      `json:"logeverypolicyhit,omitempty"`
 	Multipleheaderaction                       interface{} `json:"multipleheaderaction,omitempty"`
 	Name                                       string      `json:"name,omitempty"`
 	Optimizepartialreqs                        string      `json:"optimizepartialreqs,omitempty"`
 	Percentdecoderecursively                   string      `json:"percentdecoderecursively,omitempty"`
 	Postbodylimit                              int         `json:"postbodylimit,omitempty"`
+	Postbodylimitsignature                     int         `json:"postbodylimitsignature,omitempty"`
 	Refererheadercheck                         string      `json:"refererheadercheck,omitempty"`
 	Requestcontenttype                         string      `json:"requestcontenttype,omitempty"`
 	Responsecontenttype                        string      `json:"responsecontenttype,omitempty"`
@@ -74,6 +83,7 @@ type Appfwprofile struct {
 	Type                                       interface{} `json:"type,omitempty"`
 	Urldecoderequestcookies                    string      `json:"urldecoderequestcookies,omitempty"`
 	Usehtmlerrorobject                         string      `json:"usehtmlerrorobject,omitempty"`
+	Verboseloglevel                            string      `json:"verboseloglevel,omitempty"`
 	Xmlattachmentaction                        interface{} `json:"xmlattachmentaction,omitempty"`
 	Xmldosaction                               interface{} `json:"xmldosaction,omitempty"`
 	Xmlerrorobject                             string      `json:"xmlerrorobject,omitempty"`

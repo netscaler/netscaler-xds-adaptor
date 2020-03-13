@@ -1,8 +1,3 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {NAMESPACE}
----
 # Configmap to inject istio-adaptor and cpx as sidecar containers
 apiVersion: v1
 kind: ConfigMap
@@ -10,7 +5,7 @@ metadata:
   name: cpx-istio-sidecar-injector
   namespace: {NAMESPACE}
   labels:
-    app: cpx-sidecar-injector
+    app: istio
     istio: sidecar-injector
 data:
   config: |-
@@ -60,7 +55,9 @@ data:
         - "http://127.0.0.1"
         - -secure-connect=true
         - -adm-ip
-        - {LS_IP}
+        - {ADM_IP}
+        - -coe-url
+        - {COE_URL}
         volumeMounts:
         - mountPath: /etc/certs/
           name: istio-certs
@@ -81,7 +78,7 @@ data:
         - name: "KUBERNETES_TASK_ID"
           value: ""
         - name: "NS_CPX_LITE"
-          value: "YES"
+          value: 1
         # Note: By default, management http and https ports run on ports 9080 and 9443 resp.
         # Use below ENV variables to change it to some values
         # If backend application is running on 10080 and 10443, then below values needs to be changed. 
@@ -91,9 +88,19 @@ data:
           value: 10443
         # Provide the Citrix Application Delivery Management (ADM) IP address and Port to license Citrix ADC CPX. Port 27000 is default.
         - name: "LS_IP"
-          value: {LS_IP}
+          value: {ADM_IP}
         - name: "LS_PORT"
-          value: "{LS_PORT}" 
+          value: "{LS_PORT}"
+        - name: "NS_MGMT_SERVER"
+          value: {ADM_IP}
+        - name: "NS_MGMT_FINGER_PRINT"
+          value: {ADM_FINGER_PRINT}
+        - name: "NS_HTTP_PORT"
+          value: 10080
+        - name: "NS_HTTPS_PORT"
+          value: 10443 
+        - name: "LOGSTREAM_COLLECTOR_IP"
+          value: {ADM_IP} 
       volumes:
       - name: nslogin
         secret:
@@ -112,7 +119,10 @@ metadata:
   name: istio
   namespace: {NAMESPACE}
   labels:
-    app: cpx-sidecar-injector
+    app: istio
+    chart: istio-1.0.0
+    release: RELEASE-NAME
+    heritage: Tiller
 data:
   mesh: |-
 # empty file
@@ -165,13 +175,11 @@ metadata:
   name: cpx-sidecar-injector
   namespace: {NAMESPACE}
   labels:
-    app: cpx-sidecar-injector
     istio: sidecar-injector
 spec:
   ports:
   - port: 443
   selector:
-    app: cpx-sidecar-injector
     istio: sidecar-injector
 
 ---
@@ -183,6 +191,7 @@ metadata:
   namespace: {NAMESPACE}
   labels:
     app: cpx-sidecar-injector
+    app: sidecarInjectorWebhook
     istio: sidecar-injector
 spec:
   replicas: 1
@@ -193,7 +202,6 @@ spec:
   template:
     metadata:
       labels:
-        app: cpx-sidecar-injector
         istio: sidecar-injector
       annotations:
         sidecar.istio.io/inject: "false"
@@ -285,4 +293,20 @@ webhooks:
       matchLabels:
           # Add a label here for sidecar injection. Namespace must be labeled with this label
         cpx-injection: enabled 
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app: cpx-sidecar-injector
+  name: cpx-sidecar-injector
+  namespace: {{ .Release.Namespace }}
+spec:
+  ingress:
+  - {}
+  podSelector:
+    matchLabels:
+      app: cpx-sidecar-injector
+  policyTypes:
+  - Ingress
 ---

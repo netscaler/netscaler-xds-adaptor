@@ -33,6 +33,14 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
+    "dtls1" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "dtls12" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "dtlsflag" : {
       "type" : "boolean",
       "readonly" : true

@@ -15,6 +15,10 @@
     "filename" : {
       "type" : "string"
     },
+    "includekernel" : {
+      "type" : "string",
+      "enum" : [ "NO", "YES" ]
+    },
     "ipaddress" : {
       "type" : "string",
       "readonly" : true
@@ -28,6 +32,9 @@
       "readonly" : true
     },
     "skipbackup" : {
+      "type" : "boolean"
+    },
+    "uselocaltimezone" : {
       "type" : "boolean"
     },
     "version" : {

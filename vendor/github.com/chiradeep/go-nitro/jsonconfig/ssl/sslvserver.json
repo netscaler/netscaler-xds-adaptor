@@ -46,6 +46,14 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
+    "dtls1" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "dtls12" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "dtlsflag" : {
       "type" : "boolean",
       "readonly" : true
@@ -84,6 +92,10 @@
     "ocspstapling" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "preload" : {
+      "type" : "string",
+      "enum" : [ "YES", "NO" ]
     },
     "pushenctrigger" : {
       "type" : "string",

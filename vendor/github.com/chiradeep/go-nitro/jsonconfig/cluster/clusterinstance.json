@@ -6,6 +6,10 @@
       "enum" : [ "ENABLED", "DISABLED" ],
       "readonly" : true
     },
+    "backplanebasedview" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "clid" : {
       "type" : "integer"
     },
@@ -27,6 +31,11 @@
     "hellointerval" : {
       "type" : "integer"
     },
+    "heterogeneousflag" : {
+      "type" : "string",
+      "enum" : [ "YES", "NO" ],
+      "readonly" : true
+    },
     "inc" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
@@ -46,6 +55,10 @@
       "type" : "boolean",
       "readonly" : true
     },
+    "nodepenummismatch" : {
+      "type" : "boolean",
+      "readonly" : true
+    },
     "operationalpropstate" : {
       "type" : "string",
       "enum" : [ "UNKNOWN", "ENABLED", "DISABLED", "AUTO DISABLED" ],
@@ -54,6 +67,10 @@
     "operationalstate" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ],
+      "readonly" : true
+    },
+    "penummismatch" : {
+      "type" : "boolean",
       "readonly" : true
     },
     "preemption" : {

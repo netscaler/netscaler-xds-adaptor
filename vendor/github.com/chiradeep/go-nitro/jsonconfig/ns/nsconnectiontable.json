@@ -157,7 +157,7 @@
     },
     "httprequest" : {
       "type" : "string",
-      "enum" : [ "OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "RPCCONNECT" ],
+      "enum" : [ "OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "TRACK", "CONNECT", "RPCCONNECT" ],
       "readonly" : true
     },
     "httpreqver" : {
@@ -369,6 +369,18 @@
     "optionflags" : {
       "type" : "object",
       "enum" : [ "sack", "timstmp", "ws" ],
+      "readonly" : true
+    },
+    "outoforderblocks" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "outoforderbytes" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "outoforderflushedcount" : {
+      "type" : "integer",
       "readonly" : true
     },
     "outoforderpkts" : {

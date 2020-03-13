@@ -53,6 +53,9 @@
     "attribute9" : {
       "type" : "string"
     },
+    "attributes" : {
+      "type" : "string"
+    },
     "auditfailedcmds" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]

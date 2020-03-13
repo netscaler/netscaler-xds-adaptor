@@ -1,11 +1,19 @@
 {
   "type" : "object",
   "properties" : {
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
     "comment" : {
       "type" : "string"
     },
     "cookieconsistency" : {
       "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
     },
     "isregex" : {
       "type" : "string",

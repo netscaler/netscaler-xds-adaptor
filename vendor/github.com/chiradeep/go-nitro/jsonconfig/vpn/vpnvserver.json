@@ -105,10 +105,6 @@
     "failedlogintimeout" : {
       "type" : "integer"
     },
-    "gotopriorityexpression" : {
-      "type" : "string",
-      "readonly" : true
-    },
     "groupextraction" : {
       "type" : "boolean",
       "readonly" : true
@@ -196,20 +192,12 @@
     "pcoipvserverprofilename" : {
       "type" : "string"
     },
-    "policy" : {
-      "type" : "string",
-      "readonly" : true
-    },
     "port" : {
       "type" : "integer"
     },
     "precedence" : {
       "type" : "string",
       "enum" : [ "RULE", "URL" ],
-      "readonly" : true
-    },
-    "priority" : {
-      "type" : "integer",
       "readonly" : true
     },
     "range" : {

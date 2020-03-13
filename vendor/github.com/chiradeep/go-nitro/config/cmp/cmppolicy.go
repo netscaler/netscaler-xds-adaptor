@@ -6,6 +6,7 @@ type Cmppolicy struct {
 	Clientttlb         int         `json:"clientttlb,omitempty"`
 	Description        string      `json:"description,omitempty"`
 	Expressiontype     string      `json:"expressiontype,omitempty"`
+	Feature            string      `json:"feature,omitempty"`
 	Hits               int         `json:"hits,omitempty"`
 	Isdefault          bool        `json:"isdefault,omitempty"`
 	Name               string      `json:"name,omitempty"`

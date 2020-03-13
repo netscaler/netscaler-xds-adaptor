@@ -3,6 +3,7 @@ package ica
 type Icaaction struct {
 	Accessprofilename  string      `json:"accessprofilename,omitempty"`
 	Builtin            interface{} `json:"builtin,omitempty"`
+	Feature            string      `json:"feature,omitempty"`
 	Hits               int         `json:"hits,omitempty"`
 	Isdefault          bool        `json:"isdefault,omitempty"`
 	Latencyprofilename string      `json:"latencyprofilename,omitempty"`

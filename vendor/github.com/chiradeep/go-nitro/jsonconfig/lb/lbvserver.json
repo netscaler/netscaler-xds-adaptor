@@ -5,6 +5,9 @@
       "type" : "integer",
       "readonly" : true
     },
+    "adfsproxyprofile" : {
+      "type" : "string"
+    },
     "appflowlog" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
@@ -130,10 +133,6 @@
       "enum" : [ "UP", "DOWN", "UNKNOWN", "BUSY", "OUT OF SERVICE", "GOING OUT OF SERVICE", "DOWN WHEN GOING OUT OF SERVICE", "NS_EMPTY_STR", "Unknown", "DISABLED" ],
       "readonly" : true
     },
-    "gotopriorityexpression" : {
-      "type" : "string",
-      "readonly" : true
-    },
     "groupname" : {
       "type" : "string",
       "readonly" : true
@@ -171,10 +170,6 @@
       "type" : "string",
       "enum" : [ "OFF", "VIPADDR", "V6TOV4MAPPING" ]
     },
-    "invoke" : {
-      "type" : "boolean",
-      "readonly" : true
-    },
     "ipmapping" : {
       "type" : "string",
       "readonly" : true
@@ -198,15 +193,6 @@
     "l2conn" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]
-    },
-    "labelname" : {
-      "type" : "string",
-      "readonly" : true
-    },
-    "labeltype" : {
-      "type" : "string",
-      "enum" : [ "reqvserver", "resvserver", "policylabel" ],
-      "readonly" : true
     },
     "lbmethod" : {
       "type" : "string",
@@ -308,10 +294,6 @@
     },
     "persistmask" : {
       "type" : "string"
-    },
-    "policyname" : {
-      "type" : "string",
-      "readonly" : true
     },
     "port" : {
       "type" : "integer"

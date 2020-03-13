@@ -4,6 +4,7 @@ type Aaaldapparams struct {
 	Authtimeout                int         `json:"authtimeout,omitempty"`
 	Builtin                    interface{} `json:"builtin,omitempty"`
 	Defaultauthenticationgroup string      `json:"defaultauthenticationgroup,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Groupattrname              string      `json:"groupattrname,omitempty"`
 	Groupauthname              string      `json:"groupauthname,omitempty"`
 	Groupnameidentifier        string      `json:"groupnameidentifier,omitempty"`

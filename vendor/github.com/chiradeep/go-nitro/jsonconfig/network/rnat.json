@@ -8,10 +8,10 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
-    "natip" : {
+    "name" : {
       "type" : "string"
     },
-    "natip2" : {
+    "natip" : {
       "type" : "string"
     },
     "netmask" : {
@@ -20,11 +20,14 @@
     "network" : {
       "type" : "string"
     },
+    "newname" : {
+      "type" : "string"
+    },
     "ownergroup" : {
       "type" : "string"
     },
     "redirectport" : {
-      "type" : "boolean"
+      "type" : "integer"
     },
     "srcippersistency" : {
       "type" : "string",

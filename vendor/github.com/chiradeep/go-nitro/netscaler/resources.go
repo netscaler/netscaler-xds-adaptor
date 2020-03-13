@@ -314,6 +314,7 @@ const (
 	Servicegroup_lbmonitor_binding
 	Servicegroup_servicegroupentitymonbindings_binding
 	Servicegroup_servicegroupmember_binding
+	Servicegroup_servicegroupmemberlist_binding
 	Servicegroupbindings
 	Svcbindings
 	Vserver
@@ -603,6 +604,8 @@ const (
 	Linkset_binding
 	Linkset_channel_binding
 	Linkset_interface_binding
+	Login
+	Logout
 	Nat64
 	Nd6
 	Nd6ravariables
@@ -1344,6 +1347,7 @@ var resources = []string{
 	"servicegroup_lbmonitor_binding",
 	"servicegroup_servicegroupentitymonbindings_binding",
 	"servicegroup_servicegroupmember_binding",
+	"servicegroup_servicegroupmemberlist_binding",
 	"servicegroupbindings",
 	"svcbindings",
 	"vserver",
@@ -1633,6 +1637,8 @@ var resources = []string{
 	"linkset_binding",
 	"linkset_channel_binding",
 	"linkset_interface_binding",
+	"login",
+	"logout",
 	"nat64",
 	"nd6",
 	"nd6ravariables",

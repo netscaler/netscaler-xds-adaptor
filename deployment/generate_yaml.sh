@@ -7,21 +7,23 @@ usage() {
     Template yaml file has proxy and istio-adaptor containers' image mentioned as variables. 
     Provide the desired CPX and istio-adaptor image info as arguments to this script.
     Usage:
-    $(basename $0) --inputfile <yaml_file_template> --outputfile <output_yaml_file> --cpx-image-name <cpx-image-name> --cpx-image-tag <cpx-image-tag> --istio-adaptor-image-name <istio-adaptor-image-name> --istio-adaptor-image-tag <istio-adaptor-image-tag> --netscaler-url <netscaler-url> --vserver-ip <IPv4-Address> --username <username> --password <password> --namespace <name> --license-server-ip <IPv4 Address> --license-server-port <port>
+    $(basename $0) --inputfile <yaml_file_template> --outputfile <output_yaml_file> --cpx-image-name <cpx-image-name> --cpx-image-tag <cpx-image-tag> --istio-adaptor-image-name <istio-adaptor-image-name> --istio-adaptor-image-tag <istio-adaptor-image-tag> --netscaler-url <netscaler-url> --vserver-ip <IPv4-Address> --username <username> --password <password> --namespace <name> --license-server-ip <IPv4 Address> --license-server-port <port> --adm-finger-print <finger-print> --coe-url <coeURL>
     where
       <yaml_file_template> is the yaml file's template.
-      <cpx-image-name> CPX image name. default value = quay.io/citrix/citrix-k8s-cpx-ingress"
-      <cpx-image-tag> CPX Image tag. default value = 13.0-41.28"
+      <cpx-image-name> CPX image name. default value =  quay.io/citrix/citrix-k8s-cpx-ingress"
+      <cpx-image-tag> CPX Image tag. default value = 13.0-47.22"
       <istio-adaptor-image-name> Istio Adaptor image name. default value = quay.io/citrix/citrix-istio-adaptor"
-      <istio-adaptor-image-tag> Istio Adaptor image's tag. default value = 1.1.0"
+      <istio-adaptor-image-tag> Istio Adaptor image's tag. default value = 1.2.0"
       <netscaler-url> URL for connecting with Citrix ADC via Nitro. Default value = http://127.0.0.1"
       <vserver-ip> IP Address to be used for Virtual Server."
       <namespace> Namespace of CPX sidecar injector webhook"
       <username> Username for Citrix ADC."
       <password> Password for Citrix ADC."
-      <license-service-ip> Licensing Server IP."
+      <license-service-ip> Licensing Server IP (Citrix Application Delivery Management (ADM) IP address)"
       <license-service-port> Licensing Server Port. Default value: 27000"
       <ingressgateway-label> Citrix Ingress Gateway's label. Default value: citrix-ingressgateway"
+      <adm-finger-print> Citrix Application Delivery Management(ADM) Finger Print
+      <coe-url> Citrix Observability Exporter(Logproxy) Service's FQDN
 EOM
 }
 
@@ -79,7 +81,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --license-server-ip)
-            LS_IP="$2"
+            ADM_IP="$2"
             shift
             ;;
         --license-server-port)
@@ -88,6 +90,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ingressgateway-label)
             INGRESSGATEWAY_LABEL="$2"
+            shift
+            ;;
+        --adm-finger-print)
+            ADM_FINGER_PRINT="$2"
+            shift
+            ;;
+        --coe-url)
+            COE_URL="$2"
             shift
             ;;
         *)
@@ -111,17 +121,19 @@ fi
 
 # default values
 [ -z ${CPX_IMAGE_NAME} ] && CPX_IMAGE_NAME=quay.io/citrix/citrix-k8s-cpx-ingress
-[ -z ${CPX_IMAGE_TAG} ] && CPX_IMAGE_TAG=13.0-41.28
+[ -z ${CPX_IMAGE_TAG} ] && CPX_IMAGE_TAG=13.0-47.22
 [ -z ${ISTIO_ADAPTOR_IMAGE} ] && ISTIO_ADAPTOR_IMAGE=quay.io/citrix/citrix-istio-adaptor
-[ -z ${ISTIO_ADAPTOR_IMAGE_TAG} ] && ISTIO_ADAPTOR_IMAGE_TAG=1.1.0
+[ -z ${ISTIO_ADAPTOR_IMAGE_TAG} ] && ISTIO_ADAPTOR_IMAGE_TAG=1.2.0
 [ -z ${USERNAME} ] && USERNAME=nsroot
 [ -z ${PASSWORD} ] && PASSWORD=nsroot
 [ -z ${NETSCALER_URL} ] && NETSCALER_URL=http://127.0.0.1
 [ -z ${VSERVER_IP} ] && VSERVER_IP=""
 [ -z ${NAMESPACE} ] && NAMESPACE="citrix-system"
-[ -z ${LS_IP} ] && LS_IP="\"\""
+[ -z ${ADM_IP} ] && ADM_IP="\"\""
 [ -z ${LS_PORT} ] && LS_PORT=27000
 [ -z ${INGRESSGATEWAY_LABEL} ] && INGRESSGATEWAY_LABEL="citrix-ingressgateway"
+[ -z ${ADM_FINGER_PRINT} ] && ADM_FINGER_PRINT="\"\""
+[ -z ${COE_URL} ] && COE_URL="\"\""
 
 USERNAME="$(echo -n $USERNAME | base64 )"
 PASSWORD="$(echo -n $PASSWORD | base64 )"
@@ -147,7 +159,9 @@ sed -i'' -e "s|{NAMESPACE}|${NAMESPACE}|" $GENERATED_YAML
 sed -i'' -e "s|{USERNAME}|${USERNAME}|" $GENERATED_YAML
 sed -i'' -e "s|{PASSWORD}|${PASSWORD}|" $GENERATED_YAML
 sed -i'' -e "s|{EXPORTER_NSIP}|${EXPORTER_NSIP}|" $GENERATED_YAML
-sed -i'' -e "s|{LS_IP}|${LS_IP}|" $GENERATED_YAML
+sed -i'' -e "s|{ADM_IP}|${ADM_IP}|" $GENERATED_YAML
 sed -i'' -e "s|{LS_PORT}|${LS_PORT}|" $GENERATED_YAML
 sed -i'' -e "s|{INGRESSGATEWAY_LABEL}|${INGRESSGATEWAY_LABEL}|" $GENERATED_YAML
+sed -i'' -e "s|{ADM_FINGER_PRINT}|${ADM_FINGER_PRINT}|" $GENERATED_YAML
+sed -i'' -e "s|{COE_URL}|${COE_URL}|" $GENERATED_YAML
 echo "Generated Citrix ADC yaml $GENERATED_YAML. Apply this yaml file in the namespace where Citrix ADC services are running."

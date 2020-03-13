@@ -16,6 +16,9 @@
       "type" : "integer",
       "readonly" : true
     },
+    "nodeid" : {
+      "type" : "integer"
+    },
     "xlatip" : {
       "type" : "string",
       "readonly" : true

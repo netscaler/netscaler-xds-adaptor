@@ -6,7 +6,7 @@
     },
     "autoscale" : {
       "type" : "string",
-      "enum" : [ "DISABLED", "DNS", "POLICY", "CLOUD" ],
+      "enum" : [ "DISABLED", "DNS", "POLICY", "CLOUD", "API" ],
       "readonly" : true
     },
     "cacheable" : {
@@ -55,6 +55,10 @@
     },
     "newname" : {
       "type" : "string"
+    },
+    "querytype" : {
+      "type" : "string",
+      "enum" : [ "A", "AAAA", "SRV" ]
     },
     "sc" : {
       "type" : "string",

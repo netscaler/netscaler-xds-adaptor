@@ -5,6 +5,10 @@
       "type" : "string",
       "enum" : [ "DEFAULT", "YES", "NO" ]
     },
+    "masterclockcpu1" : {
+      "type" : "string",
+      "enum" : [ "YES", "NO" ]
+    },
     "ownernode" : {
       "type" : "integer"
     }

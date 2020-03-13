@@ -16,6 +16,11 @@ package adsclient
 import (
 	"citrix-istio-adaptor/nsconfigengine"
 	"fmt"
+	"log"
+	"net"
+	"strconv"
+	"strings"
+
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	xdsListener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
@@ -29,17 +34,17 @@ import (
 	types "github.com/gogo/protobuf/types"
 	istioAuth "istio.io/api/authentication/v1alpha1"
 	istioFilter "istio.io/api/envoy/config/filter/http/authn/v2alpha1"
-	"log"
-	"net"
-	"strconv"
-	"strings"
 )
 
 const (
-	maxConn      = 1024
-	maxHTTP2Conn = 1000
-	localHostIP  = "127.0.0.1"
-	nsLoopbackIP = "192.0.0.2"
+	maxConn             = 1024
+	maxHTTP2Conn        = 1000
+	localHostIP         = "127.0.0.1"
+	nsLoopbackIP        = "192.0.0.2"
+	logStreamPort       = 5557 // Logstream is used for Transactional data which is used in tracing (e.g. zipkin)
+	ulfdRestPort        = 5563 // Rest port is used for time-series data which is used in Prometheus
+	defaultWeight       = 1
+	defaultMirrorWeight = 100
 )
 
 var valueNameToNum = map[string]int{
@@ -158,7 +163,10 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 			}
 		}
 	}
-
+	// Below conditions checks if desired state API can be used for this cluster
+	if cluster.GetType() == xdsapi.Cluster_EDS || cluster.GetType() == xdsapi.Cluster_STATIC {
+		lbObj.AutoScale = true
+	}
 	nsConfig.addConfig(&configBlock{configType: cdsAdd, resourceName: lbObj.Name, resource: lbObj})
 	if (cluster.GetType() == xdsapi.Cluster_STATIC) || (cluster.GetType() == xdsapi.Cluster_STRICT_DNS) {
 		if cluster.GetLoadAssignment() != nil {
@@ -233,6 +241,13 @@ func getListenerConfig(nsConfig *configAdaptor, listener *xdsapi.Listener, servi
 	csObj := nsconfigengine.NewCSApi(entityName, serviceType, serviceAddress, int(listenerAddress.GetSocketAddress().GetPortValue()))
 	if serviceAddress == nsConfig.nsip {
 		csObj.AllowACL = true
+		if len(nsConfig.analyticsProfiles) > 0 {
+			csObj.AnalyticsProfileNames = make([]string, len(nsConfig.analyticsProfiles))
+			for i := range nsConfig.analyticsProfiles {
+				csObj.AnalyticsProfileNames[i] = nsConfig.analyticsProfiles[i]
+			}
+			log.Println("[TRACE] Analytics Profle Names", csObj.AnalyticsProfileNames)
+		}
 	}
 	if serviceType == "SSL" || serviceType == "SSL_TCP" {
 		for _, filterChain := range listener.GetFilterChains() {
@@ -260,7 +275,7 @@ func isSNIListener(filterChain *xdsListener.FilterChain) bool {
 	return false
 }
 
-func getListenerType(l *xdsapi.Listener) (string, string, string, error) {
+func getListenerType(nsConfig *configAdaptor, l *xdsapi.Listener) (string, string, string, error) {
 	listenerAddress := l.GetAddress()
 	tlsContextExists := false
 	for _, filterChain := range l.GetFilterChains() {
@@ -274,6 +289,22 @@ func getListenerType(l *xdsapi.Listener) (string, string, string, error) {
 		for _, filter := range filterChain.GetFilters() {
 			if listenerAddress.GetSocketAddress().GetPortValue() == 443 && listenerAddress.GetSocketAddress().GetAddress() == "0.0.0.0" && filter.Name == envoyUtil.TCPProxy {
 				return envoyUtil.TCPProxy, "SSL", "TCP", nil
+			}
+			// Check for the logstream ports IFF logproxy service has been provided
+			if len(nsConfig.logProxyURL) > 0 && filter.Name == envoyUtil.TCPProxy {
+				lPort := listenerAddress.GetSocketAddress().GetPortValue()
+				if lPort == logStreamPort || lPort == ulfdRestPort {
+					tcpProxy := &envoyFilterTcp.TcpProxy{}
+					if err := getListenerFilterConfig(filter, tcpProxy); err == nil {
+						if strings.Contains(tcpProxy.GetCluster(), nsConfig.logProxyURL) {
+							// It is indeed logproxy service. Check if logstream port or ulfd port
+							if lPort == logStreamPort {
+								return envoyUtil.TCPProxy, "HTTP", "LOGSTREAM", nil
+							}
+							return envoyUtil.TCPProxy, "HTTP", "HTTP", nil
+						}
+					}
+				}
 			}
 			if filter.Name == envoyUtil.HTTPConnectionManager {
 				if tlsContextExists {
@@ -322,8 +353,7 @@ func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) 
 
 func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]interface{} {
 	log.Printf("[TRACE] listenerAdd : %s", listener.GetName())
-	log.Printf("[TRACE] listenerAdd : %v", listener)
-	filterType, csVserverType, serviceType, err := getListenerType(listener)
+	filterType, csVserverType, serviceType, err := getListenerType(nsConfig, listener)
 	if err != nil {
 		log.Printf("[ERROR] listenerAdd %s: getListenerType failed with - %v", listener.GetName(), err)
 		return nil
@@ -351,7 +381,6 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]
 			switch filterName := filter.GetName(); filterName {
 			case envoyUtil.HTTPConnectionManager:
 				httpCM := &envoyFilterHttp.HttpConnectionManager{}
-				//if err := envoyUtil.StructToMessage(filter.GetConfig(), httpCM); err != nil {
 				if err := getListenerFilterConfig(filter, httpCM); err != nil {
 					log.Printf("[ERROR] listenerAdd: Error loading http connection manager: %v", err)
 				} else {
@@ -382,7 +411,9 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) map[string]
 			}
 		}
 	}
-	nsConfig.addConfig(&confBl)
+	if serviceType != "LOGSTREAM" { // No CS config needed for Logstream
+		nsConfig.addConfig(&confBl)
+	}
 	log.Printf("[TRACE] listenerAdd : %s - request clusters %v", listener.GetName(), clusterNames)
 	log.Printf("[TRACE] listenerAdd : %s - request routes %v", listener.GetName(), rdsNames)
 	return map[string]interface{}{"cdsNames": clusterNames, "rdsNames": rdsNames, "listenerName": listener.GetName(), "filterType": filterType, "serviceType": serviceType}
@@ -399,10 +430,30 @@ func listenerDel(nsConfig *configAdaptor, listenerName string) {
 	nsConfig.delConfig(&confBl)
 }
 
-func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsapi.ClusterLoadAssignment, data interface{}) {
-	log.Printf("[TRACE] clusterEndpointUpdate: %s", clusterLoadAssignment.ClusterName)
-	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(clusterLoadAssignment.ClusterName))
+func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
+	if len(nsConfig.logProxyURL) == 0 {
+		return ""
+	}
+	ok, port, domain := extractPortAndDomainName(clusterName)
+	if !ok {
+		log.Printf("[DEBUG] Can not ascertain if %s is a logproxy service", clusterName)
+		return ""
+	}
+	if strings.Contains(domain, nsConfig.logProxyURL) {
+		if port == logStreamPort {
+			return "LOGSTREAM"
+		} else if port == ulfdRestPort { // Prometheus
+			return "ULFDREST"
+		}
+	}
+	return ""
+}
 
+func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsapi.ClusterLoadAssignment, data interface{}) {
+	var promIP string
+	log.Printf("[TRACE] clusterEndpointUpdate: %s", clusterLoadAssignment.ClusterName)
+	onlyIPs := true // Assume that all endpoints are IP addresses initially
+	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(clusterLoadAssignment.ClusterName))
 	confBl := configBlock{
 		configType:   edsAdd,
 		resourceName: svcGpObj.Name,
@@ -414,19 +465,32 @@ func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsap
 				ep := lbEndpoint.GetEndpoint()
 				address := ep.Address.GetSocketAddress().GetAddress()
 				port := int(ep.Address.GetSocketAddress().GetPortValue())
+				weight := int(lbEndpoint.GetLoadBalancingWeight().GetValue())
 				if address == nsConfig.nsip {
 					return
 				}
 				if address == localHostIP {
 					address = nsLoopbackIP
+					weight = defaultWeight
 				}
 				if net.ParseIP(address) == nil {
-					svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{Domain: address, Port: port})
+					onlyIPs = false
+					svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{Domain: address, Port: port, Weight: weight})
 				} else {
-					svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{IP: address, Port: port})
+					svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{IP: address, Port: port, Weight: weight})
+					promIP = address
 				}
 			}
 		}
+	}
+	switch lep := isLogProxyEndpoint(nsConfig, clusterLoadAssignment.ClusterName); lep {
+	case "LOGSTREAM":
+		svcGpObj.IsLogProxySvcGrp = true
+	case "ULFDREST":
+		svcGpObj.PromIP = promIP
+	}
+	if onlyIPs == false {
+		svcGpObj.IsIPOnlySvcGroup = false
 	}
 	nsConfig.addConfig(&confBl)
 }
@@ -437,6 +501,7 @@ func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xds
 
 	log.Printf("[TRACE] staticAndDNSTypeClusterEndpointUpdate : %s", cluster.GetName())
 	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(cluster.GetName()))
+	svcGpObj.IsIPOnlySvcGroup = false
 
 	confBl := configBlock{
 		configType:   edsAdd,
@@ -549,6 +614,18 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsapi.RouteConfiguration, d
 				var persistency *nsconfigengine.PersistencyPolicy
 				if vroute.GetRoute().GetHashPolicy() != nil && serviceType == "HTTP" {
 					persistency = getPersistencyPolicy(vroute.GetRoute().GetHashPolicy())
+				}
+				/* HTTP Mirroing */
+				if vroute.GetRoute().GetRequestMirrorPolicy() != nil {
+					mirror := new(nsconfigengine.HTTPMirror)
+					fullReqHdr := "http.req.full_header + http.req.body(10000000)"
+					mirrorClusterName := vroute.GetRoute().GetRequestMirrorPolicy().GetCluster()
+					mirror.Callout = nsconfigengine.NewHTTPCalloutPolicy(nsconfigengine.GetNSCompatibleName(mirrorClusterName), "Bool", fullReqHdr, "", "", "true")
+					/* TODO: Support mirror Weight */
+					mirror.Weight = defaultMirrorWeight
+					/*mirror.Weight =  vroute.GetRoute().GetRequestMirrorPolicy().GetRuntimeFraction()*/
+					binding.MirrorPolicy = mirror
+					clusterNames = append(clusterNames, mirrorClusterName)
 				}
 				if vroute.GetRoute().GetCluster() != "" {
 					binding.CsPolicy.Canary = append(binding.CsPolicy.Canary, nsconfigengine.Canary{LbVserverName: nsconfigengine.GetNSCompatibleName(vroute.GetRoute().GetCluster()), LbVserverType: serviceType, Weight: 100, Persistency: persistency})

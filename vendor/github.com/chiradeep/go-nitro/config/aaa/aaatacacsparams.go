@@ -7,6 +7,7 @@ type Aaatacacsparams struct {
 	Authtimeout                int         `json:"authtimeout,omitempty"`
 	Builtin                    interface{} `json:"builtin,omitempty"`
 	Defaultauthenticationgroup string      `json:"defaultauthenticationgroup,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Groupattrname              string      `json:"groupattrname,omitempty"`
 	Serverip                   string      `json:"serverip,omitempty"`
 	Serverport                 int         `json:"serverport,omitempty"`

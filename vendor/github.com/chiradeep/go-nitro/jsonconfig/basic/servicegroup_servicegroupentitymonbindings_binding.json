@@ -4,6 +4,9 @@
     "customserverid" : {
       "type" : "string"
     },
+    "dbsttl" : {
+      "type" : "integer"
+    },
     "hashid" : {
       "type" : "integer"
     },
@@ -31,11 +34,18 @@
       "type" : "integer",
       "readonly" : true
     },
+    "nameserver" : {
+      "type" : "string"
+    },
     "passive" : {
       "type" : "boolean"
     },
     "port" : {
       "type" : "integer"
+    },
+    "responsetime" : {
+      "type" : "integer",
+      "readonly" : true
     },
     "serverid" : {
       "type" : "integer"

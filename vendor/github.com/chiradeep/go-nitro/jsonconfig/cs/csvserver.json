@@ -1,10 +1,6 @@
 {
   "type" : "object",
   "properties" : {
-    "analyticsprofile" : {
-      "type" : "string",
-      "readonly" : true
-    },
     "appflowlog" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
@@ -28,6 +24,9 @@
     },
     "backupip" : {
       "type" : "string"
+    },
+    "backuppersistencetimeout" : {
+      "type" : "integer"
     },
     "backupvserver" : {
       "type" : "string"
@@ -61,6 +60,9 @@
       "type" : "string"
     },
     "cookiedomain" : {
+      "type" : "string"
+    },
+    "cookiename" : {
       "type" : "string"
     },
     "cookietimeout" : {
@@ -100,10 +102,6 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
-    "gotopriorityexpression" : {
-      "type" : "string",
-      "readonly" : true
-    },
     "gt2gb" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ],
@@ -124,10 +122,6 @@
       "type" : "string",
       "enum" : [ "OFF", "VIPADDR", "V6TOV4MAPPING" ]
     },
-    "invoke" : {
-      "type" : "boolean",
-      "readonly" : true
-    },
     "ip" : {
       "type" : "string",
       "readonly" : true
@@ -147,15 +141,6 @@
     "l2conn" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]
-    },
-    "labelname" : {
-      "type" : "string",
-      "readonly" : true
-    },
-    "labeltype" : {
-      "type" : "string",
-      "enum" : [ "reqvserver", "resvserver", "policylabel" ],
-      "readonly" : true
     },
     "lbvserver" : {
       "type" : "string",
@@ -205,12 +190,19 @@
       "type" : "string",
       "enum" : [ "10G", "11G" ]
     },
+    "persistencebackup" : {
+      "type" : "string",
+      "enum" : [ "SOURCEIP", "NONE" ]
+    },
     "persistenceid" : {
       "type" : "integer"
     },
-    "policyname" : {
+    "persistencetype" : {
       "type" : "string",
-      "readonly" : true
+      "enum" : [ "SOURCEIP", "COOKIEINSERT", "SSLSESSION", "NONE" ]
+    },
+    "persistmask" : {
+      "type" : "string"
     },
     "port" : {
       "type" : "integer"
@@ -218,10 +210,6 @@
     "precedence" : {
       "type" : "string",
       "enum" : [ "RULE", "URL" ]
-    },
-    "priority" : {
-      "type" : "integer",
-      "readonly" : true
     },
     "push" : {
       "type" : "string",
@@ -312,7 +300,7 @@
     },
     "stateupdate" : {
       "type" : "string",
-      "enum" : [ "ENABLED", "DISABLED" ]
+      "enum" : [ "ENABLED", "DISABLED", "UPDATEONBACKENDUPDATE" ]
     },
     "status" : {
       "type" : "integer",
@@ -340,6 +328,9 @@
       "type" : "integer",
       "readonly" : true
     },
+    "timeout" : {
+      "type" : "integer"
+    },
     "ttl" : {
       "type" : "integer"
     },
@@ -352,9 +343,16 @@
       "type" : "string",
       "readonly" : true
     },
+    "v6persistmasklen" : {
+      "type" : "integer"
+    },
     "value" : {
       "type" : "string",
       "enum" : [ "Certkey not bound", "SSL feature disabled" ],
+      "readonly" : true
+    },
+    "version" : {
+      "type" : "integer",
       "readonly" : true
     },
     "vipheader" : {

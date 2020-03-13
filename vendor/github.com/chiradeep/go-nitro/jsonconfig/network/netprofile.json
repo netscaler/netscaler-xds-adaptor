@@ -12,6 +12,14 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
+    "proxyprotocol" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "proxyprotocoltxversion" : {
+      "type" : "string",
+      "enum" : [ "V1", "V2" ]
+    },
     "srcip" : {
       "type" : "string"
     },

@@ -29,6 +29,10 @@
       "type" : "integer",
       "readonly" : true
     },
+    "actualringsize" : {
+      "type" : "integer",
+      "readonly" : true
+    },
     "autoneg" : {
       "type" : "string",
       "enum" : [ "DISABLED", "ENABLED" ]
@@ -321,6 +325,13 @@
       "type" : "integer",
       "readonly" : true
     },
+    "ringsize" : {
+      "type" : "integer"
+    },
+    "ringtype" : {
+      "type" : "string",
+      "enum" : [ "Elastic", "Fixed" ]
+    },
     "rxbytes" : {
       "type" : "integer",
       "readonly" : true
@@ -375,6 +386,10 @@
       "readonly" : true
     },
     "stsstalls" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "svmcmd" : {
       "type" : "integer",
       "readonly" : true
     },

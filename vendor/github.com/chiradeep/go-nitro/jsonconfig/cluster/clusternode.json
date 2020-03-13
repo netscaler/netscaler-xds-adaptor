@@ -119,7 +119,7 @@
     },
     "tunnelmode" : {
       "type" : "string",
-      "enum" : [ "NONE", "GRE" ]
+      "enum" : [ "NONE", "GRE", "UDP" ]
     }
   },
   "$schema" : "http://json-schema.org/draft-04/schema#",

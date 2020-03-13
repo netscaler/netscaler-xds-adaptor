@@ -3,6 +3,7 @@ package tm
 type Tmsessionaction struct {
 	Builtin                    interface{} `json:"builtin,omitempty"`
 	Defaultauthorizationaction string      `json:"defaultauthorizationaction,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Homepage                   string      `json:"homepage,omitempty"`
 	Httponlycookie             string      `json:"httponlycookie,omitempty"`
 	Kcdaccount                 string      `json:"kcdaccount,omitempty"`

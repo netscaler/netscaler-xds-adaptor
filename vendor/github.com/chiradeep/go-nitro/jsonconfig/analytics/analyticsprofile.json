@@ -1,10 +1,22 @@
 {
   "type" : "object",
   "properties" : {
+    "auditlogs" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "collectors" : {
       "type" : "string"
     },
     "cqareporting" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "events" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
+    "grpcstatus" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
@@ -80,8 +92,16 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
+    "metrics" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "name" : {
       "type" : "string"
+    },
+    "outputmode" : {
+      "type" : "string",
+      "enum" : [ "avro", "prometheus", "influx" ]
     },
     "refcnt" : {
       "type" : "integer",
@@ -93,7 +113,7 @@
     },
     "type" : {
       "type" : "string",
-      "enum" : [ "global", "webinsight", "tcpinsight", "securityinsight", "videoinsight", "hdxinsight", "gatewayinsight", "httpstream" ]
+      "enum" : [ "global", "webinsight", "tcpinsight", "securityinsight", "videoinsight", "hdxinsight", "gatewayinsight", "timeseries", "lsninsight", "botinsight" ]
     },
     "urlcategory" : {
       "type" : "string",

@@ -5,5 +5,6 @@ type Lsnsipalgcall struct {
 	Callid       string `json:"callid,omitempty"`
 	Callrefcount int    `json:"callrefcount,omitempty"`
 	Calltimer    int    `json:"calltimer,omitempty"`
+	Nodeid       int    `json:"nodeid,omitempty"`
 	Xlatip       string `json:"xlatip,omitempty"`
 }

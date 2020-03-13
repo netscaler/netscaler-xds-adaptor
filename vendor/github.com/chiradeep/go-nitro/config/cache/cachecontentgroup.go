@@ -13,6 +13,7 @@ type Cachecontentgroup struct {
 	Cachenuminvalpolicy    int         `json:"cachenuminvalpolicy,omitempty"`
 	Disklimit              int         `json:"disklimit,omitempty"`
 	Expireatlastbyte       string      `json:"expireatlastbyte,omitempty"`
+	Feature                string      `json:"feature,omitempty"`
 	Flags                  int         `json:"flags,omitempty"`
 	Flashcache             string      `json:"flashcache,omitempty"`
 	Heurexpiryparam        int         `json:"heurexpiryparam,omitempty"`

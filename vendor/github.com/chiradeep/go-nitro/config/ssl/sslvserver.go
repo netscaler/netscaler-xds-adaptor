@@ -13,6 +13,8 @@ type Sslvserver struct {
 	Dhekeyexchangewithpsk             string `json:"dhekeyexchangewithpsk,omitempty"`
 	Dhfile                            string `json:"dhfile,omitempty"`
 	Dhkeyexpsizelimit                 string `json:"dhkeyexpsizelimit,omitempty"`
+	Dtls1                             string `json:"dtls1,omitempty"`
+	Dtls12                            string `json:"dtls12,omitempty"`
 	Dtlsflag                          bool   `json:"dtlsflag,omitempty"`
 	Dtlsprofilename                   string `json:"dtlsprofilename,omitempty"`
 	Ersa                              string `json:"ersa,omitempty"`
@@ -23,6 +25,7 @@ type Sslvserver struct {
 	Nonfipsciphers                    string `json:"nonfipsciphers,omitempty"`
 	Ocspcheck                         string `json:"ocspcheck,omitempty"`
 	Ocspstapling                      string `json:"ocspstapling,omitempty"`
+	Preload                           string `json:"preload,omitempty"`
 	Pushenctrigger                    string `json:"pushenctrigger,omitempty"`
 	Redirectportrewrite               string `json:"redirectportrewrite,omitempty"`
 	Sendclosenotify                   string `json:"sendclosenotify,omitempty"`

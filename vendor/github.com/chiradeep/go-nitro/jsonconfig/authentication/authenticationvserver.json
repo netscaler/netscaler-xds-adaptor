@@ -16,6 +16,11 @@
       "type" : "string",
       "readonly" : true
     },
+    "bindpoint" : {
+      "type" : "string",
+      "enum" : [ "REQUEST", "RESPONSE", "ICA_REQUEST", "OTHERTCP_REQUEST" ],
+      "readonly" : true
+    },
     "cachetype" : {
       "type" : "string",
       "enum" : [ "TRANSPARENT", "REVERSE", "FORWARD" ],
@@ -24,6 +29,9 @@
     "cachevserver" : {
       "type" : "string",
       "readonly" : true
+    },
+    "certkeynames" : {
+      "type" : "string"
     },
     "clttimeout" : {
       "type" : "integer",

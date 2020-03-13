@@ -1,6 +1,7 @@
 package authentication
 
 type Authenticationvserverauditnslogpolicybinding struct {
+	Bindpoint              string `json:"bindpoint,omitempty"`
 	Gotopriorityexpression string `json:"gotopriorityexpression,omitempty"`
 	Groupextraction        bool   `json:"groupextraction,omitempty"`
 	Name                   string `json:"name,omitempty"`

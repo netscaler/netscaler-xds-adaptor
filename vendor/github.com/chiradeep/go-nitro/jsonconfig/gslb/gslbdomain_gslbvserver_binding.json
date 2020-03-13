@@ -3,7 +3,7 @@
   "properties" : {
     "backuplbmethod" : {
       "type" : "string",
-      "enum" : [ "ROUNDROBIN", "LEASTCONNECTION", "LEASTRESPONSETIME", "SOURCEIPHASH", "LEASTBANDWIDTH", "LEASTPACKETS", "STATICPROXIMITY", "RTT", "CUSTOMLOAD" ],
+      "enum" : [ "ROUNDROBIN", "LEASTCONNECTION", "LEASTRESPONSETIME", "SOURCEIPHASH", "LEASTBANDWIDTH", "LEASTPACKETS", "STATICPROXIMITY", "RTT", "CUSTOMLOAD", "API" ],
       "readonly" : true
     },
     "cip" : {
@@ -32,7 +32,7 @@
     },
     "lbmethod" : {
       "type" : "string",
-      "enum" : [ "ROUNDROBIN", "LEASTCONNECTION", "LEASTRESPONSETIME", "SOURCEIPHASH", "LEASTBANDWIDTH", "LEASTPACKETS", "STATICPROXIMITY", "RTT", "CUSTOMLOAD" ],
+      "enum" : [ "ROUNDROBIN", "LEASTCONNECTION", "LEASTRESPONSETIME", "SOURCEIPHASH", "LEASTBANDWIDTH", "LEASTPACKETS", "STATICPROXIMITY", "RTT", "CUSTOMLOAD", "API" ],
       "readonly" : true
     },
     "mir" : {

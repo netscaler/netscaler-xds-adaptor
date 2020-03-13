@@ -1,0 +1,14 @@
+{
+  "type" : "object",
+  "properties" : {
+    "appsattributesname" : {
+      "type" : "string"
+    },
+    "appsprofilename" : {
+      "type" : "string"
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "lsnappsprofile_lsnappsattributes_binding",
+  "title" : "lsnappsprofile_lsnappsattributes_binding"
+}

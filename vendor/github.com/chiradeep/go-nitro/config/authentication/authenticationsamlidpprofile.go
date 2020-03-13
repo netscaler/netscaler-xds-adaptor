@@ -83,11 +83,14 @@ type Authenticationsamlidpprofile struct {
 	Samlbinding                 string `json:"samlbinding,omitempty"`
 	Samlidpcertname             string `json:"samlidpcertname,omitempty"`
 	Samlissuername              string `json:"samlissuername,omitempty"`
+	Samlsigningcertversion      string `json:"samlsigningcertversion,omitempty"`
 	Samlspcertname              string `json:"samlspcertname,omitempty"`
+	Samlspcertversion           string `json:"samlspcertversion,omitempty"`
 	Sendpassword                string `json:"sendpassword,omitempty"`
 	Serviceproviderid           string `json:"serviceproviderid,omitempty"`
 	Signassertion               string `json:"signassertion,omitempty"`
 	Signaturealg                string `json:"signaturealg,omitempty"`
+	Signatureservice            string `json:"signatureservice,omitempty"`
 	Skewtime                    int    `json:"skewtime,omitempty"`
 	Splogouturl                 string `json:"splogouturl,omitempty"`
 }

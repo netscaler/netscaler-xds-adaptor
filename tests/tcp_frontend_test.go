@@ -27,7 +27,7 @@ func Test_tcp_frontend(t *testing.T) {
 	if err != nil {
 		t.Errorf("tcp server creation failed : %v", err)
 	}
-	discoveryClient, errc := adsclient.NewAdsClient("localhost:1234", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "")
+	discoveryClient, errc := adsclient.NewAdsClient("localhost:1234", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "", "ns-logproxy.citrix-system")
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}
@@ -38,7 +38,7 @@ func Test_tcp_frontend(t *testing.T) {
 		t.Errorf("makeListener failed with %v", errl)
 	}
 	cluster := env.MakeCluster("ctcp")
-	endpoint := env.MakeEndpoint("ctcp", []env.ServiceEndpoint{{env.GetLocalIP(), 9001}})
+	endpoint := env.MakeEndpoint("ctcp", []env.ServiceEndpoint{{env.GetLocalIP(), 9001, 1}})
 
 	err = grpcServer.UpdateSpanshotCache("1", discoveryClient.GetNodeID(), listener, nil, cluster, endpoint)
 	if errl != nil {

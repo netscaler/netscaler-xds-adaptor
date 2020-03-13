@@ -48,6 +48,10 @@
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]
     },
+    "hasyncfailurereason" : {
+      "type" : "string",
+      "readonly" : true
+    },
     "hellointerval" : {
       "type" : "integer"
     },
@@ -105,6 +109,10 @@
       "type" : "string",
       "enum" : [ "Primary", "Secondary", "UNKNOWN" ],
       "readonly" : true
+    },
+    "syncstatusstrictmode" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
     },
     "syncvlan" : {
       "type" : "integer"

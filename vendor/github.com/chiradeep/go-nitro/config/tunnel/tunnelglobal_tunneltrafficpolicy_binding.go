@@ -2,6 +2,7 @@ package tunnel
 
 type Tunnelglobaltunneltrafficpolicybinding struct {
 	Builtin                interface{} `json:"builtin,omitempty"`
+	Feature                string      `json:"feature,omitempty"`
 	Globalbindtype         string      `json:"globalbindtype,omitempty"`
 	Gotopriorityexpression string      `json:"gotopriorityexpression,omitempty"`
 	Numpol                 int         `json:"numpol,omitempty"`

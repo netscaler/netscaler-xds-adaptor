@@ -19,8 +19,10 @@ type Authenticationsamlaction struct {
 	Attribute8                     string      `json:"attribute8,omitempty"`
 	Attribute9                     string      `json:"attribute9,omitempty"`
 	Attributeconsumingserviceindex int         `json:"attributeconsumingserviceindex,omitempty"`
+	Attributes                     string      `json:"attributes,omitempty"`
 	Audience                       string      `json:"audience,omitempty"`
 	Authnctxclassref               interface{} `json:"authnctxclassref,omitempty"`
+	Customauthnctxclassref         string      `json:"customauthnctxclassref,omitempty"`
 	Defaultauthenticationgroup     string      `json:"defaultauthenticationgroup,omitempty"`
 	Digestmethod                   string      `json:"digestmethod,omitempty"`
 	Enforceusername                string      `json:"enforceusername,omitempty"`
@@ -45,4 +47,5 @@ type Authenticationsamlaction struct {
 	Sendthumbprint                 string      `json:"sendthumbprint,omitempty"`
 	Signaturealg                   string      `json:"signaturealg,omitempty"`
 	Skewtime                       int         `json:"skewtime,omitempty"`
+	Storesamlresponse              string      `json:"storesamlresponse,omitempty"`
 }

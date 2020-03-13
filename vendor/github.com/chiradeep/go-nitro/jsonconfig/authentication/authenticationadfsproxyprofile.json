@@ -1,0 +1,28 @@
+{
+  "type" : "object",
+  "properties" : {
+    "adfstruststatus" : {
+      "type" : "string",
+      "enum" : [ "INIT", "FAILED", "ESTABLISHED", "ESTABLISHED/CONFIGURED", "ESTABLISHED_RENEW_SUCCESS", "ESTABLISHED_RENEW_FAILED", "RENEWED/CONFIGURED" ],
+      "readonly" : true
+    },
+    "certkeyname" : {
+      "type" : "string"
+    },
+    "name" : {
+      "type" : "string"
+    },
+    "password" : {
+      "type" : "string"
+    },
+    "serverurl" : {
+      "type" : "string"
+    },
+    "username" : {
+      "type" : "string"
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "authenticationadfsproxyprofile",
+  "title" : "authenticationadfsproxyprofile"
+}

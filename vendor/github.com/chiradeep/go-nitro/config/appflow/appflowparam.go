@@ -9,8 +9,11 @@ type Appflowparam struct {
 	Clienttrafficonly                   string      `json:"clienttrafficonly,omitempty"`
 	Connectionchaining                  string      `json:"connectionchaining,omitempty"`
 	Cqareporting                        string      `json:"cqareporting,omitempty"`
+	Distributedtracing                  string      `json:"distributedtracing,omitempty"`
+	Disttracingsamplingrate             int         `json:"disttracingsamplingrate,omitempty"`
 	Emailaddress                        string      `json:"emailaddress,omitempty"`
 	Events                              string      `json:"events,omitempty"`
+	Feature                             string      `json:"feature,omitempty"`
 	Flowrecordinterval                  int         `json:"flowrecordinterval,omitempty"`
 	Gxsessionreporting                  string      `json:"gxsessionreporting,omitempty"`
 	Httpauthorization                   string      `json:"httpauthorization,omitempty"`
@@ -30,6 +33,7 @@ type Appflowparam struct {
 	Httpxforwardedfor                   string      `json:"httpxforwardedfor,omitempty"`
 	Identifiername                      string      `json:"identifiername,omitempty"`
 	Identifiersessionname               string      `json:"identifiersessionname,omitempty"`
+	Logstreamovernsip                   string      `json:"logstreamovernsip,omitempty"`
 	Lsnlogging                          string      `json:"lsnlogging,omitempty"`
 	Metrics                             string      `json:"metrics,omitempty"`
 	Observationdomainid                 int         `json:"observationdomainid,omitempty"`
@@ -40,10 +44,13 @@ type Appflowparam struct {
 	Skipcacheredirectionhttptransaction string      `json:"skipcacheredirectionhttptransaction,omitempty"`
 	Subscriberawareness                 string      `json:"subscriberawareness,omitempty"`
 	Subscriberidobfuscation             string      `json:"subscriberidobfuscation,omitempty"`
+	Subscriberidobfuscationalgo         string      `json:"subscriberidobfuscationalgo,omitempty"`
+	Tcpattackcounterinterval            int         `json:"tcpattackcounterinterval,omitempty"`
 	Tcpburstreporting                   string      `json:"tcpburstreporting,omitempty"`
 	Tcpburstreportingthreshold          int         `json:"tcpburstreportingthreshold,omitempty"`
 	Templaterefresh                     int         `json:"templaterefresh,omitempty"`
 	Udppmtu                             int         `json:"udppmtu,omitempty"`
 	Urlcategory                         string      `json:"urlcategory,omitempty"`
+	Usagerecordinterval                 int         `json:"usagerecordinterval,omitempty"`
 	Videoinsight                        string      `json:"videoinsight,omitempty"`
 }

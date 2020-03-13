@@ -1,6 +1,7 @@
 package authentication
 
 type Authenticationazurekeyvault struct {
+	Authentication             string `json:"authentication,omitempty"`
 	Clientid                   string `json:"clientid,omitempty"`
 	Clientsecret               string `json:"clientsecret,omitempty"`
 	Defaultauthenticationgroup string `json:"defaultauthenticationgroup,omitempty"`

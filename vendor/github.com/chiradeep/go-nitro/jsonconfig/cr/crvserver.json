@@ -247,6 +247,10 @@
       "enum" : [ "CONTENT", "ADDRESS" ],
       "readonly" : true
     },
+    "useoriginipportforcache" : {
+      "type" : "string",
+      "enum" : [ "YES", "NO" ]
+    },
     "useportrange" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]

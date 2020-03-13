@@ -7,6 +7,7 @@ type Cmpparameter struct {
 	Cmplevel         string      `json:"cmplevel,omitempty"`
 	Cmponpush        string      `json:"cmponpush,omitempty"`
 	Externalcache    string      `json:"externalcache,omitempty"`
+	Feature          string      `json:"feature,omitempty"`
 	Heurexpiry       string      `json:"heurexpiry,omitempty"`
 	Heurexpiryhistwt int         `json:"heurexpiryhistwt,omitempty"`
 	Heurexpirythres  int         `json:"heurexpirythres,omitempty"`

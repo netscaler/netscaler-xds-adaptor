@@ -44,6 +44,8 @@ type NitroClient struct {
 	password  string
 	proxiedNs string
 	client    *http.Client
+	sessionid string
+	timeout   int
 }
 
 //NewNitroClient returns a usable NitroClient. Does not check validity of supplied parameters

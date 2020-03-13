@@ -17,6 +17,14 @@ import (
 	"citrix-istio-adaptor/nsconfigengine"
 	"container/list"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/chiradeep/go-nitro/config/analytics"
 	"github.com/chiradeep/go-nitro/config/basic"
 	"github.com/chiradeep/go-nitro/config/dns"
 	"github.com/chiradeep/go-nitro/config/lb"
@@ -25,12 +33,6 @@ import (
 	"github.com/chiradeep/go-nitro/config/responder"
 	"github.com/chiradeep/go-nitro/config/tm"
 	"github.com/chiradeep/go-nitro/netscaler"
-	"io/ioutil"
-	"log"
-	"regexp"
-	"strings"
-	"sync"
-	"time"
 )
 
 type discoveryType int
@@ -67,9 +69,11 @@ type configAdaptor struct {
 	vserverIP         string
 	netProfile        string
 	analyticsServerIP string
+	logProxyURL       string
+	analyticsProfiles []string // Two analyticspofile needed. One for TCP Insight, one for Web Insight
 }
 
-func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProfile, analyticsServerIP string) (*configAdaptor, error) {
+func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProfile, analyticsServerIP, logProxyURL string) (*configAdaptor, error) {
 	configAdaptor := new(configAdaptor)
 	configAdaptor.adsServerPort = adsServerPort
 	configAdaptor.vserverIP = vserverIP
@@ -81,6 +85,7 @@ func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProf
 	configAdaptor.rdsHash = make(map[string]*list.Element)
 	configAdaptor.quit = make(chan bool)
 	configAdaptor.analyticsServerIP = analyticsServerIP
+	configAdaptor.logProxyURL = logProxyURL
 	var err error
 	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: url, Username: username, Password: password})
 	if err != nil {
@@ -103,6 +108,10 @@ func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProf
 	err = configAdaptor.bootstrapConfig()
 	if err != nil {
 		return nil, err
+	}
+	err = configAdaptor.dologProxyConfig()
+	if err != nil {
+		log.Println("[WARN] Logproxy related config is not successful. Err = ", err)
 	}
 	if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") {
 		/* Citrix ADC CPX Case Saving the initial bootstrap configuration */
@@ -189,7 +198,6 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 	if err != nil {
 		log.Println("[WARN] aaa feature is not enabled and JWT authentication will not work")
 	} else {
-
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Tmsessionparameter.Type(), ResourceName: "", Resource: tm.Tmsessionparameter{Defaultauthorizationaction: "ALLOW"}, Operation: "set"})
 	}
 	if len(confAdaptor.netProfile) > 0 {
@@ -201,6 +209,36 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 		configs = append(configs, netprof)
 	}
 	err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
+	return err
+}
+
+func (confAdaptor *configAdaptor) dologProxyConfig() error {
+	var err error
+	err = nil
+	if len(confAdaptor.logProxyURL) > 0 {
+		err = confAdaptor.client.EnableFeatures([]string{"appflow"})
+		if err != nil {
+			log.Println("[WARN] appflow feature could not be enabled.")
+		}
+		err = confAdaptor.client.EnableModes([]string{"ulfd"})
+		if err != nil {
+			log.Println("[WARN] ULFD mode could not be enabled.")
+		}
+		// Below config is for Transaction data (used for tracing, logstream) on default port 5557
+		appflowResource := map[string]interface{}{"templaterefresh": 60, "securityinsightrecordinterval": 60, "httpurl": "ENABLED", "httpcookie": "ENABLED", "httpreferer": "ENABLED", "httpmethod": "ENABLED", "httphost": "ENABLED", "httpuseragent": "ENABLED", "httpcontenttype": "ENABLED", "securityinsighttraffic": "ENABLED", "httpquerywithurl": "ENABLED", "urlcategory": "ENABLED", "distributedtracing": "ENABLED", "disttracingsamplingrate": 100}
+		configs := []nsconfigengine.NsConfigEntity{
+			{ResourceType: netscaler.Appflowparam.Type(), ResourceName: "", Resource: appflowResource, Operation: "set"},
+			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_http_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_http_profile", Type: "webinsight", Httpurl: "ENABLED", Httphost: "ENABLED", Httpmethod: "ENABLED", Httpuseragent: "ENABLED", Urlcategory: "ENABLED", Httpcontenttype: "ENABLED", Httpvia: "ENABLED", Httpdomainname: "ENABLED", Httpurlquery: "ENABLED"}},
+			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_tcp_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_tcp_profile", Type: "tcpinsight"}},
+		}
+		err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
+		if err != nil {
+			log.Println("[WARN] Tracing config (transaction data) failed")
+		} else {
+			confAdaptor.analyticsProfiles = []string{"ns_analytics_default_tcp_profile", "ns_analytics_default_http_profile"}
+		}
+		log.Println("[TRACE] confAdaptor.analyticsProfiles: ", confAdaptor.analyticsProfiles)
+	}
 	return err
 }
 
@@ -285,6 +323,7 @@ func (confAdaptor *configAdaptor) startConfigAdaptor() {
 		for {
 			select {
 			case <-confAdaptor.quit:
+				confAdaptor.client.Logout()
 				log.Println("[TRACE] Stopping Config adaptor")
 				return
 			default:

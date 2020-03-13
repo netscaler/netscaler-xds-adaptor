@@ -32,7 +32,7 @@
     },
     "protocol" : {
       "type" : "string",
-      "enum" : [ "IPIP", "GRE", "IPSEC" ]
+      "enum" : [ "IPIP", "GRE", "IPSEC", "UDP" ]
     },
     "refcnt" : {
       "type" : "integer",

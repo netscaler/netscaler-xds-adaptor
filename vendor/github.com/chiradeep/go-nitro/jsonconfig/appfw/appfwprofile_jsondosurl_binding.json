@@ -1,0 +1,71 @@
+{
+  "type" : "object",
+  "properties" : {
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "comment" : {
+      "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
+    },
+    "jsondosurl" : {
+      "type" : "string"
+    },
+    "jsonmaxarraylength" : {
+      "type" : "integer"
+    },
+    "jsonmaxarraylengthcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "jsonmaxcontainerdepth" : {
+      "type" : "integer"
+    },
+    "jsonmaxcontainerdepthcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "jsonmaxdocumentlength" : {
+      "type" : "integer"
+    },
+    "jsonmaxdocumentlengthcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "jsonmaxobjectkeycount" : {
+      "type" : "integer"
+    },
+    "jsonmaxobjectkeycountcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "jsonmaxobjectkeylength" : {
+      "type" : "integer"
+    },
+    "jsonmaxobjectkeylengthcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "jsonmaxstringlength" : {
+      "type" : "integer"
+    },
+    "jsonmaxstringlengthcheck" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "name" : {
+      "type" : "string"
+    },
+    "state" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "appfwprofile_jsondosurl_binding",
+  "title" : "appfwprofile_jsondosurl_binding"
+}

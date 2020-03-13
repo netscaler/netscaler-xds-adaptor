@@ -1,6 +1,9 @@
 {
   "type" : "object",
   "properties" : {
+    "forceupdateip" : {
+      "type" : "boolean"
+    },
     "gptimeleft" : {
       "type" : "integer",
       "readonly" : true

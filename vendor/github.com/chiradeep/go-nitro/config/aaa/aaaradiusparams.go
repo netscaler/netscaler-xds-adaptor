@@ -8,6 +8,7 @@ type Aaaradiusparams struct {
 	Builtin                    interface{} `json:"builtin,omitempty"`
 	Callingstationid           string      `json:"callingstationid,omitempty"`
 	Defaultauthenticationgroup string      `json:"defaultauthenticationgroup,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Groupauthname              string      `json:"groupauthname,omitempty"`
 	Ipaddress                  string      `json:"ipaddress,omitempty"`
 	Ipattributetype            int         `json:"ipattributetype,omitempty"`

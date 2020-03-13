@@ -5,7 +5,10 @@ type Lbparameter struct {
 	Builtin                       interface{} `json:"builtin,omitempty"`
 	Consolidatedlconn             string      `json:"consolidatedlconn,omitempty"`
 	Cookiepassphrase              string      `json:"cookiepassphrase,omitempty"`
+	Dbsttl                        int         `json:"dbsttl,omitempty"`
+	Feature                       string      `json:"feature,omitempty"`
 	Httponlycookieflag            string      `json:"httponlycookieflag,omitempty"`
+	Maxpipelinenat                int         `json:"maxpipelinenat,omitempty"`
 	Monitorconnectionclose        string      `json:"monitorconnectionclose,omitempty"`
 	Monitorskipmaxclient          string      `json:"monitorskipmaxclient,omitempty"`
 	Preferdirectroute             string      `json:"preferdirectroute,omitempty"`

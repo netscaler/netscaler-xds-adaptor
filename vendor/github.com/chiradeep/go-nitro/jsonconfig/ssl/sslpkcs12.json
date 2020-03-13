@@ -4,6 +4,9 @@
     "Import" : {
       "type" : "boolean"
     },
+    "aes256" : {
+      "type" : "boolean"
+    },
     "certfile" : {
       "type" : "string"
     },

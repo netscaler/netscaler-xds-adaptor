@@ -1,6 +1,10 @@
 {
   "type" : "object",
   "properties" : {
+    "authentication" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "clientid" : {
       "type" : "string"
     },

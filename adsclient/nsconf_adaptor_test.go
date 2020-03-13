@@ -25,10 +25,50 @@ func init() {
 	env.Init()
 }
 
+func verifyFeatures(t *testing.T, client *netscaler.NitroClient, features []string) {
+	found := 0
+	result, err := client.ListEnabledFeatures()
+	if err != nil {
+		t.Error("Failed to retrieve features", err)
+		log.Println("Cannot continue")
+		return
+	}
+	for _, f := range features {
+		for _, r := range result {
+			if strings.EqualFold(f, r) {
+				found = found + 1
+			}
+		}
+	}
+	if found != len(features) {
+		t.Error("Requested features do not match enabled features=", features, "result=", result)
+	}
+}
+
+func verifyModes(t *testing.T, client *netscaler.NitroClient, modes []string) {
+	found := 0
+	result, err := client.ListEnabledModes()
+	if err != nil {
+		t.Error("Failed to retrieve modes", err)
+		log.Println("Cannot continue")
+		return
+	}
+	for _, m := range modes {
+		for _, r := range result {
+			if strings.EqualFold(m, r) {
+				found = found + 1
+			}
+		}
+	}
+	if found != len(modes) {
+		t.Error("Requested modes do not match enabled modes=", modes, "result=", result)
+	}
+}
+
 func Test_bootstrapConfig(t *testing.T) {
 	t.Log("Verify BootStrap Config")
 	var err interface{}
-	configAd, err := newConfigAdaptor(env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "15010", "", "k8s", "")
+	configAd, err := newConfigAdaptor(env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "15010", "", "k8s", "", "ns-logproxy.citrix-system")
 	if err != nil {
 		t.Errorf("Unable to get a config adaptor. newConfigAdaptor failed with %v", err)
 	}
@@ -49,24 +89,11 @@ func Test_bootstrapConfig(t *testing.T) {
 		}
 	}
 	t.Log("Verify Features Applied")
-	features := []string{"SSL", "LB", "CS", "REWRITE", "RESPONDER"}
-	found := 0
-	result, err := configAd.client.ListEnabledFeatures()
-	if err != nil {
-		t.Error("Failed to retrieve features", err)
-		log.Println("Cannot continue")
-		return
-	}
-	for _, f := range features {
-		for _, r := range result {
-			if f == r {
-				found = found + 1
-			}
-		}
-	}
-	if found != len(features) {
-		t.Error("Requested features do not match enabled features=", features, "result=", result)
-	}
+	features := []string{"SSL", "LB", "CS", "REWRITE", "RESPONDER", "APPFLOW"}
+	verifyFeatures(t, configAd.client, features)
+	t.Log("Verify Modes Applied")
+	modes := []string{"ULFD"}
+	verifyModes(t, configAd.client, modes)
 	t.Log("Verify bootstrap config")
 	configs := []env.VerifyNitroConfig{
 		{netscaler.Nstcpprofile.Type(), "nstcp_default_profile", map[string]interface{}{"name": "nstcp_default_profile", "mss": 1410}},
@@ -85,5 +112,15 @@ func Test_bootstrapConfig(t *testing.T) {
 	err = env.VerifyConfigBlockPresence(configAd.client, configs)
 	if err != nil {
 		t.Errorf("Config verification failed for bootstrap config, error %v", err)
+	}
+	t.Log("Verify logproxy/appflow related config")
+	configs = []env.VerifyNitroConfig{
+		{netscaler.Appflowparam.Type(), "", map[string]interface{}{"templaterefresh": 60, "securityinsightrecordinterval": 60, "httpurl": "ENABLED", "httpcookie": "ENABLED", "httpreferer": "ENABLED", "httpmethod": "ENABLED", "httphost": "ENABLED", "httpuseragent": "ENABLED", "httpcontenttype": "ENABLED", "securityinsighttraffic": "ENABLED", "httpquerywithurl": "ENABLED", "urlcategory": "ENABLED", "distributedtracing": "ENABLED", "disttracingsamplingrate": 100}},
+		{"analyticsprofile", "ns_analytics_default_http_profile", map[string]interface{}{"name": "ns_analytics_default_http_profile", "type": "webinsight", "httpurl": "ENABLED", "httpmethod": "ENABLED", "httphost": "ENABLED", "httpuseragent": "ENABLED", "urlcategory": "ENABLED", "httpcontenttype": "ENABLED", "httpvia": "ENABLED", "httpdomainname": "ENABLED", "httpurlquery": "ENABLED"}},
+		{"analyticsprofile", "ns_analytics_default_tcp_profile", map[string]interface{}{"name": "ns_analytics_default_tcp_profile", "type": "tcpinsight"}},
+	}
+	err = env.VerifyConfigBlockPresence(configAd.client, configs)
+	if err != nil {
+		t.Errorf("Config verification failed for logproxy config, error %v", err)
 	}
 }

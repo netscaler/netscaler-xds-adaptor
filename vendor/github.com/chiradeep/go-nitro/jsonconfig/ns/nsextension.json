@@ -41,7 +41,7 @@
     },
     "type" : {
       "type" : "string",
-      "enum" : [ "WSDL", "CustomSettings", "XMLSchema", "XMLErrorPage", "htmlpage", "CustomResp", "Extension" ],
+      "enum" : [ "WSDL", "CustomSettings", "XMLSchema", "XMLErrorPage", "htmlpage", "CustomResp", "Extension", "JSONErrorPage", "Signatures" ],
       "readonly" : true
     }
   },

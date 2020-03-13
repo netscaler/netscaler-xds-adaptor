@@ -1,0 +1,27 @@
+{
+  "type" : "object",
+  "properties" : {
+    "certkeyname" : {
+      "type" : "string"
+    },
+    "chaincomplete" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "chainissuer" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "chainlinked" : {
+      "type" : "object",
+      "readonly" : true
+    },
+    "chainpossiblelinks" : {
+      "type" : "object",
+      "readonly" : true
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "sslcertificatechain",
+  "title" : "sslcertificatechain"
+}

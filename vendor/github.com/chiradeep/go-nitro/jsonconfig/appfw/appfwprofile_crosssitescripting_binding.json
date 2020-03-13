@@ -1,6 +1,10 @@
 {
   "type" : "object",
   "properties" : {
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
     "as_scan_location_xss" : {
       "type" : "string",
       "enum" : [ "FORMFIELD", "HEADER", "COOKIE" ]
@@ -20,6 +24,10 @@
     },
     "formactionurl_xss" : {
       "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
     },
     "isregex_xss" : {
       "type" : "string",

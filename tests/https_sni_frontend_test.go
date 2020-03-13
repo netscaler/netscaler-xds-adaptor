@@ -37,7 +37,7 @@ func Test_https_sni_frontend(t *testing.T) {
 	if errB != nil {
 		t.Errorf("http server B creation failed : %v", errB)
 	}
-	discoveryClient, errc := adsclient.NewAdsClient("localhost:1234", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "")
+	discoveryClient, errc := adsclient.NewAdsClient("localhost:1234", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "", "ns-logproxy.citrix-system")
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}
@@ -53,9 +53,9 @@ func Test_https_sni_frontend(t *testing.T) {
 		t.Errorf("MakeHttpsSniListener failed with %v", errl)
 	}
 	clusterA := env.MakeCluster("ca")
-	endpointA := env.MakeEndpoint("ca", []env.ServiceEndpoint{{env.GetLocalIP(), 9041}})
+	endpointA := env.MakeEndpoint("ca", []env.ServiceEndpoint{{env.GetLocalIP(), 9041, 1}})
 	clusterB := env.MakeCluster("cb")
-	endpointB := env.MakeEndpoint("cb", []env.ServiceEndpoint{{env.GetLocalIP(), 9042}})
+	endpointB := env.MakeEndpoint("cb", []env.ServiceEndpoint{{env.GetLocalIP(), 9042, 1}})
 
 	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeA, routeB}, []*xdsapi.Cluster{clusterA, clusterB}, []*xdsapi.ClusterLoadAssignment{endpointA, endpointB})
 	if err != nil {

@@ -2,6 +2,7 @@ package filter
 
 type Filteraction struct {
 	Builtin     interface{} `json:"builtin,omitempty"`
+	Feature     string      `json:"feature,omitempty"`
 	Isdefault   bool        `json:"isdefault,omitempty"`
 	Name        string      `json:"name,omitempty"`
 	Page        string      `json:"page,omitempty"`

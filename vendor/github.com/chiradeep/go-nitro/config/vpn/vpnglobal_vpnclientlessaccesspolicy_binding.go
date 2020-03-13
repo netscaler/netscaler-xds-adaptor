@@ -2,6 +2,7 @@ package vpn
 
 type Vpnglobalvpnclientlessaccesspolicybinding struct {
 	Builtin                interface{} `json:"builtin,omitempty"`
+	Feature                string      `json:"feature,omitempty"`
 	Globalbindtype         string      `json:"globalbindtype,omitempty"`
 	Gotopriorityexpression string      `json:"gotopriorityexpression,omitempty"`
 	Groupextraction        bool        `json:"groupextraction,omitempty"`

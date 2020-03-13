@@ -18,14 +18,15 @@ import (
 	"citrix-istio-adaptor/tests/env"
 	"container/list"
 	"fmt"
+	"log"
+	"reflect"
+	"testing"
+
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	v2Cluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
 	envoyUtil "github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
-	"log"
-	"reflect"
-	"testing"
 )
 
 func Test_extractPortAndDomainName(t *testing.T) {
@@ -105,7 +106,7 @@ func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resour
 }
 
 func Test_clusterAdd(t *testing.T) {
-	cds := env.MakeCluster("c1")
+	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
 
 	log.Println("HTTP cluster add")
@@ -117,6 +118,7 @@ func Test_clusterAdd(t *testing.T) {
 	lbObj.LbMonitorObj.IntervalUnits = "MSEC"
 	lbObj.LbMonitorObj.DownTime = 7
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
+	lbObj.AutoScale = true
 	err := verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
@@ -173,8 +175,8 @@ func Test_clusterDel(t *testing.T) {
 }
 
 func Test_clusterEndpointUpdate(t *testing.T) {
-	eds := env.MakeEndpoint("e1", []env.ServiceEndpoint{{"1.1.1.1", 80}, {"1.1.1.2", 80}, {"www.google.com", 9080}})
-	svcGpObj := &nsconfigengine.ServiceGroupAPI{Name: "e1", Members: []nsconfigengine.ServiceGroupMember{{IP: "1.1.1.1", Port: 80}, {IP: "1.1.1.2", Port: 80}, {Domain: "www.google.com", Port: 9080}}}
+	eds := env.MakeEndpoint("e1", []env.ServiceEndpoint{{"1.1.1.1", 80, 8}, {"1.1.1.2", 80, 2}, {"www.google.com", 9080, 7}})
+	svcGpObj := &nsconfigengine.ServiceGroupAPI{Name: "e1", Members: []nsconfigengine.ServiceGroupMember{{IP: "1.1.1.1", Port: 80, Weight: 8}, {IP: "1.1.1.2", Port: 80, Weight: 2}, {Domain: "www.google.com", Port: 9080, Weight: 7}}}
 	nsConfAdaptor := getNsConfAdaptor()
 	clusterEndpointUpdate(nsConfAdaptor, eds, nil)
 	err := verifyObject(nsConfAdaptor, edsAdd, "e1", svcGpObj, nil, nil)

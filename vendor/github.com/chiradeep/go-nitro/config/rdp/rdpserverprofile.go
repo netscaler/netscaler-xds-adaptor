@@ -2,6 +2,7 @@ package rdp
 
 type Rdpserverprofile struct {
 	Builtin        interface{} `json:"builtin,omitempty"`
+	Feature        string      `json:"feature,omitempty"`
 	Name           string      `json:"name,omitempty"`
 	Psk            string      `json:"psk,omitempty"`
 	Rdpip          string      `json:"rdpip,omitempty"`

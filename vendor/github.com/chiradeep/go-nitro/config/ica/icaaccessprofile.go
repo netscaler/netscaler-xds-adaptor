@@ -9,6 +9,7 @@ type Icaaccessprofile struct {
 	Clientprinterredirection   string      `json:"clientprinterredirection,omitempty"`
 	Clientusbdriveredirection  string      `json:"clientusbdriveredirection,omitempty"`
 	Connectclientlptports      string      `json:"connectclientlptports,omitempty"`
+	Feature                    string      `json:"feature,omitempty"`
 	Isdefault                  bool        `json:"isdefault,omitempty"`
 	Localremotedatasharing     string      `json:"localremotedatasharing,omitempty"`
 	Multistream                string      `json:"multistream,omitempty"`

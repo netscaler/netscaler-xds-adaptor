@@ -5,11 +5,19 @@
       "type" : "object",
       "enum" : [ "none", "block", "log", "remove", "stats", "xout" ]
     },
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
     "as_expression" : {
       "type" : "string"
     },
     "comment" : {
       "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
     },
     "maxmatchlength" : {
       "type" : "integer"

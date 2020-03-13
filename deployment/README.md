@@ -26,7 +26,7 @@ The following output indicates that the API is enabled:
 
         admissionregistration.k8s.io/v1beta1
 
-- **Important Note:** _For deploying Citrix ADC VPX or MPX as ingress gateway, you should establish the connectivity between Citrix ADC VPX or MPX and cluster nodes. This connectivity can be established by configuring routes on Citrix ADC as mentioned [here](https://github.com/citrix/citrix-k8s-ingress-controller/blob/master/docs/network/staticrouting.md) or by deploying [Citrix Node Controller](https://github.com/citrix/citrix-k8s-node-controller).
+- **Important Note:** For deploying Citrix ADC VPX or MPX as ingress gateway, you should establish the connectivity between Citrix ADC VPX or MPX and cluster nodes. This connectivity can be established by configuring routes on Citrix ADC as mentioned [here](https://github.com/citrix/citrix-k8s-ingress-controller/blob/master/docs/network/staticrouting.md) or by deploying [Citrix Node Controller](https://github.com/citrix/citrix-k8s-node-controller).
 
 ## <a name="citrix-adc-ingress-gateway">B) Deploy Citrix ADC as Ingress Gateway</a>
 
@@ -60,7 +60,7 @@ To deploy Citrix ADC CPX as an Ingress Gateway, perform the following steps.
     >To use particular images for Citrix ADC CPX and istio-adaptor, you can provide image details to the generate_yaml.sh script using `cpx-image-name` and `istio-adaptor-image-name` arguments. You can also provide licensing server IP address and port information using `license-server-ip` and `license-server-port` arguments. The following example shows how to specify the image details and licensing information while running the script to create the YAML file.
 
 
-        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-41.28 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --license-server-ip 10.102.101.101 --license-server-port 27000
+        ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-47.22 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.2.0 --license-server-ip 192.168.1.101 --license-server-port 27000
 
 5.  Deploy Citrix ADC CPX using the YAML file and specify the name space.
 
@@ -104,7 +104,7 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
     >**Note:**
     >To use particular image for istio-adaptor, you can provide image details to the generate_yaml.sh script using the `istio-bdg-image-name` argument. The following example shows how to specify the image details while running the script to create the YAML file.
 
-           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.1.0 --netscaler-url https://<nsip>[:port]
+           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.2.0 --netscaler-url https://<nsip>[:port]
 
 8.  Deploy Citrix ADC VPX or MPX using the `ingressgateway.yaml` file and specify the name space.
 
@@ -113,7 +113,7 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
 
 ## <a name="sample-deployment">C) Citrix ADC as Ingress Gateway: A Sample Deployment</a>
 
-A sample deployment of Citrix ADC as an Ingress gateway for the Bookinfo application is provided [here]( https://github.com/citrix/citrix-istio-adaptor/blob/master/examples/citrix-adc-in-istio).
+A sample deployment of Citrix ADC as an Ingress gateway for the Bookinfo application is provided [here](https://github.com/citrix/citrix-helm-charts/tree/master/examples/citrix-adc-in-istio).
 
 
 ## <a name="citrix-sidecar-injector">D) Deploy Citrix ADC CPXs as sidecar proxies using YAML</a>
@@ -126,7 +126,7 @@ In Istio servicemesh, the namespace must be labelled before applying the deploym
 
 __Note: If a namespace is labelled with both `istio-injection` and `cpx-injection`, Envoy injection takes a priority! Citrix CPX won't be injected on top of the already injected Envoy sidecar. For using Citrix ADC as sidecar, ensure that `istio-injection` label is removed from the namespace.__
 
-To deploy Citrix ADC CPX as a sidecar using Helm charts, see [Deploy Citrix ADC CPX as a sidecar using Helm charts](../charts/stable/citrix-cpx-istio-sidecar-injector/README.md).
+To deploy Citrix ADC CPX as a sidecar using Helm charts, see [Deploy Citrix ADC CPX as a sidecar using Helm charts](https://github.com/citrix/citrix-helm-charts/blob/master/citrix-cpx-istio-sidecar-injector/README.md).
 
 ## D.1) Deploy Citrix ADC CPX as a sidecar using automatic injection
 

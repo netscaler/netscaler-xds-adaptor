@@ -1,11 +1,19 @@
 {
   "type" : "object",
   "properties" : {
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
     "as_logexpression" : {
       "type" : "string"
     },
     "comment" : {
       "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
     },
     "logexpression" : {
       "type" : "string"

@@ -5,6 +5,10 @@
       "type" : "string",
       "enum" : [ "REQUEST", "RESPONSE", "ICA_REQUEST", "OTHERTCP_REQUEST" ]
     },
+    "cookieipport" : {
+      "type" : "string",
+      "readonly" : true
+    },
     "gotopriorityexpression" : {
       "type" : "string"
     },
@@ -41,6 +45,10 @@
     },
     "targetlbvserver" : {
       "type" : "string"
+    },
+    "vserverid" : {
+      "type" : "string",
+      "readonly" : true
     }
   },
   "$schema" : "http://json-schema.org/draft-04/schema#",

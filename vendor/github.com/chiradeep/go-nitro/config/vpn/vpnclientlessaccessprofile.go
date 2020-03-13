@@ -5,6 +5,7 @@ type Vpnclientlessaccessprofile struct {
 	Clientconsumedcookies          string      `json:"clientconsumedcookies,omitempty"`
 	Cssrewritepolicylabel          string      `json:"cssrewritepolicylabel,omitempty"`
 	Description                    string      `json:"description,omitempty"`
+	Feature                        string      `json:"feature,omitempty"`
 	Isdefault                      bool        `json:"isdefault,omitempty"`
 	Javascriptrewritepolicylabel   string      `json:"javascriptrewritepolicylabel,omitempty"`
 	Profilename                    string      `json:"profilename,omitempty"`

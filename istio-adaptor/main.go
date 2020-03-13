@@ -100,14 +100,15 @@ func main() {
 			"This is required to establish connectivity to the pod network from Citrix ADC VPX/MPX")
 	version := flag.Bool("version", false, "Use this flag to print the Version of Istio-adaptor")
 	analyticsServerIP := flag.String("adm-ip", "", "Licensing server IP(usually Citrix ADM IP)")
+	logProxyURL := flag.String("coe-url", "", "Citrix-Observability-Exporter(Logproxy) service name.")
 	flag.Parse()
+	versionIA, err := getIstioAdaptorVersion()
+	if err != nil {
+		fmt.Printf("[ERROR] Could not get Istio-Adaptor Version. %v\n", err)
+	} else {
+		fmt.Printf("[INFO] Istio-Adaptor Version: %s\n", strings.Replace(versionIA, "\n", "\t", 2))
+	}
 	if *version {
-		versionIA, err := getIstioAdaptorVersion()
-		if err != nil {
-			fmt.Printf("[ERROR] %v while getting Istio-adaptor version", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Istio-adaptor Version: %s", strings.Replace(versionIA, "\n", "\t", 2))
 		os.Exit(0)
 	}
 	userName, passWord, err := getCredentials(userFile, passFile)
@@ -122,7 +123,7 @@ func main() {
 	}
 	log.Printf("[TRACE]: secureConnect: %v", *secureConnect)
 	nodeID := *proxyType + "~" + os.Getenv("INSTANCE_IP") + "~" + os.Getenv("POD_NAME") + "." + os.Getenv("POD_NAMESPACE") + "~" + os.Getenv("POD_NAMESPACE") + ".svc.cluster.local"
-	discoveryClient, err := adsclient.NewAdsClient(*pilotURL, *pilotSAN, *secureConnect, nodeID, os.Getenv("APPLICATION_NAME"), *netscalerURL, userName, passWord, vsvrIP, *netProfile, *analyticsServerIP)
+	discoveryClient, err := adsclient.NewAdsClient(*pilotURL, *pilotSAN, *secureConnect, nodeID, os.Getenv("APPLICATION_NAME"), *netscalerURL, userName, passWord, vsvrIP, *netProfile, *analyticsServerIP, *logProxyURL)
 	if err != nil {
 		log.Printf("[ERROR] Unable to initialize ADS client: %v", err)
 		os.Exit(1)

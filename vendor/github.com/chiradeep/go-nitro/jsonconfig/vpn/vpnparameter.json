@@ -117,6 +117,9 @@
     "forcedtimeoutwarning" : {
       "type" : "integer"
     },
+    "fqdnspoofedip" : {
+      "type" : "string"
+    },
     "ftpproxy" : {
       "type" : "string"
     },
@@ -181,6 +184,9 @@
     "name" : {
       "type" : "string",
       "readonly" : true
+    },
+    "netmask" : {
+      "type" : "string"
     },
     "ntdomain" : {
       "type" : "string"

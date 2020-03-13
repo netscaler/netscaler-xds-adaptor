@@ -55,12 +55,18 @@
     "attributeconsumingserviceindex" : {
       "type" : "integer"
     },
+    "attributes" : {
+      "type" : "string"
+    },
     "audience" : {
       "type" : "string"
     },
     "authnctxclassref" : {
       "type" : "object",
       "enum" : [ "InternetProtocol", "InternetProtocolPassword", "Kerberos", "MobileOneFactorUnregistered", "MobileTwoFactorUnregistered", "MobileOneFactorContract", "MobileTwoFactorContract", "Password", "PasswordProtectedTransport", "PreviousSession", "X509", "PGP", "SPKI", "XMLDSig", "Smartcard", "SmartcardPKI", "SoftwarePKI", "Telephony", "NomadTelephony", "PersonalTelephony", "AuthenticatedTelephony", "SecureRemotePassword", "TLSClient", "TimeSyncToken", "Unspecified", "Windows" ]
+    },
+    "customauthnctxclassref" : {
+      "type" : "string"
     },
     "defaultauthenticationgroup" : {
       "type" : "string"
@@ -145,6 +151,10 @@
     },
     "skewtime" : {
       "type" : "integer"
+    },
+    "storesamlresponse" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
     }
   },
   "$schema" : "http://json-schema.org/draft-04/schema#",

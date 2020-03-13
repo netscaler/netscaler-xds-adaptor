@@ -49,8 +49,15 @@
     "attribute9" : {
       "type" : "string"
     },
+    "attributes" : {
+      "type" : "string"
+    },
     "audience" : {
       "type" : "string"
+    },
+    "authentication" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
     },
     "authorizationendpoint" : {
       "type" : "string"
@@ -93,7 +100,7 @@
     },
     "oauthtype" : {
       "type" : "string",
-      "enum" : [ "GENERIC", "INTUNE" ]
+      "enum" : [ "GENERIC", "INTUNE", "ATHENA" ]
     },
     "refreshinterval" : {
       "type" : "integer"

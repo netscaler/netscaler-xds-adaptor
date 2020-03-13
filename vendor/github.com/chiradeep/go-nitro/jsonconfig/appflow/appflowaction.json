@@ -1,6 +1,10 @@
 {
   "type" : "object",
   "properties" : {
+    "botinsight" : {
+      "type" : "string",
+      "enum" : [ "ENABLED", "DISABLED" ]
+    },
     "clientsidemeasurements" : {
       "type" : "string",
       "enum" : [ "ENABLED", "DISABLED" ]

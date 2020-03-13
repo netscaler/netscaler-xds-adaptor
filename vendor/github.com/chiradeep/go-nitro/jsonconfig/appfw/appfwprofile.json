@@ -8,9 +8,13 @@
     "archivename" : {
       "type" : "string"
     },
+    "autodeployrule" : {
+      "type" : "boolean",
+      "readonly" : true
+    },
     "bufferoverflowaction" : {
       "type" : "object",
-      "enum" : [ "none", "block", "learn", "log", "stats" ]
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "bufferoverflowmaxcookielength" : {
       "type" : "integer"
@@ -112,11 +116,15 @@
     },
     "denyurlaction" : {
       "type" : "object",
-      "enum" : [ "none", "block", "learn", "log", "stats" ]
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "dosecurecreditcardlogging" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]
+    },
+    "dynamiclearning" : {
+      "type" : "object",
+      "enum" : [ "none", "SQLInjection", "CrossSiteScripting", "fieldFormat", "startURL" ]
     },
     "enableformtagging" : {
       "type" : "string",
@@ -144,6 +152,10 @@
     "fileuploadmaxnum" : {
       "type" : "integer"
     },
+    "fileuploadtypesaction" : {
+      "type" : "object",
+      "enum" : [ "none", "block", "log", "stats" ]
+    },
     "htmlerrorobject" : {
       "type" : "string"
     },
@@ -154,6 +166,25 @@
     "invalidpercenthandling" : {
       "type" : "string",
       "enum" : [ "apache_mode", "asp_mode", "secure_mode" ]
+    },
+    "jsondosaction" : {
+      "type" : "object",
+      "enum" : [ "none", "block", "log", "stats" ]
+    },
+    "jsonerrorobject" : {
+      "type" : "string"
+    },
+    "jsonsqlinjectionaction" : {
+      "type" : "object",
+      "enum" : [ "none", "block", "log", "stats" ]
+    },
+    "jsonsqlinjectiontype" : {
+      "type" : "string",
+      "enum" : [ "SQLSplChar", "SQLKeyword", "SQLSplCharORKeyword", "SQLSplCharANDKeyword" ]
+    },
+    "jsonxssaction" : {
+      "type" : "object",
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "logeverypolicyhit" : {
       "type" : "string",
@@ -175,6 +206,9 @@
       "enum" : [ "ON", "OFF" ]
     },
     "postbodylimit" : {
+      "type" : "integer"
+    },
+    "postbodylimitsignature" : {
       "type" : "integer"
     },
     "refererheadercheck" : {
@@ -264,7 +298,7 @@
     },
     "type" : {
       "type" : "object",
-      "enum" : [ "HTML", "XML" ]
+      "enum" : [ "HTML", "XML", "JSON" ]
     },
     "urldecoderequestcookies" : {
       "type" : "string",
@@ -273,6 +307,10 @@
     "usehtmlerrorobject" : {
       "type" : "string",
       "enum" : [ "ON", "OFF" ]
+    },
+    "verboseloglevel" : {
+      "type" : "string",
+      "enum" : [ "pattern", "patternPayload", "patternPayloadHeader" ]
     },
     "xmlattachmentaction" : {
       "type" : "object",
@@ -287,7 +325,7 @@
     },
     "xmlformataction" : {
       "type" : "object",
-      "enum" : [ "none", "block", "learn", "log", "stats" ]
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "xmlsoapfaultaction" : {
       "type" : "object",
@@ -295,7 +333,7 @@
     },
     "xmlsqlinjectionaction" : {
       "type" : "object",
-      "enum" : [ "none", "block", "learn", "log", "stats" ]
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "xmlsqlinjectionchecksqlwildchars" : {
       "type" : "string",
@@ -315,7 +353,7 @@
     },
     "xmlvalidationaction" : {
       "type" : "object",
-      "enum" : [ "none", "block", "learn", "log", "stats" ]
+      "enum" : [ "none", "block", "log", "stats" ]
     },
     "xmlwsiaction" : {
       "type" : "object",

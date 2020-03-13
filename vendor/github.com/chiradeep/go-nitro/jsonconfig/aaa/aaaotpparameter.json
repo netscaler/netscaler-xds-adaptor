@@ -1,0 +1,15 @@
+{
+  "type" : "object",
+  "properties" : {
+    "encryption" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "maxotpdevices" : {
+      "type" : "integer"
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "aaaotpparameter",
+  "title" : "aaaotpparameter"
+}

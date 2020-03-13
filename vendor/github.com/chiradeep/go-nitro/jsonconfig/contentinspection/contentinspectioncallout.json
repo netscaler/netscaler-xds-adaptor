@@ -1,0 +1,50 @@
+{
+  "type" : "object",
+  "properties" : {
+    "comment" : {
+      "type" : "string"
+    },
+    "hits" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "name" : {
+      "type" : "string"
+    },
+    "profilename" : {
+      "type" : "string"
+    },
+    "resultexpr" : {
+      "type" : "string"
+    },
+    "returntype" : {
+      "type" : "string",
+      "enum" : [ "BOOL", "NUM", "TEXT" ]
+    },
+    "serverip" : {
+      "type" : "string"
+    },
+    "servername" : {
+      "type" : "string"
+    },
+    "serverport" : {
+      "type" : "integer"
+    },
+    "type" : {
+      "type" : "string",
+      "enum" : [ "ICAP" ]
+    },
+    "undefhits" : {
+      "type" : "integer",
+      "readonly" : true
+    },
+    "undefreason" : {
+      "type" : "string",
+      "enum" : [ "Failed to add service", "Vserver not found", "Not a HTTP or SSL vserver", "Generated callout request is invalid", "Content-Length header not found in callout request", "Not enough space to put Content-Length value", "Config incomplete", "Server is DOWN", "Creating callout connection failed", "No memory to generate callout request packets", "No memory to create callout task", "No memory to create callout async", "Callout request expression undef", "No callout response expression", "Skipped callout response eval", "Callout response pixl init undef", "Callout response expression undef" ],
+      "readonly" : true
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "contentinspectioncallout",
+  "title" : "contentinspectioncallout"
+}

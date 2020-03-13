@@ -3,6 +3,7 @@ package cache
 type Cachepolicylabel struct {
 	Builtin                interface{} `json:"builtin,omitempty"`
 	Evaluates              string      `json:"evaluates,omitempty"`
+	Feature                string      `json:"feature,omitempty"`
 	Flowtype               int         `json:"flowtype,omitempty"`
 	Gotopriorityexpression string      `json:"gotopriorityexpression,omitempty"`
 	Hits                   int         `json:"hits,omitempty"`

@@ -5,10 +5,12 @@ type Auditsyslogaction struct {
 	Alg                  string      `json:"alg,omitempty"`
 	Appflowexport        string      `json:"appflowexport,omitempty"`
 	Builtin              interface{} `json:"builtin,omitempty"`
+	Contentinspectionlog string      `json:"contentinspectionlog,omitempty"`
 	Dateformat           string      `json:"dateformat,omitempty"`
 	Dns                  string      `json:"dns,omitempty"`
 	Domainresolvenow     bool        `json:"domainresolvenow,omitempty"`
 	Domainresolveretry   int         `json:"domainresolveretry,omitempty"`
+	Feature              string      `json:"feature,omitempty"`
 	Ip                   string      `json:"ip,omitempty"`
 	Lbvservername        string      `json:"lbvservername,omitempty"`
 	Logfacility          string      `json:"logfacility,omitempty"`

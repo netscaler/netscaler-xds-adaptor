@@ -6,9 +6,12 @@
     },
     "hsmtype" : {
       "type" : "string",
-      "enum" : [ "THALES", "SAFENET" ]
+      "enum" : [ "THALES", "SAFENET", "KEYVAULT" ]
     },
     "key" : {
+      "type" : "string"
+    },
+    "keystore" : {
       "type" : "string"
     },
     "password" : {
@@ -16,6 +19,11 @@
     },
     "serialnum" : {
       "type" : "string"
+    },
+    "state" : {
+      "type" : "string",
+      "enum" : [ "Created", "Access Token Unavailable", "Unauthorized", "Does not exist", "Unreachable", "Marked down", "Key operations successful", "Key operations failed", "Key operation throttled" ],
+      "readonly" : true
     }
   },
   "$schema" : "http://json-schema.org/draft-04/schema#",

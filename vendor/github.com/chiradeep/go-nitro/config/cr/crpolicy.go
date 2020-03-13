@@ -7,6 +7,7 @@ type Crpolicy struct {
 	Builtin      interface{} `json:"builtin,omitempty"`
 	Cspolicytype string      `json:"cspolicytype,omitempty"`
 	Domain       string      `json:"domain,omitempty"`
+	Feature      string      `json:"feature,omitempty"`
 	Hits         int         `json:"hits,omitempty"`
 	Isdefault    bool        `json:"isdefault,omitempty"`
 	Labelname    string      `json:"labelname,omitempty"`

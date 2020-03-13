@@ -1,0 +1,22 @@
+{
+  "type" : "object",
+  "properties" : {
+    "name" : {
+      "type" : "string"
+    },
+    "natip" : {
+      "type" : "string"
+    },
+    "ownergroup" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "td" : {
+      "type" : "integer",
+      "readonly" : true
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "rnat_nsip_binding",
+  "title" : "rnat_nsip_binding"
+}

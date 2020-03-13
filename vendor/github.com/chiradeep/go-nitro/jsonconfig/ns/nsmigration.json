@@ -1,0 +1,25 @@
+{
+  "type" : "object",
+  "properties" : {
+    "migrationendtime" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "migrationrollbackstarttime" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "migrationstarttime" : {
+      "type" : "string",
+      "readonly" : true
+    },
+    "migrationstatus" : {
+      "type" : "string",
+      "enum" : [ "Migration is not yet started", "Migration is in progress and Failover is not yet done", "Migration is in progress and Failover is completed", "Rollback is initiated", "Migration is completed" ],
+      "readonly" : true
+    }
+  },
+  "$schema" : "http://json-schema.org/draft-04/schema#",
+  "id" : "nsmigration",
+  "title" : "nsmigration"
+}

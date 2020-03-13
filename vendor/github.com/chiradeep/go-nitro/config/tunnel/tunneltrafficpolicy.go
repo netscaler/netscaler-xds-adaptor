@@ -7,6 +7,7 @@ type Tunneltrafficpolicy struct {
 	Clientttlb         int         `json:"clientttlb,omitempty"`
 	Comment            string      `json:"comment,omitempty"`
 	Expressiontype     string      `json:"expressiontype,omitempty"`
+	Feature            string      `json:"feature,omitempty"`
 	Hits               int         `json:"hits,omitempty"`
 	Isdefault          bool        `json:"isdefault,omitempty"`
 	Logaction          string      `json:"logaction,omitempty"`

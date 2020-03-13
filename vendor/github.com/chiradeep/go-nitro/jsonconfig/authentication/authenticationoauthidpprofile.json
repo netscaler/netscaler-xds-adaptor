@@ -1,6 +1,9 @@
 {
   "type" : "object",
   "properties" : {
+    "attributes" : {
+      "type" : "string"
+    },
     "audience" : {
       "type" : "string"
     },
@@ -8,6 +11,9 @@
       "type" : "string"
     },
     "clientsecret" : {
+      "type" : "string"
+    },
+    "configservice" : {
       "type" : "string"
     },
     "defaultauthenticationgroup" : {
@@ -35,6 +41,17 @@
       "type" : "integer"
     },
     "relyingpartymetadataurl" : {
+      "type" : "string"
+    },
+    "sendpassword" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
+    "signaturealg" : {
+      "type" : "string",
+      "enum" : [ "RS256", "RS512" ]
+    },
+    "signatureservice" : {
       "type" : "string"
     },
     "skewtime" : {

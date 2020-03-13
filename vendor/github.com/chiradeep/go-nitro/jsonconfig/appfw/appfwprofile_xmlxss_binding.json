@@ -1,12 +1,20 @@
 {
   "type" : "object",
   "properties" : {
+    "alertonly" : {
+      "type" : "string",
+      "enum" : [ "ON", "OFF" ]
+    },
     "as_scan_location_xmlxss" : {
       "type" : "string",
       "enum" : [ "ELEMENT", "ATTRIBUTE" ]
     },
     "comment" : {
       "type" : "string"
+    },
+    "isautodeployed" : {
+      "type" : "string",
+      "enum" : [ "AUTODEPLOYED", "NOTAUTODEPLOYED" ]
     },
     "isregex_xmlxss" : {
       "type" : "string",

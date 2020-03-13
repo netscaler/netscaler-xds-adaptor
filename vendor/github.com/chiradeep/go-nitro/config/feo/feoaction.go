@@ -13,6 +13,7 @@ type Feoaction struct {
 	Cssmovetohead          bool        `json:"cssmovetohead,omitempty"`
 	Dnsshards              interface{} `json:"dnsshards,omitempty"`
 	Domainsharding         string      `json:"domainsharding,omitempty"`
+	Feature                string      `json:"feature,omitempty"`
 	Hits                   int         `json:"hits,omitempty"`
 	Htmlminify             bool        `json:"htmlminify,omitempty"`
 	Htmlrmattribquotes     bool        `json:"htmlrmattribquotes,omitempty"`

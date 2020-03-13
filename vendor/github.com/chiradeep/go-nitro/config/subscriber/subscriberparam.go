@@ -2,6 +2,7 @@ package subscriber
 
 type Subscriberparam struct {
 	Builtin              interface{} `json:"builtin,omitempty"`
+	Feature              string      `json:"feature,omitempty"`
 	Idleaction           string      `json:"idleaction,omitempty"`
 	Idlettl              int         `json:"idlettl,omitempty"`
 	Interfacetype        string      `json:"interfacetype,omitempty"`

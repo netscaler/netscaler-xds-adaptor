@@ -126,8 +126,9 @@ func RemoveAddressFromHostFile(ip string) error {
 }
 
 type ServiceEndpoint struct {
-	IP   string
-	Port int
+	IP     string
+	Port   int
+	Weight uint32
 }
 
 func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsapi.ClusterLoadAssignment {
@@ -146,6 +147,9 @@ func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsap
 						},
 					},
 				},
+			},
+			LoadBalancingWeight: &types.UInt32Value{
+				Value: ep.Weight,
 			},
 		}
 		lbEndpoints = append(lbEndpoints, &lbEndpoint)

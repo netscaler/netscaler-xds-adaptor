@@ -271,6 +271,7 @@ func Test_ServiceGroupAPI_ip(t *testing.T) {
 	client := env.GetNitroClient()
 	client.AddResource("servicegroup", "svcgp1", map[string]interface{}{"servicegroupname": "svcgp1", "servicetype": "HTTP"})
 	svcGpObj := NewServiceGroupAPI("svcgp1")
+	svcGpObj.IsIPOnlySvcGroup = false
 
 	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.1", Port: 80}, {IP: "2.2.2.2", Port: 9090}, {IP: "1.1.1.2", Port: 80}}
 	err := svcGpObj.Add(client)
@@ -298,7 +299,7 @@ func Test_ServiceGroupAPI_domain(t *testing.T) {
 	client := env.GetNitroClient()
 	client.AddResource("servicegroup", "svcgp2", map[string]interface{}{"servicegroupname": "svcgp2", "servicetype": "HTTP"})
 	svcGpObj := NewServiceGroupAPI("svcgp2")
-
+	svcGpObj.IsIPOnlySvcGroup = false
 	svcGpObj.Members = []ServiceGroupMember{{Domain: "www.google.com", Port: 80}, {Domain: "www.abc.org", Port: 9090}, {Domain: "www.facebook.com", Port: 80}}
 	err := svcGpObj.Add(client)
 	if err != nil {
@@ -321,5 +322,51 @@ func Test_ServiceGroupAPI_domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Config verification for update failed with error %v", err)
 	}
+	client.DeleteResource("servicegroup", "svcgp2")
+}
+
+func Test_ServiceGroupAPI_desiredState(t *testing.T) {
+	client := env.GetNitroClient()
+	curBuild.release = 13.0
+	curBuild.buildNo = 48.0
+	// Case 1: Adding servicegroup with only IP members from the beginning
+	client.AddResource("servicegroup", "svcgp1", map[string]interface{}{"servicegroupname": "svcgp1", "servicetype": "HTTP", "autoscale": "API"})
+	svcGpObj := NewServiceGroupAPI("svcgp1")
+
+	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.1", Port: 80}, {IP: "2.2.2.2", Port: 9090}, {IP: "1.1.1.2", Port: 80}}
+	err := svcGpObj.Add(client)
+	if err != nil {
+		t.Errorf("Desired State API based ServiceGroup members add failed with %v", err)
+	}
+	err = env.VerifyBindings(client, "servicegroup", "svcgp1", "servicegroupmember", []map[string]interface{}{{"ip": "1.1.1.1", "port": 80}, {"ip": "2.2.2.2", "port": 9090}, {"ip": "1.1.1.2", "port": 80}})
+	if err != nil {
+		t.Errorf("Config verification for addition of IP only servicegroup members failed with error %v", err)
+	}
+	// Case 2: Add Servicegroup with mix of IP and domain based members
+	client.AddResource("servicegroup", "svcgp2", map[string]interface{}{"servicegroupname": "svcgp2", "servicetype": "HTTP"})
+	svcGpObj = NewServiceGroupAPI("svcgp2")
+	svcGpObj.IsIPOnlySvcGroup = false
+	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.2", Port: 80}, {Domain: "www.sample.com", Port: 80}, {IP: "2.2.2.2", Port: 9090}}
+	err = svcGpObj.Add(client)
+	if err != nil {
+		t.Errorf("ServiceGroup members (IP + domain) update failed with %v", err)
+	}
+	err = env.VerifyBindings(client, "servicegroup", "svcgp2", "servicegroupmember", []map[string]interface{}{{"ip": "1.1.1.2", "port": 80}, {"ip": "2.2.2.2", "port": 9090}, {"servername": "www_sample_com", "port": 80}})
+	if err != nil {
+		t.Errorf("Config verification for update failed with error %v", err)
+	}
+	// Case 2.b: Now bind members of IP type only
+	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.2", Port: 80}, {IP: "3.3.3.3", Port: 80}, {IP: "2.2.2.2", Port: 9090}}
+	svcGpObj.IsIPOnlySvcGroup = true
+	err = svcGpObj.Add(client)
+	if err != nil {
+		t.Errorf("Desired state API based ServiceGroup members update failed with %v", err)
+	}
+	err = env.VerifyBindings(client, "servicegroup", "svcgp2", "servicegroupmember", []map[string]interface{}{{"ip": "1.1.1.2", "port": 80}, {"ip": "2.2.2.2", "port": 9090}, {"ip": "3.3.3.3", "port": 80}})
+	if err != nil {
+		t.Errorf("Config verification for update from classic API to desired state API failed with error %v", err)
+	}
+
+	client.DeleteResource("servicegroup", "svcgp1")
 	client.DeleteResource("servicegroup", "svcgp2")
 }

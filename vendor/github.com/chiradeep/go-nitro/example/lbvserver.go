@@ -29,6 +29,7 @@ func main() {
 		log.Fatal("Could not create a client: ", err)
 	}
 	log.Printf("Client is %+v\n", *client)
+	client.Login()
 	lb1 := lb.Lbvserver{
 		Name:        "sample_lb",
 		Ipv46:       "10.71.136.50",
@@ -68,5 +69,6 @@ func main() {
 
 	client.EnableFeatures([]string{"CS"})
 	client.SaveConfig()
+	client.Logout()
 
 }

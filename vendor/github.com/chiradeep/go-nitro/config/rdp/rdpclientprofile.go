@@ -4,6 +4,7 @@ type Rdpclientprofile struct {
 	Addusernameinrdpfile string      `json:"addusernameinrdpfile,omitempty"`
 	Audiocapturemode     string      `json:"audiocapturemode,omitempty"`
 	Builtin              interface{} `json:"builtin,omitempty"`
+	Feature              string      `json:"feature,omitempty"`
 	Keyboardhook         string      `json:"keyboardhook,omitempty"`
 	Multimonitorsupport  string      `json:"multimonitorsupport,omitempty"`
 	Name                 string      `json:"name,omitempty"`
