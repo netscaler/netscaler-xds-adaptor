@@ -1,4 +1,4 @@
-# Contributing to the Citrix ADC  Adaptor
+# Contributing to the Citrix Istio Adaptor
 
  We're glad you want to contribute to this project! This document will help answer common questions you may have during your first contribution.
 
