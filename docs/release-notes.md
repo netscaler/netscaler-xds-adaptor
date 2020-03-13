@@ -37,7 +37,7 @@ Citrix `istio-adaptor` now supports  [Desired State APIs](https://developer-docs
 Now, you can integrate a Citrix ADC deployed as an Istio sidecar with  [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter). Using Citrix Observability Exporter, you can export metrics and transactions from Citrix ADCs to desired endpoints such as Zipkin and Prometheus and analyze them to get valuable insights. [NSNET-11533](https://issues.citrite.net/browse/NSNET-11533)
 
 
-## Version 1.1.0
+## Version 1.1.0-beta
 
 ### What's new
 
