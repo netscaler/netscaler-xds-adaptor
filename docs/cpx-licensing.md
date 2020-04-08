@@ -1,6 +1,6 @@
 # Licensing
 
-For licensing the Citrix ADC CPX, you need to provide the following information in the YAML file. This information is required for automatically picking the licensing information. The license server runs in the [Citrix ADM](https://docs.citrix.com/en-us/citrix-application-delivery-management-service.html).
+For licensing Citrix ADC CPX, you need to provide the following information in the YAML file. This information is required for automatically picking the licensing information. The license server runs in the [Citrix ADM](https://docs.citrix.com/en-us/citrix-application-delivery-management-service.html).
 
 -  **LS_IP (License Server IP)** – Specify the License Server IP address(for example: Citrix ADM IP address).
 
@@ -40,4 +40,4 @@ spec:
 ---
 ```    
 
-The complete yaml file can be found [here](../deployment/cpx-ingressgateway.tmpl).
+The complete YAML file can be found [here](https://github.com/citrix/citrix-istio-adaptor/blob/master/deployment/cpx-ingressgateway.tmpl).
