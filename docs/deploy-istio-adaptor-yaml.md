@@ -24,18 +24,24 @@ The following output indicates that the API is enabled:
 
 You can deploy Citrix ADC CPX as an Ingress Gateway in the Istio environment. In this deployment, `generate_yaml.sh` script is used to create a YAML file from the `cpx-ingressgateway.tmpl` template. This newly created YAML file is used to deploy Citrix ADC CPX in a Kubernetes namespace. Citrix ADC can act as an Ingress Gateway for standalone services or services deployed along with sidecar proxy (Envoy or Citrix CPX).
 To deploy Citrix ADC CPX as an Ingress Gateway, perform the following steps.
+
+
 1.  Download the `generate_yaml.sh` script.
 
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/generate_yaml.sh > generate_yaml.sh
+
 2.  Change the permissions of the script to executable mode.
 
         chmod +x generate_yaml.sh
+
 3.  Download the ``cpx-ingressgateway.tmpl`` template.
 
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/cpx-ingressgateway.tmpl > cpx-ingressgateway.tmpl
+
 4.  Create a YAML file from the template using the generate_yaml.sh script.
    
         ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml
+       
        > **Note:**
        >To use particular images for Citrix ADC CPX and istio-adaptor, you can provide image details to the `generate_yaml.sh` script using cpx-image-name and istio-adaptor-image-name arguments. You can also provide licensing server IP address and port information using license-server-ip and license-server-port arguments.
   
@@ -43,6 +49,7 @@ To deploy Citrix ADC CPX as an Ingress Gateway, perform the following steps.
 
 
         ./generate_yaml.sh --inputfile cpx-ingressgateway.tmpl --outputfile cpx-ingressgateway.yaml --cpx-image-name quay.io/citrix/citrix-k8s-cpx-ingress --cpx-image-tag 13.0-47.22 --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.2.0 --license-server-ip 192.168.1.10 --license-server-port 27000
+
 5.  Deploy Citrix ADC CPX using the YAML file and specify the name space.
        
         kubectl create -f cpx-ingressgateway.yaml -n citrix-system
@@ -55,30 +62,38 @@ To deploy Citrix ADC MPX or VPX as an Ingress Gateway, perform the following:
 1.  Download the `generate_yaml.sh` script.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/generate_yaml.sh > generate_yaml.sh
+
 1.  Change permissions of the script to executable mode.
    
         chmod +x generate_yaml.sh
+
 1.  Download the `ingressgateway.tmpl` template.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/ingressgateway.tmpl > ingressgateway.tmpl
+
 1.  Download the `secret.tmpl` YAML file template.
    
         curl -L https://raw.githubusercontent.com/citrix/citrix-istio-adaptor/master/deployment/secret.tmpl > secret.tmpl
+
 1.  Generate the Kubernetes secret YAML file from the `secret.tmpl`template for Citrix ADC VPX or MPX credentials.
 
         ./generate_yaml.sh --inputfile secret.tmpl --outputfile secret.yaml --username <username> --password <password>
+
 1.  Create the Kubernetes secret object in the cluster.
 
         kubectl create -f secret.yaml -n citrix-system
+
 1.  Create a YAML file from the `ingressgateway.tmpl` template using the generate_yaml.sh script.
    
-        ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --netscaler-url https://<nsip>[:port] --vserver-ip <Virtual Server IPv4 Address>
+         ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --netscaler-url https://<nsip>[:port] --vserver-ip <Virtual Server IPv4 Address>
+   
     >**Note:**
     >To use a specific image for `istio-adaptor`, you can provide image details to the `generate_yaml.sh` script using the `istio-bdg-image-name` argument.
    
     The following example shows how to specify the image details while running the script to create the YAML file.
 
           ./generate_yaml.sh --inputfile ingressgateway.tmpl --outputfile ingressgateway.yaml --istio-adaptor-image-name quay.io/citrix/citrix-istio-adaptor --istio-adaptor-image-tag 1.2.0 --netscaler-url https://<nsip>[:port]
+
 1. Deploy Citrix ADC VPX or MPX using the `ingressgateway.yaml` file and specify the name space.
        kubectl create -f ingressgateway.yaml -n citrix-system
 
@@ -111,6 +126,7 @@ You must create the resources required for automatic sidecar injection by perfor
 2.  Change the permissions of the script to executable mode.
 
         chmod +x webhook-create-signed-cert.sh
+
 3.  Create a signed certificate, key pair and store it in a Kubernetes secret.
 
         ./webhook-create-signed-cert.sh \

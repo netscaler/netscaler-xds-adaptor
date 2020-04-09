@@ -7,7 +7,7 @@ Citrix ADC can be integrated with Istio in two ways:
 - Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh.
 - Citrix ADC CPX as a sidecar proxy with application containers in the service mesh.
 
-## Citrix ADC as an ingress gateway for Istio
+## Citrix ADC as an Ingress Gateway for Istio
 
 An Istio ingress gateway acts as an entry point for the incoming traffic and secures and controls access to the service mesh from outside. It also performs routing and load balancing. Citrix ADC CPX, MPX, or VPX can be deployed as an ingress gateway to the Istio service mesh.
 
