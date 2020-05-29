@@ -48,6 +48,8 @@ The following table describes the virtual service configuration settings support
 | [port](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#Destination)                        | 1.0.0+         | 13.0–37.16+  | 
 | [http.fault.abort.percentage](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPFaultInjection-Abort) | 1.0.0+         | 13.0–37.16+  | 
 | [http.fault.abort.httpStatus](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPFaultInjection-Abort) | 1.0.0+          | 13.0–37.16+  | 
+| [http.fault.delay.percentage](https://istio.io/docs/reference/config/networking/virtual-service/#HTTPFaultInjection-Delay) | 1.2.1+          | 13.0–52.24+  | 
+| [http.fault.delay.fixedDelay](https://istio.io/docs/reference/config/networking/virtual-service/#HTTPFaultInjection-Delay) | 1.2.1+          | 13.0–52.24+  | 
 | [http.match.uri](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPMatchRequest)             | 1.0.0+                 | 13.0–37.16+  | 
 | [http.match.scheme](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPMatchRequest)          | 1.0.0+                  | 13.0–37.16+  | 
 | [http.match.method](https://istio.io/docs/reference/config/networking/v1alpha3/virtual-service/#HTTPMatchRequest)          | 1.0.0+                  | 13.0–37.16+  | 

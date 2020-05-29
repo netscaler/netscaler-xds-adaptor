@@ -123,7 +123,23 @@ func main() {
 	}
 	log.Printf("[TRACE]: secureConnect: %v", *secureConnect)
 	nodeID := *proxyType + "~" + os.Getenv("INSTANCE_IP") + "~" + os.Getenv("POD_NAME") + "." + os.Getenv("POD_NAMESPACE") + "~" + os.Getenv("POD_NAMESPACE") + ".svc.cluster.local"
-	discoveryClient, err := adsclient.NewAdsClient(*pilotURL, *pilotSAN, *secureConnect, nodeID, os.Getenv("APPLICATION_NAME"), *netscalerURL, userName, passWord, vsvrIP, *netProfile, *analyticsServerIP, *logProxyURL)
+	adsinfo := new(adsclient.AdsDetails)
+	nsinfo := new(adsclient.NSDetails)
+	adsinfo.AdsServerURL = *pilotURL
+	adsinfo.AdsServerSpiffeID = *pilotSAN
+	adsinfo.SecureConnect = *secureConnect
+	adsinfo.NodeID = nodeID
+	adsinfo.ApplicationName = os.Getenv("APPLICATION_NAME")
+	nsinfo.NetscalerURL = *netscalerURL
+	nsinfo.NetscalerUsername = userName
+	nsinfo.NetscalerPassword = passWord
+	nsinfo.NetscalerVIP = vsvrIP
+	nsinfo.NetProfile = *netProfile
+	nsinfo.AnalyticsServerIP = *analyticsServerIP
+	nsinfo.LogProxyURL = *logProxyURL
+	discoveryClient, err := adsclient.NewAdsClient(adsinfo, nsinfo)
+	passWord = ""
+	nsinfo.NetscalerPassword = ""
 	if err != nil {
 		log.Printf("[ERROR] Unable to initialize ADS client: %v", err)
 		os.Exit(1)

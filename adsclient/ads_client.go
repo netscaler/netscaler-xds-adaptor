@@ -41,6 +41,26 @@ type ldsAddHandlerType func(*configAdaptor, *xdsapi.Listener) map[string]interfa
 type ldsDelHandlerType func(*configAdaptor, string)
 type rdsAddHandlerType func(*configAdaptor, []*xdsapi.RouteConfiguration, interface{}) map[string]interface{}
 
+//AdsDetails will define the members which will be read up at bootup time
+type AdsDetails struct {
+	AdsServerURL      string
+	AdsServerSpiffeID string
+	SecureConnect     bool
+	NodeID            string
+	ApplicationName   string
+}
+
+//NSDetails will define the members which will be read up at bootup time
+type NSDetails struct {
+	NetscalerURL      string
+	NetscalerUsername string
+	NetscalerPassword string
+	NetscalerVIP      string
+	NetProfile        string
+	AnalyticsServerIP string
+	LogProxyURL       string
+}
+
 type apiRequest struct {
 	typeURL     string
 	versionInfo string
@@ -120,6 +140,7 @@ func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	cdsResource := &xdsapi.Cluster{}
 	for _, resource := range m.Resources {
 		if err := types.UnmarshalAny(resource, cdsResource); err != nil {
+			log.Printf("[TRACE]:Could not find Unmarshal resources in CDS Handler")
 			continue
 		}
 		clusterNames[cdsResource.Name] = true
@@ -155,6 +176,8 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	ldsResource := &xdsapi.Listener{}
 	for _, resource := range m.Resources {
 		if err := types.UnmarshalAny(resource, ldsResource); err != nil {
+			log.Printf("[TRACE]:Could not find Unmarshal resources in LDS handler")
+			continue
 		}
 		ldsResources[ldsResource.Name] = true
 		dependentResources := client.ldsAddHandler(client.nsConfigAdaptor, ldsResource)
@@ -196,6 +219,8 @@ func edsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	edsResource := &xdsapi.ClusterLoadAssignment{}
 	for _, resource := range m.Resources {
 		if err := types.UnmarshalAny(resource, edsResource); err != nil {
+			log.Printf("[TRACE]:Could not find Unmarshal resources in EDS handler")
+			continue
 		}
 		if _, ok := client.apiRequests[edsURL].resources[edsResource.GetClusterName()]; !ok {
 			log.Printf("[ERROR]: received an EDS resource that we haven't yet subscribed for %s ... ignoring", edsResource.GetClusterName())
@@ -265,17 +290,14 @@ func (client *AdsClient) reloadCds() {
 	stream.CloseSend()
 }
 
-// NewAdsClient returns a new Aggregated Discovery Service client
-func NewAdsClient(adsServerURL string, adsServerSpiffeID string, secureConnect bool,
-	nodeID string, applicationName string, netscalerURL string,
-	netscalerUsername string, netscalerPassword string, netscalerVIP string,
-	netProfile string, analyticsServerIP string, logProxyURL string) (*AdsClient, error) {
+//NewAdsClient returns a new Aggregated Discovery Service client
+func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails) (*AdsClient, error) {
 	var err error
 	adsClient := new(AdsClient)
-	adsClient.adsServerURL = adsServerURL
-	adsClient.adsServerSpiffeID = adsServerSpiffeID
-	adsClient.secureConnect = secureConnect
-	adsClient.nodeID = &envoy_api_v2_core.Node{Id: nodeID, Cluster: applicationName}
+	adsClient.adsServerURL = adsinfo.AdsServerURL
+	adsClient.adsServerSpiffeID = adsinfo.AdsServerSpiffeID
+	adsClient.secureConnect = adsinfo.SecureConnect
+	adsClient.nodeID = &envoy_api_v2_core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName}
 	adsClient.quit = make(chan int)
 	adsClient.cdsAddHandler = clusterAdd
 	adsClient.cdsDelHandler = clusterDel
@@ -283,12 +305,12 @@ func NewAdsClient(adsServerURL string, adsServerSpiffeID string, secureConnect b
 	adsClient.ldsDelHandler = listenerDel
 	adsClient.edsAddHandler = clusterEndpointUpdate
 	adsClient.rdsAddHandler = routeUpdate
-	s := strings.Split(adsServerURL, ":")
+	s := strings.Split(adsinfo.AdsServerURL, ":")
 	adsServerPort := "unknown"
 	if len(s) > 1 {
 		adsServerPort = s[1]
 	}
-	adsClient.nsConfigAdaptor, err = newConfigAdaptor(netscalerURL, netscalerUsername, netscalerPassword, adsServerPort, netscalerVIP, netProfile, analyticsServerIP, logProxyURL)
+	adsClient.nsConfigAdaptor, err = newConfigAdaptor(nsinfo, adsServerPort)
 	if err != nil {
 		return nil, err
 	}

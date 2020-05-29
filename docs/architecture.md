@@ -42,7 +42,7 @@ The following diagram shows a sample deployment of Citrix ADC CPX as an Ingress 
 
 ![CPX-ingress](media/CPX-ingress.jpeg)
 
-For detailed instructions on how to deploy Citrix ADC CPX as an Ingress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-yaml.md).
+For detailed instructions on how to deploy Citrix ADC CPX as an Ingress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
 
 ### Citrix ADC MPX or VPX as an Ingress Gateway
 
@@ -54,7 +54,7 @@ The following diagram shows a sample deployment of Citrix ADC VPX/MPX as an ingr
 
 ![vpx-ingress](media/vpx-ingress.jpeg)
 
-For detailed instructions on how to deploy Citrix ADC VPX or MPX as an Ingress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-yaml.md).
+For detailed instructions on how to deploy Citrix ADC VPX or MPX as an Ingress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
 
 ## Deploy Citrix ADC CPXs as sidecars
 
@@ -67,4 +67,4 @@ The following diagram shows a sample deployment of Citrix ADC CPXs as sidecars.
 
 ![cpx-proxy](media/cpx-proxy.jpeg)
 
-For detailed instructions on how to deploy Citrix ADC CPX as a sidecar, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-yaml.md).
+For detailed instructions on how to deploy Citrix ADC CPX as a sidecar, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).

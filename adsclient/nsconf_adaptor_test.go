@@ -15,10 +15,11 @@ package adsclient
 
 import (
 	"citrix-istio-adaptor/tests/env"
-	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"strings"
 	"testing"
+
+	"github.com/chiradeep/go-nitro/netscaler"
 )
 
 func init() {
@@ -68,7 +69,15 @@ func verifyModes(t *testing.T, client *netscaler.NitroClient, modes []string) {
 func Test_bootstrapConfig(t *testing.T) {
 	t.Log("Verify BootStrap Config")
 	var err interface{}
-	configAd, err := newConfigAdaptor(env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "15010", "", "k8s", "", "ns-logproxy.citrix-system")
+	nsinfo := new(NSDetails)
+	nsinfo.NetscalerURL = env.GetNetscalerURL()
+	nsinfo.NetscalerUsername = env.GetNetscalerUser()
+	nsinfo.NetscalerPassword = env.GetNetscalerPassword()
+	nsinfo.NetscalerVIP = ""
+	nsinfo.NetProfile = "k8s"
+	nsinfo.AnalyticsServerIP = ""
+	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
+	configAd, err := newConfigAdaptor(nsinfo, "15010")
 	if err != nil {
 		t.Errorf("Unable to get a config adaptor. newConfigAdaptor failed with %v", err)
 	}

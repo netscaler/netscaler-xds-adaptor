@@ -115,31 +115,39 @@ func readResponseHandler(resp *http.Response) ([]byte, error) {
 	}
 }
 
-func (c *NitroClient) createHTTPRequest(method string, url string, buff *bytes.Buffer) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, buff)
+func (c *NitroClient) createHTTPRequest(method string, urlstr string, buff *bytes.Buffer) (*http.Request, error) {
+	req, err := http.NewRequest(method, urlstr, buff)
 	if err != nil {
 		return nil, err
 	}
+	// Get resourceType from url
+	u, err := url.Parse(urlstr)
+	if err != nil {
+		return nil, err
+	}
+	splitStrings := strings.Split(u.Path, "/")
+	resourceType := splitStrings[len(splitStrings)-1]
+
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	splitStrings := strings.Split(strings.Split(url, "?")[0], "/")
-	resourceName := splitStrings[len(splitStrings)-1]
 	if c.proxiedNs == "" {
-		if len(c.sessionid) > 0 {
-			req.Header.Set("Set-Cookie", "NITRO_AUTH_TOKEN="+c.sessionid)
+		if c.IsLoggedIn() {
+			req.Header.Set("Set-Cookie", "NITRO_AUTH_TOKEN="+c.getSessionid())
 		} else {
-			if resourceName != "login" {
+			if resourceType != "login" {
 				req.Header.Set("X-NITRO-USER", c.username)
-				req.Header.Set("X-NITRO-PASS", c.password)
+				pw := c.password
+				if c.ks != nil {
+					pw = c.ks.decrypt(c.password)
+				}
+				req.Header.Set("X-NITRO-PASS", pw)
 			}
 		}
 	} else {
-		if len(c.sessionid) > 0 {
-			req.Header.Set("Set-Cookie", "NITRO_AUTH_TOKEN="+c.sessionid)
+		if c.ks != nil {
+			req.SetBasicAuth(c.username, c.ks.decrypt(c.password))
 		} else {
-			if resourceName != "login" {
-				req.SetBasicAuth(c.username, c.password)
-			}
+			req.SetBasicAuth(c.username, c.password)
 		}
 		req.Header.Set("_MPS_API_PROXY_MANAGED_INSTANCE_IP", c.proxiedNs)
 	}
@@ -156,15 +164,6 @@ func (c *NitroClient) doHTTPRequest(method string, urlstr string, bytes *bytes.B
 	if err != nil {
 		return []byte{}, err
 	}
-	// For login request 'sessionid' is present in cookies
-	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "sessionid" {
-			sessionid, err := url.QueryUnescape(cookie.Value)
-			if err == nil {
-				c.sessionid = sessionid
-			}
-		}
-	}
 	log.Println("[DEBUG] go-nitro: response Status:", resp.Status)
 	body, err := respHandler(resp)
 	// Clear sessionid in case of session-expiry
@@ -172,9 +171,12 @@ func (c *NitroClient) doHTTPRequest(method string, urlstr string, bytes *bytes.B
 		var data map[string]interface{}
 		err2 := json.Unmarshal(body, &data)
 		if err2 == nil {
-			data["errorcode"] = int(data["errorcode"].(float64))
-			if data["errorcode"] == nsErrSessionExpired || data["errorcode"] == nsErrAuthTimeout {
-				c.sessionid = ""
+			errorcode, ok := data["errorcode"]
+			if ok {
+				errorcode = int(errorcode.(float64))
+				if errorcode == nsErrSessionExpired || errorcode == nsErrAuthTimeout {
+					c.clearSessionid()
+				}
 			}
 		}
 	}
@@ -208,7 +210,12 @@ func (c *NitroClient) applyResource(resourceType string, resourceJSON []byte) ([
 func (c *NitroClient) actOnResource(resourceType string, resourceJSON []byte, action string) ([]byte, error) {
 	log.Println("[DEBUG] go-nitro: changing resource of type ", resourceType)
 
-	url := c.url + fmt.Sprintf("%s?action=%s", resourceType, action)
+	var url string
+	if action == "" {
+		url = c.url + fmt.Sprintf("%s", resourceType)
+	} else {
+		url = c.url + fmt.Sprintf("%s?action=%s", resourceType, action)
+	}
 	log.Println("[TRACE] go-nitro: url is ", url)
 
 	return c.doHTTPRequest("POST", url, bytes.NewBuffer(resourceJSON), createResponseHandler)

@@ -25,7 +25,7 @@ This repository contains various integrations of [Citrix ADC](https://www.citrix
 6. [Example: Deploying Bookinfo with Citrix ADC](#example)
 7. [Blogs](#blogs)
 8. [Release Notes](#release-notes)
-9. [Contributions and Development](#contributions)
+9. [Contributions](#contributions)
 10. [Questions](#questions)
 11. [Issues](#issues)
 12. [Code of Conduct](#code-of-conduct)
@@ -63,8 +63,6 @@ In Istio service mesh, Citrix ADC can act as an Ingress and/or sidecar proxy in 
 | Citrix ADC | Citrix ADC CPX | Yes|
 | Citrix ADC | Envoyproxy | Yes |
 | Envoyproxy | Citrix ADC CPX | Yes |
-
-You can deploy Citrix ADC with Istio using Kubernetes YAML or Helm charts. To deploy Citrix ADC with Istio using Kubernetes YAML, see [Deployment](deployment/README.md).
 
 To deploy Citrix ADC with Istio using Helm charts, see the following links:
 
@@ -143,11 +141,9 @@ Follow this [link](https://github.com/citrix/citrix-helm-charts/blob/master/exam
 
 Click [here](docs/release-notes.md) for the release notes of the latest Citrix `istio-adaptor`.
 
-## <a name="contributions">Contributions and Development</a>
+## <a name="contributions">Contributions</a>
 
-Refer [Contributions](CONTRIBUTING.md)
-
-Please read the [Developer Guide](docs/developer-guide.md).
+Contributions are always welcome! Please read the [Developer Guide](docs/developer_guide.md).
 
 ## <a name="questions">Questions</a>
 
