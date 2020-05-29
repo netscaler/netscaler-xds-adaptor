@@ -136,6 +136,8 @@ Follow this [link](https://github.com/citrix/citrix-helm-charts/blob/master/exam
 1. [Citrix ADC as an Istio Ingress Gateway: Part 1 Deployment](https://www.citrix.com/blogs/2019/11/13/citrix-adc-as-an-istio-ingress-gateway-part-1-deployment/)
 2. [Citrix ADC as an Istio Ingress Gateway: Part 2 Configuration](https://www.citrix.com/blogs/2019/11/14/citrix-adc-as-an-istio-ingress-gateway-part-2-configuration/)
 3. [Citrix ADC in OpenShift Service Mesh](https://blog.openshift.com/citrix-adc-in-openshift-service-mesh/)
+4. [Traffic Mirroring: Risk-free app upgrades in Istio with Citrix ADC](https://www.citrix.com/blogs/2020/04/29/traffic-mirroring-risk-free-app-upgrades-in-istio-with-citrix-adc/)
+5. [End-user authentication in Istio Service Mesh with Citrix](https://www.citrix.com/blogs/2020/03/19/end-user-authentication-in-istio-service-mesh-with-citrix/)
 
 ## <a name="release-notes">Release Notes</a>
 
