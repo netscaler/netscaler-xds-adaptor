@@ -25,7 +25,7 @@ This repository contains various integrations of [Citrix ADC](https://www.citrix
 6. [Example: Deploying Bookinfo with Citrix ADC](#example)
 7. [Blogs](#blogs)
 8. [Release Notes](#release-notes)
-9. [Contributions and Development](#contributions)
+9. [Contributions](#contributions)
 10. [Questions](#questions)
 11. [Issues](#issues)
 12. [Code of Conduct](#code-of-conduct)
@@ -63,8 +63,6 @@ In Istio service mesh, Citrix ADC can act as an Ingress and/or sidecar proxy in 
 | Citrix ADC | Citrix ADC CPX | Yes|
 | Citrix ADC | Envoyproxy | Yes |
 | Envoyproxy | Citrix ADC CPX | Yes |
-
-You can deploy Citrix ADC with Istio using Kubernetes YAML or Helm charts. To deploy Citrix ADC with Istio using Kubernetes YAML, see [Deployment](deployment/README.md).
 
 To deploy Citrix ADC with Istio using Helm charts, see the following links:
 
@@ -138,16 +136,16 @@ Follow this [link](https://github.com/citrix/citrix-helm-charts/blob/master/exam
 1. [Citrix ADC as an Istio Ingress Gateway: Part 1 Deployment](https://www.citrix.com/blogs/2019/11/13/citrix-adc-as-an-istio-ingress-gateway-part-1-deployment/)
 2. [Citrix ADC as an Istio Ingress Gateway: Part 2 Configuration](https://www.citrix.com/blogs/2019/11/14/citrix-adc-as-an-istio-ingress-gateway-part-2-configuration/)
 3. [Citrix ADC in OpenShift Service Mesh](https://blog.openshift.com/citrix-adc-in-openshift-service-mesh/)
+4. [Traffic Mirroring: Risk-free app upgrades in Istio with Citrix ADC](https://www.citrix.com/blogs/2020/04/29/traffic-mirroring-risk-free-app-upgrades-in-istio-with-citrix-adc/)
+5. [End-user authentication in Istio Service Mesh with Citrix](https://www.citrix.com/blogs/2020/03/19/end-user-authentication-in-istio-service-mesh-with-citrix/)
 
 ## <a name="release-notes">Release Notes</a>
 
 Click [here](docs/release-notes.md) for the release notes of the latest Citrix `istio-adaptor`.
 
-## <a name="contributions">Contributions and Development</a>
+## <a name="contributions">Contributions</a>
 
-Refer [Contributions](CONTRIBUTING.md)
-
-Please read the [Developer Guide](docs/developer-guide.md).
+Contributions are always welcome! Please read the [Developer Guide](docs/developer_guide.md).
 
 ## <a name="questions">Questions</a>
 

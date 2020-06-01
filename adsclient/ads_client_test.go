@@ -21,7 +21,21 @@ import (
 
 func Test_StartClient(t *testing.T) {
 	t.Logf("ads StartClient with unreachable secure ads grpc server")
-	adsClient, err := NewAdsClient("loaclhost:15011", "", true, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "", "ns-logproxy.citrix-system")
+	nsinfo := new(NSDetails)
+	adsinfo := new(AdsDetails)
+	adsinfo.AdsServerURL = "localhost:15011"
+	adsinfo.AdsServerSpiffeID = ""
+	adsinfo.SecureConnect = false
+	adsinfo.NodeID = "ads_client_node_1"
+	adsinfo.ApplicationName = "test-app"
+	nsinfo.NetscalerURL = env.GetNetscalerURL()
+	nsinfo.NetscalerUsername = env.GetNetscalerUser()
+	nsinfo.NetscalerPassword = env.GetNetscalerPassword()
+	nsinfo.NetscalerVIP = "nsip"
+	nsinfo.NetProfile = ""
+	nsinfo.AnalyticsServerIP = ""
+	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
+	adsClient, err := NewAdsClient(adsinfo, nsinfo)
 	if err != nil {
 		t.Errorf("newAdsClient failed with %v", err)
 	}
@@ -29,7 +43,8 @@ func Test_StartClient(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	adsClient.StopClient()
 	t.Logf("ads StartClient with unreachable insecure ads grpc server")
-	adsClient, err = NewAdsClient("localhost:15010", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "", "ns-logproxy.citrix-system")
+	adsinfo.AdsServerURL = "localhost:15010"
+	adsClient, err = NewAdsClient(adsinfo, nsinfo)
 	if err != nil {
 		t.Errorf("newAdsClient failed with %v", err)
 	}

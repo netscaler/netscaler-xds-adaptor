@@ -1,5 +1,5 @@
 .PHONY: docker_build test clean coverage 
-TARGETS=nsconfigengine adsclient istio-adaptor tests
+TARGETS=nsconfigengine adsclient istio-adaptor delayserver tests
 
 build:
 	go install citrix-istio-adaptor/istio-adaptor
@@ -26,7 +26,7 @@ create_certs:
 	sh tests/create_cert.sh
 
 unit_test:
-	go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v citrix-istio-adaptor/nsconfigengine citrix-istio-adaptor/adsclient citrix-istio-adaptor/istio-adaptor
+	go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v citrix-istio-adaptor/nsconfigengine citrix-istio-adaptor/adsclient citrix-istio-adaptor/istio-adaptor citrix-istio-adaptor/delayserver
 
 integration_test:
 	go test -race -timeout 1m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-istio-adaptor/adsclient,citrix-istio-adaptor/nsconfigengine -v citrix-istio-adaptor/tests

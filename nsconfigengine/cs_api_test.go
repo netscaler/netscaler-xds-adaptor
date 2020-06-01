@@ -318,11 +318,8 @@ func Test_CSBindingsAPI(t *testing.T) {
 		{"rewriteaction", "cs4_rw_90", map[string]interface{}{"name": "cs4_rw_90", "stringbuilderexpr": "\"www.adcdetails.org\"", "target": "HTTP.REQ.HOSTNAME", "type": "replace"}},
 		{"rewritepolicy", "cs4_rw_90", map[string]interface{}{"action": "cs4_rw_90", "name": "cs4_rw_90", "rule": "((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.Startswith(\"/details\"))"}},
 		{"rewriteaction", "cs4_rw_100", map[string]interface{}{"name": "cs4_rw_100", "stringbuilderexpr": "\"world\"", "target": "hello", "type": "insert_http_header"}},
-		{"rewritepolicy", "cs4_rw_100", map[string]interface{}{"action": "cs4_rw_100", "name": "cs4_rw_100", "rule": "((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.Startswith(\"/details\"))"}},
 		{"rewriteaction", "cs4_rw_110", map[string]interface{}{"name": "cs4_rw_110", "stringbuilderexpr": "\"any\"", "target": "time", "type": "insert_http_header"}},
-		{"rewritepolicy", "cs4_rw_110", map[string]interface{}{"action": "cs4_rw_110", "name": "cs4_rw_110", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.another.in\")) && HTTP.REQ.URL.Startswith(\"/\")) && sys.random.mul(100).lt(15) && sys.http_callout(cs4_call_delay_3).length.gt(0))"}},
-		{"rewriteaction", "cs4_rw_120", map[string]interface{}{"name": "cs4_rw_120", "stringbuilderexpr": "\"any\"", "target": "time", "type": "insert_http_header"}},
-		{"rewritepolicy", "cs4_rw_120", map[string]interface{}{"action": "cs4_rw_120", "name": "cs4_rw_120", "rule": "((HTTP.REQ.HOSTNAME.CONTAINS(\"www.another.in\")) && HTTP.REQ.URL.Startswith(\"/\"))"}},
+		{"rewritepolicy", "cs4_rw_110", map[string]interface{}{"action": "cs4_rw_110", "name": "cs4_rw_110", "rule": "((HTTP.REQ.HOSTNAME.CONTAINS(\"www.another.in\")) && HTTP.REQ.URL.Startswith(\"/\"))"}},
 		{"lbvserver", "vanother", map[string]interface{}{"name": "vanother", "persistencetype": "NONE"}},
 		{"csaction", "cs4_40", map[string]interface{}{"name": "cs4_40", "targetlbvserver": "vanother"}},
 		{"cspolicy", "cs4_40", map[string]interface{}{"action": "cs4_40", "policyname": "cs4_40", "rule": "((HTTP.REQ.HOSTNAME.CONTAINS(\"www.another.in\")) && HTTP.REQ.URL.Startswith(\"/\"))"}},
@@ -353,7 +350,6 @@ func Test_CSBindingsAPI(t *testing.T) {
 		{"name": "cs4", "policyname": "cs4_rw_90", "priority": "90"},
 		{"name": "cs4", "policyname": "cs4_rw_100", "priority": "100"},
 		{"name": "cs4", "policyname": "cs4_rw_110", "priority": "110"},
-		{"name": "cs4", "policyname": "cs4_rw_120", "priority": "120"},
 	})
 	if err != nil {
 		t.Errorf("Config verification failed for Add rewrite policy binding cs4, error %v", err)
@@ -433,8 +429,8 @@ func Test_mirror(t *testing.T) {
 	}
 	configs := []env.VerifyNitroConfig{
 		{"csaction", "cs5_10", map[string]interface{}{"name": "cs5_10", "targetlbvserver": "v5"}},
-		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10)))"}},
-		{"policyhttpcallout", "cs5_10", map[string]interface{}{"name": "cs5_10", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
+		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10_call_Mirror)))"}},
+		{"policyhttpcallout", "cs5_10_call_Mirror", map[string]interface{}{"name": "cs5_10_call_Mirror", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
 		{"rewriteaction", "lbent2", map[string]interface{}{"name": "lbent2", "target": "HTTP.REQ.HEADER(\"HOST\")", "stringbuilderexpr": "http.req.header(\"host\").prefix(':', 0).append(\"-shadow:\").append(http.req.header(\"host\").after_str(\":\")).STRIP_END_CHARS(\":\")", "type": "replace"}},
 		{"rewritepolicy", "lbent2", map[string]interface{}{"action": "lbent2", "name": "lbent2", "rule": "true"}},
 	}
@@ -459,7 +455,7 @@ func Test_mirror(t *testing.T) {
 		t.Errorf("CSBindingsAPI Update for cs5 failed with err %v", err)
 	}
 	configs = []env.VerifyNitroConfig{
-		{"policyhttpcallout", "cs5_10", nil},
+		{"policyhttpcallout", "cs5_10_call_Mirror", nil},
 		{"rewritepolicy", "lbent2", nil},
 		{"rewriteaction", "lbent2", nil},
 		{"lbvserver", "lbent2", nil},
@@ -484,8 +480,8 @@ func Test_mirror(t *testing.T) {
 	}
 	configs = []env.VerifyNitroConfig{
 		{"csaction", "cs5_10", map[string]interface{}{"name": "cs5_10", "targetlbvserver": "v5"}},
-		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10)))"}},
-		{"policyhttpcallout", "cs5_10", map[string]interface{}{"name": "cs5_10", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
+		{"cspolicy", "cs5_10", map[string]interface{}{"action": "cs5_10", "policyname": "cs5_10", "rule": "(((HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.com\") || HTTP.REQ.HOSTNAME.CONTAINS(\"www.abc.in\")) && HTTP.REQ.URL.EQ(\"/login\")) && (sys.non_blocking_http_callout(cs5_10_call_Mirror)))"}},
+		{"policyhttpcallout", "cs5_10_call_Mirror", map[string]interface{}{"name": "cs5_10_call_Mirror", "fullreqexpr": "http.req.full_header + http.req.body(10000000)", "vserver": "lbent2", "returntype": "BOOL", "resultexpr": "true"}},
 		{"rewriteaction", "lbent2", map[string]interface{}{"name": "lbent2", "target": "HTTP.REQ.HEADER(\"HOST\")", "stringbuilderexpr": "http.req.header(\"host\").prefix(':', 0).append(\"-shadow:\").append(http.req.header(\"host\").after_str(\":\")).STRIP_END_CHARS(\":\")", "type": "replace"}},
 		{"rewritepolicy", "lbent2", map[string]interface{}{"action": "lbent2", "name": "lbent2", "rule": "true"}},
 	}
@@ -508,7 +504,7 @@ func Test_mirror(t *testing.T) {
 	configs = []env.VerifyNitroConfig{
 		{"csaction", "cs5_10", nil},
 		{"cspolicy", "cs5_10", nil},
-		{"policyhttpcallout", "cs5_10", nil},
+		{"policyhttpcallout", "cs5_10_call_Mirror", nil},
 		{"rewritepolicy", "lbent2", nil},
 		{"rewriteaction", "lbent2", nil},
 		{"lbvserver", "lbent2", nil},

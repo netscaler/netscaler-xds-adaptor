@@ -25,6 +25,7 @@ import (
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	v2Cluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
+	v2Core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	envoyUtil "github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
 )
@@ -134,6 +135,7 @@ func Test_clusterAdd(t *testing.T) {
 	}
 
 	log.Println("HTTPS cluster add")
+	cds.EdsClusterConfig = &xdsapi.Cluster_EdsClusterConfig{EdsConfig: &v2Core.ConfigSource{ConfigSourceSpecifier: &v2Core.ConfigSource_Ads{Ads: &v2Core.AggregatedConfigSource{}}}}
 	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &types.UInt32Value{Value: uint32(500)}, MaxRequests: &types.UInt32Value{Value: uint32(750)}}}}
 	cds.MaxRequestsPerConnection = &types.UInt32Value{Value: uint32(100)}
 	cds.TlsContext = &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext("/etc/certs/server-cert.crt", "/etc/certs/server-key.key", "")}

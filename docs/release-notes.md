@@ -10,6 +10,36 @@ Release notes may include one or more of the following sections:
 
 **Known issues:** The issues that exist in the current release and their workarounds, wherever applicable.
 
+## Version 1.2.1-beta
+
+This release is primarily focused on enhancing the security and ease of deployment of Citrix `istio-adaptor`.
+
+### What’s new
+
+#### Init container for certificate management of Citrix ADC CPX sidecar injector webhook service
+
+Earlier, it was mandatory to create a secret comprising of certificate and key before deploying the sidecar injector. Now, init container is developed which generates a certificate signing request(CSR) and get it approved from Kubernetes CA while deploying the Citrix ADC CPX sidecar injector webhook service.
+
+#### HTTP delay service
+
+Now, you can configure a delay (in milliseconds) using an HTTP service before forwarding requests to the back-end server. This feature helps in simulating various failures such as network issues and server overload. It is useful for Chaos testing of microservices.
+
+#### Enhanced Security
+
+Now Citrix `istio-adaptor` runs as a non-root user and file system is made as read-only. Hence you can prevent any malicious code from getting permissions in the container host and ensure that your application environment is secure. In addition to this, few vulnerabilities are also addressed to enhance the security of Citrix `istio-adaptor`.
+
+### Fixed issues
+
+The following issues are fixed in this release:
+
+•	AppFlow logs were not sent from sidecar proxies to the Citrix Observability Exporter(COE).
+
+•	Default route information was not retained after Citrix ADC CPX reboots.
+
+•	Certificate and key were loaded from the istio.default secret only even when the service has a secret associated with the serviceaccount.
+
+•	Endpoints were not pulled from the ADS server due to inadequate handling of the CDS resource.
+
 ## Version 1.2.0-beta
 
 ### What’s new

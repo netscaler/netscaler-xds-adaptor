@@ -16,6 +16,8 @@ package adsclient
 import (
 	"citrix-istio-adaptor/nsconfigengine"
 	"container/list"
+	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -45,7 +47,9 @@ const (
 	edsAdd
 	rdsAdd
 	//MSS for setting various tcp profiles
-	MSS = 1410
+	MSS            = 1410
+	cpxConnRetries = 60
+	vpxConnRetries = 3
 )
 
 type configBlock struct {
@@ -73,25 +77,46 @@ type configAdaptor struct {
 	analyticsProfiles []string // Two analyticspofile needed. One for TCP Insight, one for Web Insight
 }
 
-func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProfile, analyticsServerIP, logProxyURL string) (*configAdaptor, error) {
+// Check if the given ADC is CPX or VPX/MPX
+func isCPX(url string) bool {
+	if strings.Contains(url, "localhost") || strings.Contains(url, localHostIP) {
+		return true
+	}
+	return false
+}
+
+func newConfigAdaptor(nsinfo *NSDetails, adsServerPort string) (*configAdaptor, error) {
 	configAdaptor := new(configAdaptor)
 	configAdaptor.adsServerPort = adsServerPort
-	configAdaptor.vserverIP = vserverIP
-	configAdaptor.netProfile = netProfile
+	configAdaptor.vserverIP = nsinfo.NetscalerVIP
+	configAdaptor.netProfile = nsinfo.NetProfile
 	configAdaptor.configs = list.New()
 	configAdaptor.cdsHash = make(map[string]*list.Element)
 	configAdaptor.edsHash = make(map[string]*list.Element)
 	configAdaptor.ldsHash = make(map[string]*list.Element)
 	configAdaptor.rdsHash = make(map[string]*list.Element)
 	configAdaptor.quit = make(chan bool)
-	configAdaptor.analyticsServerIP = analyticsServerIP
-	configAdaptor.logProxyURL = logProxyURL
+	configAdaptor.analyticsServerIP = nsinfo.AnalyticsServerIP
+	configAdaptor.logProxyURL = nsinfo.LogProxyURL
 	var err error
-	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: url, Username: username, Password: password})
+	masterkey := make([]byte, 32)
+	_, err = rand.Read(masterkey)
+	if err != nil {
+		log.Printf("[ERROR]: Could not generate cryptographically secure random number")
+		return nil, err
+	}
+	// 32-byte key will be derived using PBKDF2 which uses 8-byte cryptographic salt and SHA256 hash function in 1000 iterations.
+	keyspec := netscaler.NewKeyspec(masterkey, 8, 1000, 32, sha256.New) // Saltsize: 8, Iterations: 1000, Key-length: 32, HMAC: SHA256
+	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, Keyspec: keyspec})
 	if err != nil {
 		return nil, err
 	}
-	for {
+	i := 0
+	connRetries := vpxConnRetries
+	if isCPX(nsinfo.NetscalerURL) {
+		connRetries = cpxConnRetries
+	}
+	for i = 0; i < connRetries; i++ {
 		nsip, err := configAdaptor.getNitroObject(netscaler.Nsip.Type(), map[string]string{"type": "NSIP"})
 		if err == nil {
 			configAdaptor.nsip = nsip["ipaddress"].(string)
@@ -99,7 +124,11 @@ func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProf
 		}
 		time.Sleep(1 * time.Second)
 	}
-	if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") {
+	if i == connRetries {
+		log.Println("[ERROR]: Could not establish connectivity with the ADC. Exiting!")
+		return nil, fmt.Errorf("Connection establishment with ADC is unsuccessful")
+	}
+	if isCPX(nsinfo.NetscalerURL) {
 		err = configAdaptor.sidecarBootstrapConfig()
 		if err != nil {
 			return nil, err
@@ -113,11 +142,7 @@ func newConfigAdaptor(url, username, password, adsServerPort, vserverIP, netProf
 	if err != nil {
 		log.Println("[WARN] Logproxy related config is not successful. Err = ", err)
 	}
-	if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") {
-		/* Citrix ADC CPX Case Saving the initial bootstrap configuration */
-		configAdaptor.client.SaveConfig()
-	}
-	if vserverIP == "nsip" {
+	if nsinfo.NetscalerVIP == "nsip" {
 		configAdaptor.vserverIP = configAdaptor.nsip
 	}
 	build, err := configAdaptor.client.FindResource(netscaler.Nsversion.Type(), "")

@@ -14,6 +14,7 @@ limitations under the License.
 package adsclient
 
 import (
+	"citrix-istio-adaptor/delayserver"
 	"citrix-istio-adaptor/nsconfigengine"
 	"fmt"
 	"log"
@@ -176,8 +177,15 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 		}
 	} else if cluster.GetType() == xdsapi.Cluster_ORIGINAL_DST { // Original Dst type has no load assignment or hosts! Extract info from name.
 		staticAndDNSTypeClusterEndpointUpdate(nsConfig, cluster)
+	} else if cluster.GetType() == xdsapi.Cluster_EDS {
+		if cluster.GetEdsClusterConfig().GetServiceName() != "" {
+			return cluster.GetEdsClusterConfig().GetServiceName()
+		}
+		if cluster.GetEdsClusterConfig().GetEdsConfig().GetAds() != nil {
+			return cluster.Name
+		}
 	}
-	return cluster.GetEdsClusterConfig().GetServiceName()
+	return ""
 }
 
 func clusterDel(nsConfig *configAdaptor, clusterName string) {
@@ -564,6 +572,7 @@ func getFault(typedPerFilterConfig map[string]*types.Any) nsconfigengine.Fault {
 				}
 			}
 			if envoyFaultConfig.GetDelay() != nil {
+				delayserver.StartDelayServer()
 				percent := envoyFaultConfig.GetDelay().GetPercentage()
 				numerator := percent.GetNumerator()
 				den := envoyType.FractionalPercent_DenominatorType_name[int32(percent.GetDenominator())]

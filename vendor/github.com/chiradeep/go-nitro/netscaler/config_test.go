@@ -16,6 +16,7 @@ limitations under the License.
 package netscaler
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"math/rand"
@@ -767,6 +768,22 @@ func TestDesiredStateServicegroupAPI(t *testing.T) {
 
 }
 
+func TestNullAction(t *testing.T) {
+	reboot := ns.Reboot{
+		Warm: true,
+	}
+
+	err := client.ActOnResource("reboot", &reboot, "")
+	if err != nil {
+		t.Error("Could not make null action reboot", err)
+		log.Println("Cannot continue")
+		return
+	}
+
+	// Add a timeout to wait for instance to be back online
+	time.Sleep(60 * time.Second)
+}
+
 // TestTokenBasedAuth tests token-based authentication and tests if session-is is cleared in case of session-expiry
 func TestTokenBasedAuth(t *testing.T) {
 	var err error
@@ -815,7 +832,7 @@ func TestTokenBasedAuth(t *testing.T) {
 	time.Sleep(15 * time.Second)
 	_, err = client.AddResource(Lbvserver.Type(), lbName, &lb1)
 	if err != nil {
-		if len(client.sessionid) > 0 {
+		if client.IsLoggedIn() {
 			t.Error("Sessionid not cleared")
 			return
 		}
@@ -823,4 +840,203 @@ func TestTokenBasedAuth(t *testing.T) {
 	} else {
 		t.Error("Adding lbvserver should have failed because of session-expiry")
 	}
+}
+
+func TestConstructQueryString(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	generateTestCase := func(findParams FindParams, expected string) func(t *testing.T) {
+		return func(t *testing.T) {
+			output := constructQueryString(&findParams)
+			if output != expected {
+				t.Log(buf.String())
+				t.Logf("Expected output \"%s\"", expected)
+				t.Logf("Actual output \"%s\"", output)
+				t.Fail()
+			}
+		}
+	}
+	var argsMap, attrsMap, filterMap map[string]string
+	var findParams FindParams
+
+	argsMap = make(map[string]string)
+	argsMap["hello"] = "bye"
+	findParams = FindParams{
+		ArgsMap: argsMap,
+	}
+
+	t.Run("CASE=1", generateTestCase(findParams, "?args=hello:bye"))
+
+	argsMap["bye"] = "hello"
+	findParams = FindParams{
+		ArgsMap: argsMap,
+	}
+	t.Run("CASE=2", generateTestCase(findParams, "?args=bye:hello,hello:bye"))
+
+	attrsMap = make(map[string]string)
+	attrsMap["bye"] = "hello"
+	findParams = FindParams{
+		AttrsMap: attrsMap,
+	}
+	t.Run("CASE=3", generateTestCase(findParams, "?attrs=bye:hello"))
+
+	attrsMap["hello"] = "bye"
+
+	t.Run("CASE=4", generateTestCase(findParams, "?attrs=bye:hello,hello:bye"))
+
+	filterMap = make(map[string]string)
+	filterMap["bye"] = "hello"
+	findParams = FindParams{
+		FilterMap: filterMap,
+	}
+	t.Run("CASE=5", generateTestCase(findParams, "?filter=bye:hello"))
+
+	filterMap["hello"] = "bye"
+
+	t.Run("CASE=6", generateTestCase(findParams, "?filter=bye:hello,hello:bye"))
+
+	filterMap = make(map[string]string)
+	attrsMap = make(map[string]string)
+	argsMap = make(map[string]string)
+
+	filterMap["bye"] = "hello"
+	attrsMap["bye"] = "hello"
+	argsMap["bye"] = "hello"
+
+	findParams = FindParams{
+		FilterMap: filterMap,
+		ArgsMap:   argsMap,
+		AttrsMap:  attrsMap,
+	}
+
+	t.Run("CASE=7", generateTestCase(findParams, "?args=bye:hello&filter=bye:hello&attrs=bye:hello"))
+
+	filterMap["hello"] = "bye"
+	attrsMap["hello"] = "bye"
+	argsMap["hello"] = "bye"
+
+	expected := "?args=bye:hello,hello:bye&filter=bye:hello,hello:bye&attrs=bye:hello,hello:bye"
+	t.Run("CASE=8", generateTestCase(findParams, expected))
+}
+
+func TestConstructUrlPathString(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	generateTestCase := func(findParams FindParams, expected string) func(t *testing.T) {
+		return func(t *testing.T) {
+			output := constructUrlPathString(&findParams)
+			if output != expected {
+				t.Log(buf.String())
+				t.Logf("Expected output \"%s\"", expected)
+				t.Logf("Actual output \"%s\"", output)
+				t.Fail()
+			}
+		}
+	}
+
+	var findParams FindParams
+
+	findParams = FindParams{
+		ResourceType: "resourcetype",
+	}
+
+	t.Run("CASE=1", generateTestCase(findParams, "resourcetype"))
+
+	findParams = FindParams{
+		ResourceName: "resourcename",
+	}
+
+	t.Run("CASE=2", generateTestCase(findParams, "resourcename"))
+
+	findParams = FindParams{
+		ResourceType: "resourcetype",
+		ResourceName: "resourcename",
+	}
+
+	t.Run("CASE=3", generateTestCase(findParams, "resourcetype/resourcename"))
+}
+
+func TestFindResourceArrayWithParams(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+
+	testCase1 := func(t *testing.T) {
+		findParams := FindParams{
+			ResourceType:             "lbvserver",
+			ResourceName:             "definitelynotexists",
+			ResourceMissingErrorCode: 258,
+		}
+		resource, err := client.FindResourceArrayWithParams(findParams)
+		hasErrors := false
+		if err != nil {
+			hasErrors = true
+			t.Logf("Error from NITRO request: %s", err.Error())
+		}
+		if len(resource) > 0 {
+			hasErrors = true
+			t.Logf("Resource array not empty")
+		}
+		if hasErrors {
+			t.Log(buf.String())
+			t.Fail()
+		}
+	}
+	t.Run("CASE=1", testCase1)
+
+	testCase2 := func(t *testing.T) {
+		argsMap := make(map[string]string)
+		argsMap["filename"] = "ns.conf"
+		argsMap["filelocation"] = "%2Fnsconfig"
+		findParams := FindParams{
+			ResourceType: "systemfile",
+			ArgsMap:      argsMap,
+		}
+		resource, err := client.FindResourceArrayWithParams(findParams)
+		hasErrors := false
+		if err != nil {
+			hasErrors = true
+			t.Logf("Error from NITRO request: %s", err.Error())
+		}
+		if len(resource) != 1 {
+			hasErrors = true
+			t.Logf("Resource array not exactly 1")
+		}
+		if hasErrors {
+			t.Log(buf.String())
+			t.Fail()
+		}
+	}
+
+	t.Run("CASE=2", testCase2)
+
+	testCase3 := func(t *testing.T) {
+		argsMap := make(map[string]string)
+		//argsMap["filename"] = "ns.conf"
+		argsMap["filelocation"] = "%2Fnsconfig"
+		findParams := FindParams{
+			ResourceType: "systemfile",
+			ArgsMap:      argsMap,
+		}
+		resource, err := client.FindResourceArrayWithParams(findParams)
+		hasErrors := false
+		if err != nil {
+			hasErrors = true
+			t.Logf("Error from NITRO request: %s", err.Error())
+		}
+		if len(resource) <= 1 {
+			hasErrors = true
+			t.Logf("Resource array len not > 1")
+		}
+		if hasErrors {
+			t.Log(buf.String())
+			t.Fail()
+		}
+	}
+
+	t.Run("CASE=3", testCase3)
+
+	testCase4 := func(t *testing.T) {
+		t.Skipf("TODO: find a resource for which NITRO returns a map instead of an array")
+	}
+	t.Run("CASE=4", testCase4)
 }

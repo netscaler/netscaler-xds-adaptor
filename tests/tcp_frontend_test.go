@@ -27,7 +27,21 @@ func Test_tcp_frontend(t *testing.T) {
 	if err != nil {
 		t.Errorf("tcp server creation failed : %v", err)
 	}
-	discoveryClient, errc := adsclient.NewAdsClient("localhost:1234", "", false, "ads_client_node_1", "test-app", env.GetNetscalerURL(), env.GetNetscalerUser(), env.GetNetscalerPassword(), "nsip", "", "", "ns-logproxy.citrix-system")
+	adsinfo := new(adsclient.AdsDetails)
+	nsinfo := new(adsclient.NSDetails)
+	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerSpiffeID = ""
+	adsinfo.SecureConnect = false
+	adsinfo.NodeID = "ads_client_node_1"
+	adsinfo.ApplicationName = "test-app"
+	nsinfo.NetscalerURL = env.GetNetscalerURL()
+	nsinfo.NetscalerUsername = env.GetNetscalerUser()
+	nsinfo.NetscalerPassword = env.GetNetscalerPassword()
+	nsinfo.NetscalerVIP = "nsip"
+	nsinfo.NetProfile = ""
+	nsinfo.AnalyticsServerIP = ""
+	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
+	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo)
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}

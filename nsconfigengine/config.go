@@ -25,8 +25,6 @@ import (
 	"github.com/chiradeep/go-nitro/netscaler"
 )
 
-const cpxHttpdPort = 80
-
 type nitroError struct {
 	errorCount int
 	errors     []string
