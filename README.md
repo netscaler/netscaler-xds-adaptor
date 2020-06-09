@@ -145,7 +145,7 @@ Click [here](docs/release-notes.md) for the release notes of the latest Citrix `
 
 ## <a name="contributions">Contributions</a>
 
-Contributions are always welcome! Please read the [Developer Guide](docs/developer_guide.md).
+Contributions are always welcome! Please read the [Developer Guide](docs/developer-guide.md).
 
 ## <a name="questions">Questions</a>
 
