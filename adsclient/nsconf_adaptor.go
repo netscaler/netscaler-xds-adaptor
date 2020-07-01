@@ -189,6 +189,7 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 	if confAdaptor.analyticsServerIP != "" {
 		// TODO - allowing all connection to ADS server;s port. Must find a way to allow outbound connection from adsclient and not from application server
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowadmserver", Resource: ns.Nsacl{Aclname: "allowadmserver", Aclaction: "ALLOW", Srcip: true, Srcipval: confAdaptor.analyticsServerIP, Priority: 65537}})
+		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacls.Type(), ResourceName: "", Resource: ns.Nsacls{}, Operation: "apply"})
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "drop_all_vserver", Resource: lb.Lbvserver{Name: "drop_all_vserver", Servicetype: "ANY", Ipv46: "*", Port: 65535, Listenpolicy: "(CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ") && CLIENT.IP.DST.NE(" + confAdaptor.analyticsServerIP + "))"}})
 	} else {
 		// TODO - allowing all connection to ADS server;s port. Must find a way to allow outbound connection from adsclient and not from application server
