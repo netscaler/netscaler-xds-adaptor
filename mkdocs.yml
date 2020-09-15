@@ -47,7 +47,7 @@ theme:
     accent: teal
   font: false
   favicon: https://citrix.com/favicon.ico
-  logo: https://developer-docs.citrix.com/_static/Citrix_Logo_Black.png
+  logo: https://developer-docs.citrix.com/_static/logo.svg
   icon: fontawesome
 
 extra:
