@@ -64,10 +64,9 @@ markdown_extensions:
 nav:
 - Overview: index.md
 - Release notes: https://github.com/citrix/citrix-istio-adaptor/releases
-- Deployment topologies: architecture.md
+- Deployment topologies: istio-integration/architecture.md
 - Deploy the Citrix istio adaptor:
-  - Using YAML: deploy-istio-adaptor-yaml.md
-  - Using Helm chart: deploy-istio-adaptor-helm-chart.md
+  - Using Helm chart: istio-integration/deploy-istio-adaptor-helm-chart.md
 - Licensing: cpx-licensing.md
 - Developer Guide: developer-guide.md
 - Questions?: https://discussions.citrix.com/forum/1385-citrix-developer-exchange/
