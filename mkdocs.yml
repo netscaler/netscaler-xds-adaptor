@@ -62,7 +62,7 @@ markdown_extensions:
 
 # Page tree
 nav:
-- Overview: istio-integration/README.md
+- Overview: index.md
 - Release notes: https://github.com/citrix/citrix-istio-adaptor/releases
 - Deployment topologies: istio-integration/architecture.md
 - Deploy the Citrix istio adaptor:
