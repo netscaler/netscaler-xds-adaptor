@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,7 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 )
 

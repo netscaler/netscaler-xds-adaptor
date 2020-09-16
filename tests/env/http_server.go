@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -68,7 +68,11 @@ func StopHTTPServer(httpServer *http.Server) {
 // DoHTTPGet performs a HTTP GET operation on a URL
 func DoHTTPGet(url string) (code int, respBody string, err error) {
 	log.Println("HTTP GET", url)
-	client := &http.Client{Timeout: httpTimeOut}
+	client := &http.Client{Timeout: httpTimeOut,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	resp, err := client.Get(url)
 	if err != nil {
 		log.Println(err)
@@ -86,22 +90,37 @@ func DoHTTPGet(url string) (code int, respBody string, err error) {
 	return code, respBody, nil
 }
 
+func DoHTTPGetAll(url string) (*http.Response, error) {
+	log.Println("HTTP GET", url)
+	client := &http.Client{Timeout: httpTimeOut,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	resp.Body.Close()
+	return resp, nil
+}
+
 func DoHTTPSGet(url string, caCertLocation string) (code int, respBody string, err error) {
 	log.Println("HTTPS GET", url)
-	caCert, err := ioutil.ReadFile(caCertLocation)
-	if err != nil {
-		return 0, "", err
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	client := &http.Client{
-		Transport: &http.Transport{
+	client := &http.Client{Timeout: httpTimeOut}
+	if caCertLocation != "" {
+		caCert, err := ioutil.ReadFile(caCertLocation)
+		if err != nil {
+			return 0, "", err
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs: caCertPool,
 			},
-		},
-		Timeout: httpTimeOut,
+		}
 	}
 
 	resp, err := client.Get(url)

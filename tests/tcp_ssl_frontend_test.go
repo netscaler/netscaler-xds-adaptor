@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,8 @@ limitations under the License.
 package client_test
 
 import (
-	"citrix-istio-adaptor/adsclient"
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/adsclient"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 	"time"
 )
@@ -27,7 +27,10 @@ func Test_tcp_ssl_frontend(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", errh)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(1234)
+	if err != nil {
+		t.Errorf("GRPC server creation failed: %v", err)
+	}
 	tcpServer, err := env.StartTCPServer(9003)
 	if err != nil {
 		t.Errorf("tcp server creation failed : %v", err)
@@ -46,7 +49,7 @@ func Test_tcp_ssl_frontend(t *testing.T) {
 	nsinfo.NetProfile = ""
 	nsinfo.AnalyticsServerIP = ""
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
-	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo)
+	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo, nil)
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}

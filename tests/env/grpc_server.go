@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,19 +14,29 @@ limitations under the License.
 package env
 
 import (
+	"context"
 	"fmt"
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/envoyproxy/go-control-plane/pkg/cache"
-	xds "github.com/envoyproxy/go-control-plane/pkg/server"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/v2"
+	xds "github.com/envoyproxy/go-control-plane/pkg/server/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 )
 
 type logger struct{}
+
+func (logger logger) Debugf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
+func (logger logger) Warnf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
 
 func (logger logger) Infof(format string, args ...interface{}) {
 	log.Debugf(format, args...)
@@ -49,15 +59,18 @@ func (n NodeConfig) ID(node *core.Node) string {
 	return node.GetId()
 }
 
-func NewGrpcADSServer(port int) *GrpcADSServer {
+func NewGrpcADSServer(port int) (*GrpcADSServer, error) {
 	grpcAdsServer := new(GrpcADSServer)
 	grpcAdsServer.port = port
 	log.SetLevel(log.DebugLevel)
 	log.Printf("Starting grpc server at port %d", port)
 	grpcAdsServer.snapshot = cache.NewSnapshotCache(true, NodeConfig{}, logger{})
-	server := xds.NewServer(grpcAdsServer.snapshot, nil)
+	server := xds.NewServer(context.Background(), grpcAdsServer.snapshot, nil)
 	grpcAdsServer.grpcServer = grpc.NewServer()
-	lis, _ := net.Listen("tcp", ":"+fmt.Sprint(port))
+	lis, err := net.Listen("tcp", ":"+fmt.Sprint(port))
+	if err != nil {
+		return nil, err
+	}
 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
 	api.RegisterEndpointDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
@@ -68,7 +81,7 @@ func NewGrpcADSServer(port int) *GrpcADSServer {
 		if err := grpcAdsServer.grpcServer.Serve(lis); err != nil {
 		}
 	}()
-	return grpcAdsServer
+	return grpcAdsServer, nil
 }
 
 func (grpcAdsServer *GrpcADSServer) StopGrpcADSServer() {
@@ -77,10 +90,10 @@ func (grpcAdsServer *GrpcADSServer) StopGrpcADSServer() {
 
 func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *core.Node, listener *xdsapi.Listener,
 	route *xdsapi.RouteConfiguration, cluster *xdsapi.Cluster, endpoint *xdsapi.ClusterLoadAssignment) error {
-	endpoints := []cache.Resource{}
-	clusters := []cache.Resource{}
-	routes := []cache.Resource{}
-	listeners := []cache.Resource{}
+	endpoints := []types.Resource{}
+	clusters := []types.Resource{}
+	routes := []types.Resource{}
+	listeners := []types.Resource{}
 	if endpoint != nil {
 		endpoints = append(endpoints, endpoint)
 	}
@@ -93,16 +106,16 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *
 	if listener != nil {
 		listeners = append(listeners, listener)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners)
+	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil)
 	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
 }
 
 func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nodeID *core.Node, listener []*xdsapi.Listener,
 	route []*xdsapi.RouteConfiguration, cluster []*xdsapi.Cluster, endpoint []*xdsapi.ClusterLoadAssignment) error {
-	endpoints := []cache.Resource{}
-	clusters := []cache.Resource{}
-	routes := []cache.Resource{}
-	listeners := []cache.Resource{}
+	endpoints := []types.Resource{}
+	clusters := []types.Resource{}
+	routes := []types.Resource{}
+	listeners := []types.Resource{}
 	for _, endp := range endpoint {
 		endpoints = append(endpoints, endp)
 	}
@@ -115,6 +128,6 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nod
 	for _, lt := range listener {
 		listeners = append(listeners, lt)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners)
+	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil)
 	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
 }

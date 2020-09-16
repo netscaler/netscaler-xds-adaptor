@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,15 +14,15 @@ limitations under the License.
 package nsconfigengine
 
 import (
+	"crypto/md5"
 	"fmt"
+	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/chiradeep/go-nitro/netscaler"
 )
 
 type nitroError struct {
@@ -123,6 +123,16 @@ func GetNSCompatibleName(entityName string) string {
 	return "ns_" + re.ReplaceAllString(entityName, "_")
 }
 
+// GetNSCompatibleNameHash returns a md5 Hash value
+func GetNSCompatibleNameHash(input string, length int) string {
+	md5 := md5.Sum([]byte(input))
+	output := GetNSCompatibleName(fmt.Sprintf("%x", md5[:]))
+	if len(output) > length {
+		return output[0:length]
+	}
+	return output
+}
+
 func getValueString(obj map[string]interface{}, name string) (string, error) {
 	if valI, ok := obj[name]; ok {
 		if val, ok1 := valI.(string); ok1 {
@@ -190,4 +200,14 @@ func getBuildInfo(nsVersion map[string]interface{}) (float64, float64, error) {
 	}
 	return release, buildNo, nil
 
+}
+
+// GetLogString will mask sensitive info
+func GetLogString(data interface{}) string {
+	s := fmt.Sprintf("%v", data)
+	s = strings.Replace(s, "\n", "", -1)
+	m1 := regexp.MustCompile("BEGIN CERTIFICATE(.*)END CERTIFICATE")
+	s = m1.ReplaceAllString(s, " XXX ")
+	m1 = regexp.MustCompile("BEGIN EC PRIVATE KEY(.*)END EC PRIVATE KEY")
+	return m1.ReplaceAllString(s, " XXX ")
 }

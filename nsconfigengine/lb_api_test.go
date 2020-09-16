@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,7 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 )
 
@@ -300,6 +300,8 @@ func Test_ServiceGroupAPI_domain(t *testing.T) {
 	client.AddResource("servicegroup", "svcgp2", map[string]interface{}{"servicegroupname": "svcgp2", "servicetype": "HTTP"})
 	svcGpObj := NewServiceGroupAPI("svcgp2")
 	svcGpObj.IsIPOnlySvcGroup = false
+	svcGpObj.IsLogProxySvcGrp = true
+	svcGpObj.PromEP = "www_abc_org" // Prometheus Server Name.
 	svcGpObj.Members = []ServiceGroupMember{{Domain: "www.google.com", Port: 80}, {Domain: "www.abc.org", Port: 9090}, {Domain: "www.facebook.com", Port: 80}}
 	err := svcGpObj.Add(client)
 	if err != nil {
@@ -332,8 +334,9 @@ func Test_ServiceGroupAPI_desiredState(t *testing.T) {
 	// Case 1: Adding servicegroup with only IP members from the beginning
 	client.AddResource("servicegroup", "svcgp1", map[string]interface{}{"servicegroupname": "svcgp1", "servicetype": "HTTP", "autoscale": "API"})
 	svcGpObj := NewServiceGroupAPI("svcgp1")
-
 	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.1", Port: 80}, {IP: "2.2.2.2", Port: 9090}, {IP: "1.1.1.2", Port: 80}}
+	svcGpObj.IsLogProxySvcGrp = true
+	svcGpObj.PromEP = "1.1.1.2"
 	err := svcGpObj.Add(client)
 	if err != nil {
 		t.Errorf("Desired State API based ServiceGroup members add failed with %v", err)

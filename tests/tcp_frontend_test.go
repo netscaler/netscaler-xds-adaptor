@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -13,8 +13,8 @@ limitations under the License.
 package client_test
 
 import (
-	"citrix-istio-adaptor/adsclient"
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/adsclient"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 	"time"
 )
@@ -22,7 +22,10 @@ import (
 func Test_tcp_frontend(t *testing.T) {
 	t.Log("TCP service test start")
 	env.ClearNetscalerConfig()
-	grpcServer := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(1234)
+	if err != nil {
+		t.Errorf("GRPC server creation failed: %v", err)
+	}
 	tcpServer, err := env.StartTCPServer(9001)
 	if err != nil {
 		t.Errorf("tcp server creation failed : %v", err)
@@ -41,7 +44,7 @@ func Test_tcp_frontend(t *testing.T) {
 	nsinfo.NetProfile = ""
 	nsinfo.AnalyticsServerIP = ""
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
-	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo)
+	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo, nil)
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}
@@ -59,7 +62,7 @@ func Test_tcp_frontend(t *testing.T) {
 		t.Errorf("updateSpanshotCache failed with %v", err)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	resp, err1 := env.DoTcpRequest(env.GetNetscalerIP(), 8001, "hello world!")
 	if err1 != nil {

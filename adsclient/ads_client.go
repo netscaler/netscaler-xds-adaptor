@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,9 @@ limitations under the License.
 package adsclient
 
 import (
+	"citrix-xds-adaptor/certkeyhandler"
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -23,7 +25,7 @@ import (
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	envoy_api_v2_core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc"
 )
 
@@ -37,8 +39,8 @@ const (
 type cdsAddHandlerType func(*configAdaptor, *xdsapi.Cluster, interface{}) string
 type cdsDelHandlerType func(*configAdaptor, string)
 type edsAddHandlerType func(*configAdaptor, *xdsapi.ClusterLoadAssignment, interface{})
-type ldsAddHandlerType func(*configAdaptor, *xdsapi.Listener) map[string]interface{}
-type ldsDelHandlerType func(*configAdaptor, string)
+type ldsAddHandlerType func(*configAdaptor, *xdsapi.Listener) []map[string]interface{}
+type ldsDelHandlerType func(*configAdaptor, string, []string)
 type rdsAddHandlerType func(*configAdaptor, []*xdsapi.RouteConfiguration, interface{}) map[string]interface{}
 
 //AdsDetails will define the members which will be read up at bootup time
@@ -58,7 +60,14 @@ type NSDetails struct {
 	NetscalerVIP      string
 	NetProfile        string
 	AnalyticsServerIP string
+	LicenseServerIP   string
 	LogProxyURL       string
+	SslVerify         bool
+	RootCAPath        string
+	ServerName        string
+	adsServerPort     string
+	LocalHostVIP      string
+	caServerPort      string
 }
 
 type apiRequest struct {
@@ -67,8 +76,8 @@ type apiRequest struct {
 	nonce       string
 	resources   map[string]interface{}
 	/*
-		ldsURL -> none
-		rdsURL -> lds Name, filterType, serviceType
+		ldsURL -> [filterChaninName]
+		rdsURL -> lds Name, filterChainName, serviceType
 		cdsURL -> serviceType
 		edsURL -> cds Name
 	*/
@@ -77,22 +86,27 @@ type apiRequest struct {
 
 // AdsClient is a client to an Aggregated Discovery Service
 type AdsClient struct {
-	adsServerURL      string
-	adsServerSpiffeID string
-	secureConnect     bool
-	nodeID            *envoy_api_v2_core.Node
-	apiRequests       map[string]*apiRequest
-	connection        *grpc.ClientConn
-	connectionMux     sync.Mutex
-	stream            grpc.ClientStream
-	quit              chan int
-	nsConfigAdaptor   *configAdaptor
-	cdsAddHandler     cdsAddHandlerType
-	cdsDelHandler     cdsDelHandlerType
-	edsAddHandler     edsAddHandlerType
-	ldsAddHandler     ldsAddHandlerType
-	ldsDelHandler     ldsDelHandlerType
-	rdsAddHandler     rdsAddHandlerType
+	nsInfo             *NSDetails
+	adsServerURL       string
+	adsServerSpiffeID  string
+	secureConnect      bool
+	nodeID             *envoy_api_v2_core.Node
+	apiRequests        map[string]*apiRequest
+	connection         *grpc.ClientConn
+	connectionMux      sync.Mutex
+	stream             grpc.ClientStream
+	quit               chan int
+	nsConfigAdaptor    *configAdaptor
+	nsConfigAdaptorMux sync.Mutex
+	cdsAddHandler      cdsAddHandlerType
+	cdsDelHandler      cdsDelHandlerType
+	edsAddHandler      edsAddHandlerType
+	ldsAddHandler      ldsAddHandlerType
+	ldsDelHandler      ldsDelHandlerType
+	rdsAddHandler      rdsAddHandlerType
+	caInfo             *certkeyhandler.CADetails
+	ckHandler          *certkeyhandler.CertKeyHandler
+	ckHandlerMux       sync.Mutex
 }
 
 func (client *AdsClient) writeADSRequest(req *apiRequest) {
@@ -113,6 +127,19 @@ func (client *AdsClient) writeADSRequest(req *apiRequest) {
 	}
 }
 
+func (client *AdsClient) callRequestHandler(msg *xdsapi.DiscoveryResponse) error {
+	if client.apiRequests[msg.TypeUrl].handler != nil {
+		client.nsConfigAdaptorMux.Lock()
+		defer client.nsConfigAdaptorMux.Unlock()
+		if client.nsConfigAdaptor != nil {
+			client.apiRequests[msg.TypeUrl].handler(client, msg)
+		} else {
+			return fmt.Errorf("ADS client has no config-adaptor")
+		}
+	}
+	return nil
+}
+
 func (client *AdsClient) readADSResponse() {
 	for {
 		m := new(xdsapi.DiscoveryResponse)
@@ -122,8 +149,9 @@ func (client *AdsClient) readADSResponse() {
 			return
 		}
 		log.Printf("[TRACE] Received a message at version: %s  for type: %s resourceCount: %d", m.VersionInfo, m.TypeUrl, len(m.Resources))
-		if client.apiRequests[m.TypeUrl].handler != nil {
-			client.apiRequests[m.TypeUrl].handler(client, m)
+		if err := client.callRequestHandler(m); err != nil {
+			log.Printf("[ERROR] Request handler returned error: %v", err)
+			return
 		}
 		client.apiRequests[m.TypeUrl].versionInfo = m.VersionInfo
 		client.apiRequests[m.TypeUrl].nonce = m.Nonce
@@ -135,11 +163,9 @@ func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	clusterNames := make(map[string]bool)
 	edsResources := make(map[string]interface{})
 	requestEds := false
-	// Before Istio v1.3, DiscoveryResponse had Resources field declared as []types.Any.
-	// From v1.3 onwards, Resources field is declared as []*types.Any.
 	cdsResource := &xdsapi.Cluster{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, cdsResource); err != nil {
+		if err := ptypes.UnmarshalAny(resource, cdsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in CDS Handler")
 			continue
 		}
@@ -171,36 +197,35 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	ldsResources := make(map[string]interface{})
 	requestRds := false
 	requestCds := false
-	// Before Istio v1.3, DiscoveryResponse had Resources field declared as []types.Any.
-	// From v1.3 onwards, Resources field is declared as []*types.Any.
 	ldsResource := &xdsapi.Listener{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, ldsResource); err != nil {
+		if err := ptypes.UnmarshalAny(resource, ldsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in LDS handler")
 			continue
 		}
-		ldsResources[ldsResource.Name] = true
-		dependentResources := client.ldsAddHandler(client.nsConfigAdaptor, ldsResource)
-		if dependentResources["rdsNames"] != nil {
+		ldsResources[ldsResource.Name] = make([]string, 0)
+		dependentResourcesList := client.ldsAddHandler(client.nsConfigAdaptor, ldsResource)
+		for _, dependentResources := range dependentResourcesList {
 			for _, rdsConfigName := range dependentResources["rdsNames"].([]string) {
 				rdsResources[rdsConfigName] = dependentResources
 				if _, ok := client.apiRequests[rdsURL].resources[rdsConfigName]; !ok {
 					requestRds = true
 				}
 			}
-		}
-		if dependentResources["cdsNames"] != nil {
 			for _, cdsConfigName := range dependentResources["cdsNames"].([]string) {
 				if _, ok := client.apiRequests[cdsURL].resources[cdsConfigName]; !ok {
 					requestCds = true
 					client.apiRequests[cdsURL].resources[cdsConfigName] = dependentResources["serviceType"]
 				}
 			}
+			if dependentResources["filterChainName"].(string) != "" {
+				ldsResources[ldsResource.Name] = append(ldsResources[ldsResource.Name].([]string), dependentResources["filterChainName"].(string))
+			}
 		}
 	}
 	for ldsResourceName := range client.apiRequests[ldsURL].resources {
 		if _, ok := ldsResources[ldsResourceName]; !ok {
-			client.ldsDelHandler(client.nsConfigAdaptor, ldsResourceName)
+			client.ldsDelHandler(client.nsConfigAdaptor, ldsResourceName, client.apiRequests[ldsURL].resources[ldsResourceName].([]string))
 		}
 	}
 
@@ -218,7 +243,7 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 func edsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	edsResource := &xdsapi.ClusterLoadAssignment{}
 	for _, resource := range m.Resources {
-		if err := types.UnmarshalAny(resource, edsResource); err != nil {
+		if err := ptypes.UnmarshalAny(resource, edsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in EDS handler")
 			continue
 		}
@@ -235,7 +260,7 @@ func rdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	rdsToLds := make(map[string][]*xdsapi.RouteConfiguration)
 	for _, resource := range m.Resources {
 		rdsResource := &xdsapi.RouteConfiguration{}
-		if err := types.UnmarshalAny(resource, rdsResource); err != nil {
+		if err := ptypes.UnmarshalAny(resource, rdsResource); err != nil {
 			continue
 		}
 		if _, ok := client.apiRequests[rdsURL].resources[rdsResource.GetName()]; !ok {
@@ -291,8 +316,7 @@ func (client *AdsClient) reloadCds() {
 }
 
 //NewAdsClient returns a new Aggregated Discovery Service client
-func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails) (*AdsClient, error) {
-	var err error
+func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler.CADetails) (*AdsClient, error) {
 	adsClient := new(AdsClient)
 	adsClient.adsServerURL = adsinfo.AdsServerURL
 	adsClient.adsServerSpiffeID = adsinfo.AdsServerSpiffeID
@@ -306,15 +330,18 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails) (*AdsClient, error) {
 	adsClient.edsAddHandler = clusterEndpointUpdate
 	adsClient.rdsAddHandler = routeUpdate
 	s := strings.Split(adsinfo.AdsServerURL, ":")
-	adsServerPort := "unknown"
+	nsinfo.adsServerPort = "unknown"
 	if len(s) > 1 {
-		adsServerPort = s[1]
+		nsinfo.adsServerPort = s[1]
 	}
-	adsClient.nsConfigAdaptor, err = newConfigAdaptor(nsinfo, adsServerPort)
-	if err != nil {
-		return nil, err
+	if cainfo != nil {
+		s = strings.Split(cainfo.CAAddress, ":")
+		if len(s) > 1 {
+			nsinfo.caServerPort = s[1]
+		}
 	}
-	log.Printf("[DEBUG] Initialized new ADS client with ID %s", adsClient.nodeID)
+	adsClient.nsInfo = nsinfo
+	adsClient.caInfo = cainfo
 	return adsClient, nil
 }
 
@@ -323,23 +350,72 @@ func (client *AdsClient) GetNodeID() *envoy_api_v2_core.Node {
 	return client.nodeID
 }
 
+func (client *AdsClient) startCertKeyHandler(errCh chan<- error) error {
+	if client.caInfo == nil {
+		log.Printf("[DEBUG] CA details are not specified. Not creating certificate key handler.")
+		return nil
+	}
+	certinfo := new(certkeyhandler.CertDetails)
+	certinfo.RootCertFile = CAcertFile
+	certinfo.CertChainFile = ClientCertChainFile
+	certinfo.CertFile = ClientCertFile
+	certinfo.KeyFile = ClientKeyFile
+	certinfo.RSAKeySize = rsaKeySize
+	certinfo.Org = orgName
+	certkeyhdlr, err := certkeyhandler.NewCertKeyHandler(client.caInfo, certinfo)
+	if err != nil {
+		log.Printf("[ERROR] Could not create certkey handler. Error: %s", err.Error())
+		return err
+	}
+	client.ckHandlerMux.Lock()
+	client.ckHandler = certkeyhdlr
+	client.ckHandlerMux.Unlock()
+	go certkeyhdlr.StartHandler(errCh)
+	return nil
+}
+
 // StartClient starts connecting and listening to the ADS server
 func (client *AdsClient) StartClient() {
 	var err error
 	log.Printf("[TRACE]: Starting ADS client")
-	client.nsConfigAdaptor.startConfigAdaptor()
 	go func() {
+		ckHandlerStarted := false
+		ckhErrCh := make(chan error)
 		for {
 			select {
 			case <-client.quit:
 				log.Printf("[TRACE]: Stopping ADS client")
 				return
+			case ckherr := <-ckhErrCh:
+				if ckherr != nil {
+					log.Printf("[ERROR] Certificate Key Handler Problem. %s", ckherr.Error())
+					client.ckHandlerMux.Lock()
+					client.ckHandler = nil
+					client.ckHandlerMux.Unlock()
+					// Start handler again
+					if err := client.startCertKeyHandler(ckhErrCh); err != nil {
+						log.Printf("[ERROR] Could not start certificate key handler. Error= %s", err.Error())
+						return
+					}
+					ckHandlerStarted = true
+				}
 			default:
+				err = client.assignConfigAdaptor()
+				if err != nil {
+					continue
+				}
+				if client.caInfo != nil && ckHandlerStarted == false {
+					if err := client.startCertKeyHandler(ckhErrCh); err != nil {
+						log.Printf("[ERROR] Could not start certificate key handler. Error= %s", err.Error())
+						return
+					}
+					ckHandlerStarted = true
+				}
 				client.connectionMux.Lock()
 				if client.secureConnect == true {
 					client.connection, err = secureConnectToServer(client.adsServerURL, client.adsServerSpiffeID)
 				} else {
-					client.connection, err = insecureConnectToServer(client.adsServerURL)
+					client.connection, err = insecureConnectToServer(client.adsServerURL, ckHandlerStarted)
 				}
 				if err != nil {
 					log.Printf("[TRACE]: Connection to grpc server failed with %v", err)
@@ -362,25 +438,55 @@ func (client *AdsClient) StartClient() {
 				}
 				client.writeADSRequest(client.apiRequests[ldsURL])
 				client.readADSResponse()
-				client.stopClientConnection()
+				client.stopClientConnection(true)
 			}
 		}
 	}()
 }
 
-func (client *AdsClient) stopClientConnection() {
+func (client *AdsClient) assignConfigAdaptor() error {
+	var err error
+	client.nsConfigAdaptorMux.Lock()
+	defer client.nsConfigAdaptorMux.Unlock()
+	if client.nsConfigAdaptor == nil {
+		client.nsConfigAdaptor, err = newConfigAdaptor(client.nsInfo)
+		if err != nil {
+			return err
+		}
+		client.nsConfigAdaptor.startConfigAdaptor(client)
+	}
+	return nil
+}
+
+func (client *AdsClient) releaseConfigAdaptor(shouldStopConfigAdaptor bool) {
+	client.nsConfigAdaptorMux.Lock()
+	defer client.nsConfigAdaptorMux.Unlock()
+	if client.nsConfigAdaptor != nil {
+		if shouldStopConfigAdaptor == true {
+			client.nsConfigAdaptor.stopConfigAdaptor()
+		}
+		client.nsConfigAdaptor = nil
+	}
+}
+
+func (client *AdsClient) stopClientConnection(shouldStopConfigAdaptor bool) {
 	client.connectionMux.Lock()
 	if client.connection != nil {
 		client.connection.Close()
 	}
 	client.connectionMux.Unlock()
+	client.releaseConfigAdaptor(shouldStopConfigAdaptor)
 	log.Printf("[TRACE]: closed client connection")
 }
 
 // StopClient closes the connection to the ADS server
 func (client *AdsClient) StopClient() {
-	client.stopClientConnection()
-	client.nsConfigAdaptor.stopConfigAdaptor()
+	client.stopClientConnection(true)
+	client.ckHandlerMux.Lock()
+	if client.ckHandler != nil {
+		client.ckHandler.StopHandler()
+	}
+	client.ckHandlerMux.Unlock()
 	client.quit <- 1
 	log.Printf("[TRACE]: Stopped adsClient")
 }

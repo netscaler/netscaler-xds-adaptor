@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,15 +14,19 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"google.golang.org/grpc"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
+
+	"google.golang.org/grpc"
 )
 
 func Test_getRootCAs(t *testing.T) {
@@ -31,7 +35,7 @@ func Test_getRootCAs(t *testing.T) {
 		err        error
 	}
 
-	caCert, err := ioutil.ReadFile("../tests/certs/tls_conn_mgmt_certs/root-cert.pem")
+	caCert, err := ioutil.ReadFile("../tests/tls_conn_mgmt_certs/root-cert.pem")
 	if err != nil {
 		t.Errorf("[ERROR]: Could not read Root CA certificate. Err=%s", err)
 	}
@@ -43,10 +47,10 @@ func Test_getRootCAs(t *testing.T) {
 		input          string
 		expectedOutput EO
 	}{
-		{"../tests/certs/tls_conn_mgmt_certs/root-cert.pem", EO{tc1, nil}}, // Correct Root certificate
-		{"doesnotexist-cert.pem", EO{nil, tc2Err}},                         // Certificate doesn't exist
+		{"../tests/tls_conn_mgmt_certs/root-cert.pem", EO{tc1, nil}}, // Correct Root certificate
+		{"doesnotexist-cert.pem", EO{nil, tc2Err}},                   // Certificate doesn't exist
 		{"", EO{nil, nil}}, // No certificate file specified
-		{"../tests/certs/tls_conn_mgmt_certs/key.pem", EO{nil, tc4Err}}, // Wrong certificate provided
+		{"../tests/tls_conn_mgmt_certs/key.pem", EO{nil, tc4Err}}, // Wrong certificate provided
 	}
 	for _, c := range cases {
 		cacertpool, err := getRootCAs(c.input)
@@ -88,20 +92,20 @@ func Test_verifyPeerCertificate(t *testing.T) {
 		input         EI
 		expectedError error
 	}{
-		{EI{"../tests/certs/tls_conn_mgmt_certs/root-cert.pem",
+		{EI{"../tests/tls_conn_mgmt_certs/root-cert.pem",
 			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account",
-			"../tests/certs/tls_conn_mgmt_certs/client-cert.pem",
-			"../tests/certs/tls_conn_mgmt_certs/client-key.pem"}, nil,
+			"../tests/tls_conn_mgmt_certs/client-cert.pem",
+			"../tests/tls_conn_mgmt_certs/client-key.pem"}, nil,
 		},
-		{EI{"../tests/certs/tls_conn_mgmt_certs/root-cert.pem",
+		{EI{"../tests/tls_conn_mgmt_certs/root-cert.pem",
 			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account-wrong",
-			"../tests/certs/tls_conn_mgmt_certs/client-cert.pem",
-			"../tests/certs/tls_conn_mgmt_certs/client-key.pem"}, idMismatchErr,
+			"../tests/tls_conn_mgmt_certs/client-cert.pem",
+			"../tests/tls_conn_mgmt_certs/client-key.pem"}, idMismatchErr,
 		},
-		{EI{"../tests/certs/tls_conn_mgmt_certs/cert-chain.pem",
+		{EI{"../tests/tls_conn_mgmt_certs/cert-chain.pem",
 			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account",
-			"../tests/certs/tls_conn_mgmt_certs/client-cert.pem",
-			"../tests/certs/tls_conn_mgmt_certs/client-key.pem"}, verifyFailErr,
+			"../tests/tls_conn_mgmt_certs/client-cert.pem",
+			"../tests/tls_conn_mgmt_certs/client-key.pem"}, verifyFailErr,
 		},
 	}
 
@@ -114,7 +118,7 @@ func Test_verifyPeerCertificate(t *testing.T) {
 		certChain, err := loadTLSCertificates(c.input.peerCertFile, c.input.peerKeyFile)
 		for _, cert := range certChain {
 			err = peer.verifyPeerCertificate(cert.Certificate, nil)
-			if err != nil && err.Error() != c.expectedError.Error() {
+			if err != nil && strings.Contains(err.Error(), c.expectedError.Error()) == false {
 				t.Errorf("Failed for peer %v. Received Err = %s. Expected Err = %s", peer, err, c.expectedError)
 			} else {
 				t.Logf("Passed for peer %v", peer)
@@ -155,9 +159,9 @@ func Test_secureConnectToServer(t *testing.T) {
 		input          EI
 		expectedOutput EO
 	}{
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/certs/tls_conn_mgmt_certs/root-cert.pem", "../tests/certs/tls_conn_mgmt_certs/client-cert.pem", "../tests/certs/tls_conn_mgmt_certs/client-key.pem"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/tls_conn_mgmt_certs/root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
 			EO{nil, errors.New("connection error: desc = \"transport: error while dialing: dial tcp 127.0.0.1:15011: connect: connection refused\"")}},
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/certs/tls_conn_mgmt_certs/root-cert.pem", "../tests/certs/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/tls_conn_mgmt_certs/root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
 			EO{nil, errors.New("tls: failed to find any PEM data in key input")}},
 	}
 
@@ -166,18 +170,23 @@ func Test_secureConnectToServer(t *testing.T) {
 		t.Fatalf("Could not create directory /etc/certs")
 	}
 
+	err = os.MkdirAll("/etc/rootcert", 0777)
+	if err != nil {
+		t.Fatalf("Could not create directory /etc/rootcert")
+	}
+
 	for _, c := range cases {
-		err := copyFile(c.input.cacertfile, cacertFile)
+		err := copyFile(c.input.cacertfile, CAcertFile)
 		if err != nil {
-			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.cacertfile, cacertFile, err)
+			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.cacertfile, CAcertFile, err)
 		}
-		err = copyFile(c.input.clientcertfile, clientCertFile)
+		err = copyFile(c.input.clientcertfile, ClientCertFile)
 		if err != nil {
-			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.clientcertfile, clientCertFile, err)
+			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.clientcertfile, ClientCertFile, err)
 		}
-		err = copyFile(c.input.clientkeyfile, clientKeyFile)
+		err = copyFile(c.input.clientkeyfile, ClientKeyFile)
 		if err != nil {
-			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.clientkeyfile, clientKeyFile, err)
+			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.clientkeyfile, ClientKeyFile, err)
 		}
 		conn, err := secureConnectToServer(c.input.address, c.input.spiffeID)
 		if err != nil && err.Error() != c.expectedOutput.err.Error() {
@@ -193,5 +202,74 @@ func Test_secureConnectToServer(t *testing.T) {
 	}
 	if err := env.DeleteFile("emptyfile"); err != nil {
 		t.Fatalf("Could not delete emptyfile. Error: %s", err.Error())
+	}
+}
+
+func createDir(dir string) error {
+	var _, err = os.Stat(dir)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(dir, 0700)
+		if err != nil {
+			fmt.Printf("Could not create the config directory %s", dir)
+			return err
+		}
+	}
+	return nil
+}
+
+func Test_IsFileCreated(t *testing.T) {
+	type EI struct {
+		fileName   string
+		expiryTime time.Duration
+	}
+	type EO struct {
+		output      bool
+		expectedErr string
+	}
+	testCases := map[string]struct {
+		input          EI
+		expectedOutput EO
+	}{
+		"File Created": {
+			input:          EI{"dir1/file1", 5},
+			expectedOutput: EO{true, ""},
+		},
+		"Desired file not created. Timeout": {
+			input:          EI{"dir1/file2", 2},
+			expectedOutput: EO{false, ""},
+		},
+		"Directory does not exist": {
+			input:          EI{"imaginary/file", 2},
+			expectedOutput: EO{false, "Directory imaginary does not seem to be mounted"},
+		},
+	}
+	if err := createDir("dir1"); err != nil {
+		t.Fatalf("Could not create dir1 directory. Error: %s", err.Error())
+	}
+
+	for id, c := range testCases {
+		if id != "Directory does not exist" {
+			go func(filepath string) {
+				time.Sleep(500 * time.Millisecond)
+				message := []byte("randomstring")
+				err := ioutil.WriteFile(filepath, message, 0644)
+				if err != nil {
+					t.Fatalf("Could not create file %s. Error: %s", filepath, err.Error())
+				} else {
+					t.Logf("%s file created at %s", filepath, time.Now().String())
+				}
+			}(c.input.fileName)
+		}
+		output, err := IsFileCreated("dir1/file1", c.input.expiryTime)
+		if err != nil && err.Error() != c.expectedOutput.expectedErr {
+			t.Errorf("%s: expected error: %s, received: %s\n", id, c.expectedOutput.expectedErr, err.Error())
+		} else if output != c.expectedOutput.output {
+			t.Errorf("%s, expected: %v, received: %v\n", id, c.expectedOutput.output, output)
+		} else {
+			t.Logf("%s. Success!", id)
+		}
+	}
+	if err := os.RemoveAll("dir1"); err != nil {
+		t.Logf("Could not delete dir1")
 	}
 }

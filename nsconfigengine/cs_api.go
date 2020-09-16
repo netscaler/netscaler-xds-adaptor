@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,10 +15,6 @@ package nsconfigengine
 
 import (
 	"fmt"
-	"log"
-	"net/http"
-	"strings"
-
 	"github.com/chiradeep/go-nitro/config/cs"
 	"github.com/chiradeep/go-nitro/config/lb"
 	"github.com/chiradeep/go-nitro/config/ns"
@@ -26,6 +22,9 @@ import (
 	"github.com/chiradeep/go-nitro/config/responder"
 	"github.com/chiradeep/go-nitro/config/rewrite"
 	"github.com/chiradeep/go-nitro/netscaler"
+	"log"
+	"net/http"
+	"strings"
 )
 
 const (
@@ -80,7 +79,7 @@ func NewCSApi(name string, vserverType string, ip string, port int) *CSApi {
 
 // Add method creates/updates a CS vserver object on the Citrix-ADC
 func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSApi add: %v", csObj)
+	log.Printf("[TRACE] CSApi add: %s", GetLogString(csObj))
 	confErr := newNitroError()
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}, nil, []nitroConfig{{netscaler.Csvserver.Type(), csObj.Name, nil, "delete"}, {netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}}))
 	if csObj.AllowACL == true {
