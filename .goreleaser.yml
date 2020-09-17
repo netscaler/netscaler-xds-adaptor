@@ -2,7 +2,7 @@
 # Build customization
 builds:
   - binary: citrix-xds-adaptor
-    main: ./xds-adaptor/main.go
+    main: ./xds-adaptor
     goos:
       - windows
       - darwin
