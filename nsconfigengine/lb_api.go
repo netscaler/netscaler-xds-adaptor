@@ -263,7 +263,7 @@ func (svcGpObj *ServiceGroupAPI) bindAnalyticsProfile(client *netscaler.NitroCli
 		} else { // Prometheus server name
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Service.Type(), "ns_logproxy_prometheus_service", basic.Service{Name: "ns_logproxy_prometheus_service", Servicetype: "HTTP", Servername: svcGpObj.PromEP, Port: 5563}, "add"}, nil, nil))
 		}
-		confErr.updateError(doNitro(client, nitroConfig{"analyticsprofile", "ns_analytics_time_series_profile", map[string]string{"name": "ns_analytics_time_series_profile", "type": "timeseries", "outputmode": "prometheus", "metrics": "ENABLED", "collectors": "ns_logproxy_prometheus_service"}, "add"}, nil, []nitroConfig{{netscaler.Service.Type(), "ns_logproxy_prometheus_service", nil, "delete"}}))
+		confErr.updateError(doNitro(client, nitroConfig{"analyticsprofile", "ns_analytics_time_series_profile", analytics.Analyticsprofile{Name: "ns_analytics_time_series_profile", Type: "timeseries", Outputmode: "prometheus", Metrics: "ENABLED", Collectors: "ns_logproxy_prometheus_service"}, "add"}, nil, []nitroConfig{{netscaler.Service.Type(), "ns_logproxy_prometheus_service", nil, "delete"}}))
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 	envoy_api_v2_core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/golang/protobuf/ptypes"
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	"google.golang.org/grpc"
 )
 
@@ -321,7 +323,20 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 	adsClient.adsServerURL = adsinfo.AdsServerURL
 	adsClient.adsServerSpiffeID = adsinfo.AdsServerSpiffeID
 	adsClient.secureConnect = adsinfo.SecureConnect
-	adsClient.nodeID = &envoy_api_v2_core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName}
+	metadata := _struct.Struct{
+		Fields: map[string]*_struct.Value{
+			"CLUSTER_ID":       {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("CLUSTER_ID")}},
+			"CONFIG_NAMESPACE": {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
+			"MESH_ID":          {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("TRUST_DOMAIN")}},
+			"NAME":             {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("HOSTNAME")}},
+			"NAMESPACE":        {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
+			"SDS":              {Kind: &_struct.Value_StringValue{StringValue: "true"}},
+			"SERVICE_ACCOUNT":  {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("SERVICE_ACCOUNT")}},
+			"TRUSTJWT":         {Kind: &_struct.Value_StringValue{StringValue: "true"}},
+		},
+	}
+	adsClient.nodeID = &envoy_api_v2_core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &metadata}
+	log.Println("[TRACE] Node details: ", adsClient.nodeID)
 	adsClient.quit = make(chan int)
 	adsClient.cdsAddHandler = clusterAdd
 	adsClient.cdsDelHandler = clusterDel
@@ -413,7 +428,7 @@ func (client *AdsClient) StartClient() {
 				}
 				client.connectionMux.Lock()
 				if client.secureConnect == true {
-					client.connection, err = secureConnectToServer(client.adsServerURL, client.adsServerSpiffeID)
+					client.connection, err = secureConnectToServer(client.adsServerURL, client.adsServerSpiffeID, ckHandlerStarted)
 				} else {
 					client.connection, err = insecureConnectToServer(client.adsServerURL, ckHandlerStarted)
 				}

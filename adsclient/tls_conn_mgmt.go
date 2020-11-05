@@ -247,7 +247,7 @@ func insecureConnectToServer(address string, waitForCerts bool) (*grpc.ClientCon
 	return conn, nil
 }
 
-func secureConnectToServer(address, spiffeID string) (*grpc.ClientConn, error) {
+func secureConnectToServer(address, spiffeID string, waitForCerts bool) (*grpc.ClientConn, error) {
 	log.Printf("[INFO] grpc Secure Dialling to %s.", address)
 	if len(spiffeID) > 0 {
 		log.Printf("[INFO] SPIFFE ID %s must be matched", spiffeID)
@@ -270,9 +270,11 @@ func secureConnectToServer(address, spiffeID string) (*grpc.ClientConn, error) {
 		TrustRoots: RootCAs,
 	}
 	// Check if files ClientCertFile and ClientKeyFile are created or not
-	if err := checkCertfileCreation(ClientCertFile, certGenWaittime); err != nil {
-		log.Printf("[ERROR] Client's certificate not created. %s", err)
-		return nil, err
+	if waitForCerts == true {
+		if err := checkCertfileCreation(ClientCertFile, certGenWaittime); err != nil {
+			log.Printf("[ERROR] Client's certificate not created. %s", err)
+			return nil, err
+		}
 	}
 
 	creds, err := adsServer.getTLSCredentials(ClientCertFile, ClientKeyFile)

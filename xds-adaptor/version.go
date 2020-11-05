@@ -13,5 +13,5 @@ limitations under the License.
 
 package main
 
-var xdsAdaptorVersion string = "v0.9.5-beta"
-var lastCommitID string = "b688c574a92a0b5c59ef70160afbebc4aa169983"
+var xdsAdaptorVersion string = "v0.9.5-beta-2"
+var lastCommitID string = "e35e19f76d23082e9cc9855549bc8019cc5de5ca"

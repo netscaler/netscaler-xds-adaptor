@@ -229,7 +229,7 @@ func DeleteCert(client *netscaler.NitroClient, fileName string) error {
 
 // UpdateCert updates the ssl certkey on the Citrix-ADC
 func UpdateCert(client *netscaler.NitroClient, certKeyName, certFileName, keyFileName string) error {
-	sslCertKey := ssl.Sslcertkey{Certkey: certKeyName, Cert: certFileName}
+	sslCertKey := ssl.Sslcertkey{Certkey: certKeyName, Cert: certFileName, Nodomaincheck: true}
 	if keyFileName != "" {
 		sslCertKey.Key = keyFileName
 	}

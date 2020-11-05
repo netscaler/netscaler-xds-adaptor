@@ -119,9 +119,9 @@ func (w *Watcher) Run() {
 				return
 			}
 			log.Println("[DEBUG] event:", event)
-			if event.Op&fsnotify.Remove == fsnotify.Remove {
+			if (event.Op&fsnotify.Remove == fsnotify.Remove) || (event.Op&fsnotify.Write == fsnotify.Write) {
 				log.Println("[DEBUG] Folder got Updated", event.Name)
-				if !strings.Contains(event.Name, "..") {
+				if !strings.Contains(event.Name, "..") && !strings.Contains(event.Name, "/etc/") {
 					log.Println("[DEBUG] Folder not considered for update", event.Name)
 				} else {
 					uploadFilePath, _ := getDirFileName(event.Name)

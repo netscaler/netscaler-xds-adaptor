@@ -215,6 +215,31 @@ func Test_clusterEndpointUpdate(t *testing.T) {
 	}
 }
 
+func Test_isLogProxyEndpoint(t *testing.T) {
+	type EI struct {
+		clustername string
+		logProxyURL string
+	}
+	cases := []struct {
+		input       EI
+		expectedOut string
+	}{
+		{EI{"outbound|5557||coe.citrix-system.svc.cluster.local", "coe.citrix-system"}, "LOGSTREAM"},
+		{EI{"outbound|5563||coe.citrix-system.svc.cluster.local", "coe.citrix-system"}, "ULFDREST"},
+		{EI{"outbound|5555||coe.citrix-system.svc.cluster.local", "coe.citrix-system"}, ""},
+		{EI{"outbound|5563abcd||coe.citrix-system.svc.cluster.local", "coe.citrix-system"}, ""},
+		{EI{"outbound|5557||coe.citrix-system.svc.cluster.local", ""}, ""},
+	}
+	receivedOutput := ""
+	configadaptor := new(configAdaptor)
+	for _, c := range cases {
+		configadaptor.logProxyURL = c.input.logProxyURL
+		receivedOutput = isLogProxyEndpoint(configadaptor, c.input.clustername)
+		if receivedOutput != c.expectedOut {
+			t.Errorf("Verification failed: expected output %s but received output %s", c.expectedOut, receivedOutput)
+		}
+	}
+}
 func Test_listenerAdd(t *testing.T) {
 	certFileName := "/etc/certs/server-cert.crt"
 	keyFileName := "/etc/certs/server-key.key"

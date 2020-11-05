@@ -188,7 +188,7 @@ func Test_secureConnectToServer(t *testing.T) {
 		if err != nil {
 			t.Errorf("Could not copy %s contents to %s. Err=%s", c.input.clientkeyfile, ClientKeyFile, err)
 		}
-		conn, err := secureConnectToServer(c.input.address, c.input.spiffeID)
+		conn, err := secureConnectToServer(c.input.address, c.input.spiffeID, true)
 		if err != nil && err.Error() != c.expectedOutput.err.Error() {
 			t.Errorf("Received error %s. Expected error %s", err, c.expectedOutput.err)
 		} else if err == nil {

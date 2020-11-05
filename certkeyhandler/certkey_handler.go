@@ -15,8 +15,8 @@ package certkeyhandler
 
 import (
 	"bufio"
+	"strings"
 
-	//"citrix-xds-adaptor/adsclient"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -31,12 +31,13 @@ import (
 )
 
 var (
-	tokenFile          = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	now                = time.Now()
-	citadelName        = "Istiod"
-	csrMaxRetries      = 3
-	csrRetrialInterval = 5 * time.Second
-	rootCertFilePath   = "/etc/certs/root-cert.pem"
+	tokenFile           = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	thirdPartyTokenFile = "/var/run/secrets/tokens/istio-token"
+	now                 = time.Now()
+	citadelName         = "Istiod"
+	csrMaxRetries       = 3
+	csrRetrialInterval  = 5 * time.Second
+	rootCertFilePath    = "/etc/certs/root-cert.pem"
 )
 
 // CADetails store info about CA endpoint as well as workload (CA client)
@@ -146,6 +147,10 @@ func NewCertKeyHandler(cainfo *CADetails, certinfo *CertDetails) (*CertKeyHandle
 	ckh.stopped = true
 	ckh.tls = true
 	ckh.TokenFile = tokenFile
+	if strings.EqualFold(os.Getenv("JWT_POLICY"), "third-party-jwt") {
+		ckh.TokenFile = thirdPartyTokenFile
+		log.Printf("[TRACE] Third party token file.")
+	}
 	return ckh, nil
 }
 
@@ -213,6 +218,18 @@ func (ckh *CertKeyHandler) getCertKeyRotator() error {
 		ForCA:                     false,
 	}
 
+	// Check for certificate validity.
+	// It has been observed that CA issued certificate having NotBefore time ahead of currentTime.
+	// Sleep for the difference before creating CertificateKey Bundle
+	certBytes, _ := ioutil.ReadFile(ckh.CertFile)
+	cert, err := pkiutil.ParsePemEncodedCertificate(certBytes)
+	if err != nil {
+		return fmt.Errorf("[ERROR] Failed to parse PEM certificate: %v", err)
+	}
+	currentTime := time.Now()
+	diff := cert.NotBefore.Sub(currentTime)
+	time.Sleep(diff) // diff can have negative value, and Sleep function handles negative values by not sleeping
+
 	// Create key-certificate bundle from existing key and certificates
 	// initially cert file would be same as certChain file
 	keyCertBundle, err := pkiutil.NewVerifiedKeyCertBundleFromFile(ckh.CertFile, ckh.KeyFile, ckh.CertChainFile, ckh.RootCertFile)
@@ -220,6 +237,7 @@ func (ckh *CertKeyHandler) getCertKeyRotator() error {
 		log.Printf("[ERROR] Could not create keyCertBundle. Error: %s", err.Error())
 		return err
 	}
+
 	// Create keyCertBundle Rotator
 	rotator, err := caclient.NewKeyCertBundleRotator(cfg, keyCertBundle)
 	if err != nil {

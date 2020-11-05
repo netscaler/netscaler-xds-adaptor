@@ -107,37 +107,67 @@ func addToWatch(nsConfig *configAdaptor, certPath, keyPath string) error {
 	return nsConfig.watch.addDir(certPath, keyPath)
 }
 
-//getBackendTLS will get UpStreamTLSContext which will be bound to SSL ServiceGroup
-func getBackendTLS(nsConfig *configAdaptor, cluster *xdsapi.Cluster, lbObj *nsconfigengine.LBApi) {
+// getTLSDetailsFromTransportSocket will get UpStreamTLSContext which will be bound to SSL ServiceGroup
+func getTLSDetailsFromTransportSocket(nsConfig *configAdaptor, transportSocket *core.TransportSocket, lbObj *nsconfigengine.LBApi) {
+	if transportSocket == nil || nsConfig == nil || lbObj == nil {
+		log.Printf("[DEBUG] Either transportSocket or nsConfig adaptor or lb object is nil")
+		return
+	}
 	tlsContext := &auth.UpstreamTlsContext{}
-	for _, transSocketMatch := range cluster.GetTransportSocketMatches() {
-		switch c := transSocketMatch.GetTransportSocket().ConfigType.(type) {
-		case *core.TransportSocket_TypedConfig:
-			if err := ptypes.UnmarshalAny(c.TypedConfig, tlsContext); err != nil {
-				log.Printf("[ERROR] Could not unmarshal while retrieving (upstream) TLS context %v", err)
-			} else {
-				for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
-					if sdsConfig.GetName() == "default" {
-						_ = addToWatch(nsConfig, ClientCertFile, ClientKeyFile)
-						_ = addToWatch(nsConfig, CAcertFile, "")
-						lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-							CertFilename:       ClientCertFile,
-							PrivateKeyFilename: ClientKeyFile,
-							RootCertFilename:   CAcertFile})
-					}
-				}
-				// If certificates are provided as part of UpstreamTlsContext, then retrieve same
-				for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
-					_ = addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-					_ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+	switch c := transportSocket.ConfigType.(type) {
+	case *core.TransportSocket_TypedConfig:
+		if err := ptypes.UnmarshalAny(c.TypedConfig, tlsContext); err != nil {
+			log.Printf("[ERROR] Could not unmarshal while retrieving (upstream) TLS context %v", err)
+		} else {
+			for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
+				if sdsConfig.GetName() == "default" {
+					_ = addToWatch(nsConfig, ClientCertFile, ClientKeyFile)
+					_ = addToWatch(nsConfig, CAcertFile, "")
 					lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-						CertFilename:       tlsCertificate.GetCertificateChain().GetFilename(),
-						PrivateKeyFilename: tlsCertificate.GetPrivateKey().GetFilename(),
-						RootCertFilename:   tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
+						CertFilename:       ClientCertFile,
+						PrivateKeyFilename: ClientKeyFile,
+						RootCertFilename:   CAcertFile})
 				}
+			}
+			// If certificates are provided as part of UpstreamTlsContext, then retrieve same
+			for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
+				_ = addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
+				_ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
+					CertFilename:       tlsCertificate.GetCertificateChain().GetFilename(),
+					PrivateKeyFilename: tlsCertificate.GetPrivateKey().GetFilename(),
+					RootCertFilename:   tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
 			}
 		}
 	}
+}
+
+//getBackendTLS will look for TransportSocket from which TLS details need to be obtained
+func getBackendTLS(nsConfig *configAdaptor, cluster *xdsapi.Cluster, lbObj *nsconfigengine.LBApi) {
+	if cluster.GetTransportSocket() == nil { // Loop through transportSocketMatch
+		for _, transSocketMatch := range cluster.GetTransportSocketMatches() {
+			getTLSDetailsFromTransportSocket(nsConfig, transSocketMatch.GetTransportSocket(), lbObj)
+		}
+	} else { // TransportSocket is immediately available in cluster resource
+		getTLSDetailsFromTransportSocket(nsConfig, cluster.GetTransportSocket(), lbObj)
+	}
+}
+
+// isTLSContext func checks if the TLS info is present in cluster or not.
+// It can be present in any of 3 fields:
+// i) TlsContext ii) TransportSocketMatch or iii) TransportSocket (only if it is TLS transport socket)
+func isTLSContext(cluster *xdsapi.Cluster) bool {
+	if cluster.GetTlsContext() != nil || cluster.GetTransportSocketMatches() != nil {
+		return true
+	}
+	if cluster.GetTransportSocket() != nil {
+		//check if it is TLS transport socket or not
+		log.Printf("[TRACE] Transport socket name: %s\n", cluster.GetTransportSocket().GetName())
+		if strings.EqualFold(cluster.GetTransportSocket().GetName(), envoyUtil.TransportSocketTls) {
+			return true
+		}
+	}
+	return false
 }
 
 func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface{}) string {
@@ -145,7 +175,8 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 	log.Printf("[TRACE] clusterAdd :%v", nsconfigengine.GetLogString(cluster))
 	serviceType := data.(string)
 	serviceGroupType := serviceType
-	if cluster.GetTlsContext() != nil || cluster.GetTransportSocketMatches() != nil {
+
+	if serviceType != "LOGSTREAM" && isTLSContext(cluster) {
 		serviceGroupType = "SSL"
 		if serviceType == "TCP" {
 			serviceGroupType = "SSL_TCP"
@@ -347,6 +378,7 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 	}
 	vserverType, serviceType, err := getListenerFilterType(nsConfig, filterChain, listener)
 	if err != nil {
+		log.Printf("[TRACE] Listener's filter type not supported. %s", err.Error())
 		return nil, err
 	}
 	csObjMapKey := vserverAddress + ":" + fmt.Sprint(vserverPort)
@@ -378,6 +410,38 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 	return csObjMap[csObjMapKey].(map[string]interface{}), nil
 }
 
+func getLogProxyType(nsConfig *configAdaptor, filter *xdsListener.Filter, lPort uint32) (string, string) {
+	if lPort != logStreamPort && lPort != ulfdRestPort {
+		return "", ""
+	}
+
+	var resourceName string
+	switch filter.Name {
+	case envoyUtil.TCPProxy:
+		tcpProxy := &envoyFilterTcp.TcpProxy{}
+		if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
+			log.Printf("[DEBUG] Could not identify COE service type from TCP proxy filter")
+			return "", ""
+		}
+		resourceName = tcpProxy.GetCluster()
+	case envoyUtil.HTTPConnectionManager:
+		httpCM := &envoyFilterHttp.HttpConnectionManager{}
+		if err := getListenerFilterConfig(filter, httpCM); err != nil {
+			log.Printf("[DEBUG] Could not identify COE service type from HTTP connection manager filter")
+			return "", ""
+		}
+		resourceName = httpCM.GetRds().GetRouteConfigName()
+	}
+	if strings.Contains(resourceName, nsConfig.logProxyURL) {
+		// It is indeed logproxy service. Check if logstream port or ulfd port
+		if lPort == logStreamPort {
+			return "LOGSTREAM", "LOGSTREAM"
+		}
+		return "HTTP", "HTTP"
+	}
+	return "", ""
+}
+
 func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.FilterChain, l *xdsapi.Listener) (string, string, error) {
 	listenerAddress := l.GetAddress()
 	tlsContextExists := false
@@ -392,19 +456,11 @@ func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.Fil
 			return "SSL", "TCP", nil
 		}
 		// Check for the logstream ports IFF logproxy service has been provided
-		if len(nsConfig.logProxyURL) > 0 && filter.Name == envoyUtil.TCPProxy {
+		if len(nsConfig.logProxyURL) > 0 {
 			lPort := listenerAddress.GetSocketAddress().GetPortValue()
-			if lPort == logStreamPort || lPort == ulfdRestPort {
-				tcpProxy := &envoyFilterTcp.TcpProxy{}
-				if err := getListenerFilterConfig(filter, tcpProxy); err == nil {
-					if strings.Contains(tcpProxy.GetCluster(), nsConfig.logProxyURL) {
-						// It is indeed logproxy service. Check if logstream port or ulfd port
-						if lPort == logStreamPort {
-							return "HTTP", "LOGSTREAM", nil
-						}
-						return "HTTP", "HTTP", nil
-					}
-				}
+			vsType, svcType := getLogProxyType(nsConfig, filter, lPort)
+			if len(vsType) > 0 {
+				return vsType, svcType, nil
 			}
 		}
 		if filter.Name == envoyUtil.HTTPConnectionManager {
@@ -465,6 +521,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 	for _, filterChain := range listener.GetFilterChains() {
 		csObjMap, err := getListenerFilterChainConfig(nsConfig, csObjMaps, listener, filterChain)
 		if err != nil {
+			log.Printf("[DEBUG] %s", err.Error())
 			continue
 		}
 		csObj := csObjMap["csObj"].(*nsconfigengine.CSApi)
@@ -487,8 +544,12 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 				} else {
 					csObj.AuthSpec = getAuthConfig(nsConfig, csObj.Name, httpCM.GetHttpFilters())
 					confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
-					// Add configBlock before calling routeUpdate.
-					nsConfig.addConfig(&confBl)
+					// Add configBlock before calling routeUpdate. But don't add for LOGSTREAM type
+					// In case of COE service, vserverType and serviceType are set to LOGSTREAM
+					// But CS vserver should not be created, only LB vserver should be created for LOGSTREAM
+					if csObj.VserverType != "LOGSTREAM" {
+						nsConfig.addConfig(&confBl)
+					}
 					if routeConfig := httpCM.GetRouteConfig(); routeConfig != nil {
 						cdsMap := routeUpdate(nsConfig, []*xdsapi.RouteConfiguration{routeConfig}, map[string]interface{}{"listenerName": listener.GetName(), "filterChainName": filterChain.GetName(), "serviceType": csObjMap["serviceType"].(string)})
 						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), cdsMap["cdsNames"].([]string)...)
@@ -509,7 +570,9 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 							csObj.SSLForwarding = append(csObj.SSLForwarding, nsconfigengine.SSLForwardSpec{LbVserverName: nsconfigengine.GetNSCompatibleName(tcpProxy.GetCluster()), SNINames: filterChain.GetFilterChainMatch().GetServerNames()})
 						}
 						confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
-						nsConfig.addConfig(&confBl)
+						if csObj.VserverType != "LOGSTREAM" {
+							nsConfig.addConfig(&confBl)
+						}
 						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), tcpProxy.GetCluster())
 					}
 				}

@@ -256,6 +256,7 @@ func (confAdaptor *configAdaptor) dologProxyConfig() error {
 			{ResourceType: netscaler.Appflowparam.Type(), ResourceName: "", Resource: appflowResource, Operation: "set"},
 			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_http_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_http_profile", Type: "webinsight", Httpurl: "ENABLED", Httphost: "ENABLED", Httpmethod: "ENABLED", Httpuseragent: "ENABLED", Urlcategory: "ENABLED", Httpcontenttype: "ENABLED", Httpvia: "ENABLED", Httpdomainname: "ENABLED", Httpurlquery: "ENABLED"}},
 			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_tcp_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_tcp_profile", Type: "tcpinsight"}},
+			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_time_series_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_time_series_profile", Type: "timeseries", Outputmode: "prometheus", Metrics: "ENABLED"}},
 		}
 		err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 		if err != nil {

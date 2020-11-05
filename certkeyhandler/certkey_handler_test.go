@@ -10,7 +10,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package certkeyhandler
 
 import (
@@ -35,6 +34,7 @@ var (
 	fakeCert      = []string{"fake", "certificate"}
 	fakeTokenFile = "/tmp/tokenfile"
 	fakeToken     = "Bearer fakeToken"
+	validToken    = "eyJhbGciOiJSUzI1NiIsImtpZCI6IlRRZ0ZxSm1UMHRMdDZvSHgxTGI4RS1PRU1hdGhlbHNzVU1pRkoxVXVDck0ifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWw"
 	validCert     = []string{`-----BEGIN CERTIFICATE-----
 MIIDIzCCAgugAwIBAgIQItm6wbnrdeNqjQT5kxlgxDANBgkqhkiG9w0BAQsFADAY
 MRYwFAYDVQQKEw1jbHVzdGVyLmxvY2FsMB4XDTIwMDkxNDA5MDQ0OVoXDTIwMTIx
@@ -387,6 +387,7 @@ func Test_StartHandler(t *testing.T) {
 		certInfo CertDetails
 		caInfo   CADetails
 		server   mockCAServer
+		token    string
 	}
 	testCases := map[string]struct {
 		input       EI
@@ -395,12 +396,9 @@ func Test_StartHandler(t *testing.T) {
 		"Successful CertKey Handler": {
 			input: EI{
 				certInfo: CertDetails{
-					RootCertFile:  "../tests/certkey_handler_certs/httpbin-root-cert.pem",
-					CertChainFile: "../tests/certkey_handler_certs/httpbin-cert-chain.pem",
-					CertFile:      "../tests/certkey_handler_certs/httpbin-cert-chain.pem",
-					KeyFile:       "../tests/certkey_handler_certs/httpbin-key.pem",
-					RSAKeySize:    2048,
-					Org:           "Citrix Systems",
+					RootCertFile: "../tests/certkey_handler_certs/httpbin-root-cert.pem",
+					RSAKeySize:   2048,
+					Org:          "Citrix Systems",
 				},
 				caInfo: CADetails{
 					CAAddress:   "localhost:15002",
@@ -410,9 +408,10 @@ func Test_StartHandler(t *testing.T) {
 					TrustDomain: "cluster.local",
 					NameSpace:   "istio160-cpx",
 					SAName:      "httpbin",
-					CertTTL:     1 * time.Hour,
+					CertTTL:     2160 * time.Hour,
 				},
 				server: mockCAServer{Certs: validCert, Err: nil},
+				token:  validToken,
 			},
 			expectedErr: "",
 		},
@@ -422,7 +421,6 @@ func Test_StartHandler(t *testing.T) {
 	if err != nil {
 		t.Errorf("Could not create directory /etc/certs")
 	}
-
 	for id, c := range testCases {
 		s := grpc.NewServer()
 		defer s.Stop()
@@ -433,7 +431,7 @@ func Test_StartHandler(t *testing.T) {
 		// Set CA Address
 		//c.input.caInfo.CAAddress = lis.Addr().String()
 		// Create tokenfile
-		_ = writeToFile(fakeTokenFile, []byte(fakeToken))
+		_ = writeToFile(fakeTokenFile, []byte(c.input.token))
 		go func() {
 			pb.RegisterIstioCertificateServiceServer(s, &c.input.server)
 			if err := s.Serve(lis); err != nil {
@@ -441,7 +439,7 @@ func Test_StartHandler(t *testing.T) {
 			}
 		}()
 		// Copy input certs and key files to /etc/certs directory
-		err = setCertEnv(certDir, c.input.certInfo.RootCertFile, c.input.certInfo.CertChainFile, c.input.certInfo.CertFile, c.input.certInfo.KeyFile)
+		err = env.CopyFileContents(c.input.certInfo.RootCertFile, certDir+"/root-cert.pem")
 		if err != nil {
 			t.Errorf("Could not create certificate environment. %s", err.Error())
 		}
@@ -458,7 +456,7 @@ func Test_StartHandler(t *testing.T) {
 		}
 		certkeyhdlr, err := NewCertKeyHandler(&c.input.caInfo, &certinfo)
 		// Set below fields to ensure that citadelClient works fine
-		certkeyhdlr.TokenFile = fakeTokenFile
+		certkeyhdlr.TokenFile = validToken
 		certkeyhdlr.tls = false
 
 		ckhErrCh := make(chan error)
@@ -481,6 +479,6 @@ func Test_StartHandler(t *testing.T) {
 	}
 	// Delete the etc/certs directory created in setCertEnv
 	if err := os.RemoveAll(certDir); err != nil {
-		t.Errorf("Could not delete /etc/certs")
+		t.Errorf("Could not delete %s", certDir)
 	}
 }
