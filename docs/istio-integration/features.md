@@ -1,6 +1,6 @@
 # Features supported according to Istio resources
 
-The detailed list of fields supported on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, Service Entry) is specified as follows:
+The list of supported fields on Citrix ADC as per the Istio CRDs (Destination Rule, Virtual Service, Policy, Gateway, and Service Entry) is specified as follows:
 
 ## [Destination Rule](https://istio.io/latest/docs/reference/config/networking/destination-rule/)
 
@@ -35,8 +35,7 @@ The following table describes the destination rule settings supported by Citrix 
 
 ## [Virtual Service](https://istio.io/latest/docs/reference/config/networking/virtual-service/)
 
-Using virtual service, you can define a set of traffic routing rules to apply when a host is addressed.
-The following table describes the virtual service configuration settings supported by Citrix ADC with Istio.
+Using the virtual service, you can define a set of traffic routing rules to apply when a host is addressed. The following table describes the virtual service configuration settings supported by Citrix ADC with Istio.
 
 | Field                       | xDS-adaptor version | Citrix ADC Version |
 |-----------------------------|---------------|---------------------------|
@@ -64,7 +63,7 @@ The following table describes the virtual service configuration settings support
 
 ## [Gateway](https://istio.io/latest/docs/reference/config/networking/gateway/)
 
-Gateway specification describes a set of ports that should be exposed, the type of protocol to use, SNI configuration for the load balancer, and so on. The following table describes the gateway configuration settings supported by Citrix ADC with Istio.
+Gateway specification describes a set of ports that must be exposed. It also provides details about the type of protocol to use, SNI configuration for the load balancer, and so on. The following table describes the gateway configuration settings supported by Citrix ADC with Istio.
 
 | Field                                 | xDS-adaptor version | Citrix ADC Version |
 |---------------------------------------|---------------|-----------------------------|

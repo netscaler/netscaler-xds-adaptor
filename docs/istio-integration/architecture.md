@@ -8,7 +8,7 @@ For detailed information on Istio architecture and different components, see [Is
 
 The Istio control plane is a set of gRPC based services and it pushes configuration changes to clients listening at the data plane. Pilot, Mixer, Galley, and Citadel are important control plane components. Out of these components, the data plane proxy primarily needs to interact with Pilot and Citadel.
  
-**Pilot** is a gRRPC based xDS server and provides configuration data to proxies. Citrix provides an xDS client called `xDS-adaptor` to communicate with this Istio control plane component for installing Citrix ADCs in Istio service mesh. It acts as a gRPC client to the control plane API server and listens to updates. Based on the updates from the control plane, `xDS-adaptor` generates the equivalent Citrix ADC configuration. Then, it configures the Citrix ADC ingress or proxy device accordingly.
+**Pilot** is a gRRPC based xDS server and provides configuration data to proxies. Citrix provides an xDS client called `xDS-adaptor` to communicate with the Istio control plane for installing Citrix ADCs in Istio service mesh. It acts as a gRPC client to the control plane API server and listens to updates. Based on the updates from the control plane, `xDS-adaptor` generates the equivalent Citrix ADC configuration. Then, it configures the Citrix ADC ingress or proxy device accordingly.
 
 **Citadel** is a control plane service which provides key and certificate management. It is responsible for providing TLS certificates to data plane proxies. Citrix `xDS-adaptor` monitors secrets managed by Citadel, and updates the Citrix ADC proxy with relevant details.
 
@@ -44,11 +44,11 @@ For detailed instructions on how to deploy Citrix ADC CPX as an Ingress Gateway,
 
 Citrix ADC VPX or MPX can be deployed as an Ingress Gateway to the Istio service mesh. In this deployment, a Kubernetes pod is deployed with an `xDS-adaptor` container. The `xDS-adaptor` container connects to the Istio control pane and reads the ingress configuration and then configures the Citrix ADC VPX or MPX accordingly.
 
-**Note:** For this deployment, you should establish the connectivity between the concerned Citrix ADC and the cluster nodes.
+**Note:** For this deployment, establish the connectivity between the concerned Citrix ADC and the cluster nodes.
 
 The following diagram shows a sample deployment of Citrix ADC VPX/MPX as an Ingress Gateway.
 
-![vpx-ingress](../media/vpx-ingress.jpeg)
+![VPX ingress](../media/vpx-ingress.jpeg)
 
 For detailed instructions on how to deploy Citrix ADC VPX or MPX as an Ingress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
 
@@ -61,7 +61,7 @@ The `xDS-adaptor` container listens to updates from the Istio control plane and 
 
 The following diagram shows a sample deployment of Citrix ADC CPXs as sidecars.
 
-![cpx-proxy](../media/cpx-proxy.jpeg)
+![CPX proxy](../media/cpx-proxy.jpeg)
 
 For detailed instructions on how to deploy Citrix ADC CPX as a sidecar, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
 
@@ -71,6 +71,6 @@ An Egress Gateway defines the traffic exit point from a service mesh. Citrix ADC
 
 The following diagram shows a sample deployment of Citrix ADC CPX as an Egress Gateway.
 
-![cpx-egress](../media/cpx-egress.png)
+![CPX egress](../media/cpx-egress.png)
 
 For detailed instructions on how to deploy Citrix ADC CPX as an Egress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).

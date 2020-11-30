@@ -4,7 +4,7 @@ For licensing Citrix ADC CPX, you need to provide the following information in t
 
 -  **LS_IP (License Server IP)** – Specify the License Server IP address(for example: Citrix ADM IP address).
 
--  **LS_PORT (License Server Port)** – Specifying the License Server port is not mandatory. You must specify the ADM port only if you have changed the port. The default port is 27000.
+-  **LS_PORT (License Server Port)** – Specifying the License Server port is not mandatory. Specify the ADM port only if you have changed the port. The default port is 27000.
 
 
 

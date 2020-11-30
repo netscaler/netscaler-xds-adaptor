@@ -1,7 +1,6 @@
 **Certificate Signing Request Issue in an RKE cluster hosted on a cloud provider**
 
-
-Sometimes, an issue is reported in which even though the certificate signing request (CSR) is approved by the certificate controller, the certificate is not shown in the status. This topic explains how to troubleshoot this issue in a Rancher managed Kubernetes cluster.
+Sometimes, even though the certificate signing request (CSR) is approved by the certificate controller, the certificate is not shown in the status. This topic explains how to troubleshoot this issue in a Rancher managed Kubernetes cluster.
 
 - Environment: Kubernetes cluster created by RKE in a cloud provider.
 
@@ -35,5 +34,5 @@ Following is a workaround suggested in the Kubernetes documentation to resolve t
         cluster-signing-cert-file: "/etc/kubernetes/ssl/kube-ca.pem"
         cluster-signing-key-file: "/etc/kubernetes/ssl/kube-ca-key.pem"
  	```
-For more details of kube-controllers services default options in RKE, Please follow the link of [Rancher documentation](https://rancher.com/docs/rke/latest/en/config-options/services/#kubernetes-controller-manager).
+For more information on kube-controllers services default options in RKE, see [Rancher documentation](https://rancher.com/docs/rke/latest/en/config-options/services/#kubernetes-controller-manager).
 
