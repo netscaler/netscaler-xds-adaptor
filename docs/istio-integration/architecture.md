@@ -8,7 +8,7 @@ For detailed information on Istio architecture and different components, see [Is
 
 The Istio control plane is a set of gRPC based services and it pushes configuration changes to clients listening at the data plane. Pilot, Mixer, Galley, and Citadel are important control plane components. Out of these components, the data plane proxy primarily needs to interact with Pilot and Citadel.
  
-**Pilot** is a gRRPC based xDS server and provides configuration data to proxies. Citrix provides an xDS client called `xDS-adaptor` to communicate with the Istio control plane for installing Citrix ADCs in Istio service mesh. It acts as a gRPC client to the control plane API server and listens to updates. Based on the updates from the control plane, `xDS-adaptor` generates the equivalent Citrix ADC configuration. Then, it configures the Citrix ADC ingress or proxy device accordingly.
+**Pilot** is a gRPC based xDS server and provides configuration data to proxies. Citrix provides an xDS client called `xDS-adaptor` to communicate with the Istio control plane for installing Citrix ADCs in Istio service mesh. It acts as a gRPC client to the control plane API server and listens to updates. Based on the updates from the control plane, `xDS-adaptor` generates the equivalent Citrix ADC configuration. Then, it configures the Citrix ADC ingress or proxy device accordingly.
 
 **Citadel** is a control plane service which provides key and certificate management. It is responsible for providing TLS certificates to data plane proxies. Citrix `xDS-adaptor` monitors secrets managed by Citadel, and updates the Citrix ADC proxy with relevant details.
 
