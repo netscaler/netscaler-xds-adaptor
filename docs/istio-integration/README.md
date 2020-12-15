@@ -79,7 +79,7 @@ The `xDS-adaptor` monitors the folder where a service mesh deploys certificates 
 
 ### Observability
 
-When a service is deployed in a service mesh, you are interested to get insights about the service behavior. Citrix ADC proxy provides a rich set of in-built metrics to provide insights about the service behavior. When Citrix ADC CPX is deployed as a sidecar, these metrics represent the telemetry data for an application. It helps to reduce the burden of application developers by eliminating the need to include many instrumentation codes in the application. Instead, the developer can focus on the core application logic.
+When a service is deployed in a service mesh, you may be interested to get insights about the service behavior. Citrix ADC proxy provides a rich set of in-built metrics to provide insights about the service behavior. When Citrix ADC CPX is deployed as a sidecar, these metrics represent the telemetry data for an application. It helps to reduce the burden of application developers by eliminating the need to include a lot of instrumentation codes in the application. Instead, the developer can focus on the core application logic.
 
 Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to endpoints such as Prometheus, Zipkin, Kafka, and so on.
 
