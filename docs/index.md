@@ -18,4 +18,4 @@ In an Istio service mesh, a sidecar proxy runs alongside application pods and it
 
 ## Citrix ADC CPX as an Egress Gateway for Istio
 
-An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC CPX as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh, and provides routing rules to exit the Istio service mesh.
+An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC CPX as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh. It also provides routing rules to exit the Istio service mesh.
