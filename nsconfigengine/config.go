@@ -163,7 +163,6 @@ func GetNSCompatibleNameByLen(entityName string, length int) string {
 	return name
 }
 
-
 func getValueString(obj map[string]interface{}, name string) (string, error) {
 	if valI, ok := obj[name]; ok {
 		if val, ok1 := valI.(string); ok1 {

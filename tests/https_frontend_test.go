@@ -211,7 +211,6 @@ func Test_https_frontendInline(t *testing.T) {
 	}
 
 	err = grpcServer.UpdateSpanshotCache("3", discoveryClient.GetNodeID(), listener, route, cluster, endpoint)
-	t.Logf("SUBASH UPDATE SNAPSHOT")
 	if err != nil {
 		t.Errorf("updateSpanshotCache failed with %v", err)
 	}

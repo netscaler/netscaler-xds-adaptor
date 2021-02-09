@@ -16,6 +16,7 @@ package adsclient
 import (
 	"citrix-xds-adaptor/tests/env"
 	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -83,6 +84,9 @@ func Test_bootstrapConfig(t *testing.T) {
 	nsinfo.LicenseServerIP = licenseserverip
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
 	nsinfo.adsServerPort = "15010"
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
 	configAd, err := newConfigAdaptor(nsinfo)
 	if err != nil {
 		t.Errorf(" %s  %v", configAdaptorerrorlog, err)
@@ -198,5 +202,75 @@ func Test_bootstrapConfig(t *testing.T) {
 	err = env.VerifyConfigBlockPresence(configAd.client, configs)
 	if err != nil {
 		t.Errorf("Config verification failed for logproxy config, error %v", err)
+	}
+}
+
+func Test_getBoolEnv(t *testing.T) {
+	os.Setenv("EMPTY_VAR", "")
+	os.Setenv("TRUE_VAR", "1")
+	os.Setenv("FALSE_VAR", "f")
+	os.Setenv("INVALID_VAR", "helloworld")
+
+	tc := map[string]struct {
+		envVar    string
+		expOutput bool
+	}{
+		"empty-env": {
+			envVar:    "EMPTY_VAR",
+			expOutput: false,
+		},
+		"true-env": {
+			envVar:    "TRUE_VAR",
+			expOutput: true,
+		},
+		"false-env": {
+			envVar:    "FALSE_VAR",
+			expOutput: false,
+		},
+		"invalid-var": {
+			envVar:    "INVALID_VAR",
+			expOutput: false,
+		},
+	}
+
+	for id, c := range tc {
+		if c.expOutput != getBoolEnv(c.envVar) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("Succeed for %s", id)
+		}
+	}
+}
+
+//func getIntEnv(key string) int
+func Test_getIntEnv(t *testing.T) {
+	os.Setenv("EMPTY_VAR", "")
+	os.Setenv("VALID_VAR", "10001")
+	os.Setenv("INVALID_VAR", "helloworld")
+
+	tc := map[string]struct {
+		envVar    string
+		expOutput int
+	}{
+		"empty-env": {
+			envVar:    "EMPTY_VAR",
+			expOutput: -1,
+		},
+		"valid-env": {
+			envVar:    "VALID_VAR",
+			expOutput: 10001,
+		},
+		"invalid-var": {
+			envVar:    "INVALID_VAR",
+			expOutput: -1,
+		},
+	}
+
+	for id, c := range tc {
+		if c.expOutput != getIntEnv(c.envVar) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("Succeed for %s", id)
+		}
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/chiradeep/go-nitro/config/basic"
 	"github.com/chiradeep/go-nitro/config/lb"
 	"github.com/chiradeep/go-nitro/config/ns"
+	"github.com/chiradeep/go-nitro/config/policy"
 	"github.com/chiradeep/go-nitro/netscaler"
 )
 
@@ -33,6 +34,13 @@ type LBMonitor struct {
 	IntervalUnits string // Units of Interval field.
 	DownTime      int    // baseEjectionTime of Istio's OD
 	DownTimeUnits string // Units of DownTime
+}
+
+// StringMapBinding specifies stringmap and lb-vserver binding
+type StringMapBinding struct {
+	StringMapName string // Policy stringmap entity's name
+	Key           string // Key field will correspond to key of policystringmap_pattern_binding Nitro resource
+	Value         string // Value field will correspond to value of policystringmap_pattern_binding Nitro resource
 }
 
 // LBApi specifies the attributes associated with a load balancng entity on the Citrix-ADC
@@ -48,6 +56,7 @@ type LBApi struct {
 	BackendTLS                []SSLSpec
 	LbMonitorObj              *LBMonitor
 	AutoScale                 bool // Whether desired state API can be used here or not
+	StringMapBindingObj       *StringMapBinding
 }
 
 type timeUnit int
@@ -137,7 +146,8 @@ func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 	log.Printf("[TRACE] LBApi add: %s", GetLogString(lbObj))
 	var sg map[string]interface{}
 	confErr := newNitroError()
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), lbObj.Name, lb.Lbvserver{Name: lbObj.Name, Servicetype: lbObj.FrontendServiceType, Lbmethod: lbObj.LbMethod}, "add"}, nil, nil))
+	lbInst := lb.Lbvserver{Name: lbObj.Name, Servicetype: lbObj.FrontendServiceType, Lbmethod: lbObj.LbMethod}
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), lbObj.Name, lbInst, "add"}, nil, []nitroConfig{{netscaler.Lbvserver.Type(), lbObj.Name, nil, "delete"}, {netscaler.Lbvserver.Type(), lbObj.Name, lbInst, "add"}}))
 	httpProfileName := "nshttp_default_profile"
 	if lbObj.MaxHTTP2ConcurrentStreams != 0 {
 		httpProfileName = "nshttp_profile_" + fmt.Sprint(lbObj.MaxHTTP2ConcurrentStreams)
@@ -177,6 +187,10 @@ func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, lb.Lbmonitor{Monitorname: lbMonName, Type: "HTTP-INLINE", Action: "DOWN", Respcode: []int{200}, Httprequest: "HEAD /", Retries: lbObj.LbMonitorObj.Retries, Interval: lbObj.LbMonitorObj.Interval, Units2: lbObj.LbMonitorObj.IntervalUnits, Downtime: lbObj.LbMonitorObj.DownTime, Units3: lbObj.LbMonitorObj.DownTimeUnits}, "add"}, []string{"Resource already exists"}, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup_lbmonitor_binding.Type(), lbObj.Name, basic.Servicegrouplbmonitorbinding{Servicegroupname: lbObj.Name, Monitorname: lbMonName}, "add"}, []string{"The monitor is already bound to the service"}, nil))
 	}
+	// Add stringmap binding
+	if lbObj.StringMapBindingObj != nil {
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policystringmap_pattern_binding.Type(), lbObj.StringMapBindingObj.StringMapName, policy.Policystringmappatternbinding{Name: lbObj.StringMapBindingObj.StringMapName, Key: lbObj.StringMapBindingObj.Key, Value: lbObj.StringMapBindingObj.Value}, "add"}, nil, nil))
+	}
 	return confErr.getError()
 }
 
@@ -193,6 +207,10 @@ func (lbObj *LBApi) Delete(client *netscaler.NitroClient) error {
 	// Get rid of HTTP-Inline lbmonitor also if present.
 	lbMonName := getLbMonName(lbObj.Name)
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, map[string]string{"monitorname": lbMonName, "type": "HTTP-INLINE"}, "delete"}, []string{"No such resource"}, nil))
+	// Get key of stringmapbinding
+	if lbObj.StringMapBindingObj != nil {
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policystringmap_pattern_binding.Type(), lbObj.StringMapBindingObj.StringMapName, policy.Policystringmappatternbinding{Name: lbObj.StringMapBindingObj.StringMapName, Key: lbObj.StringMapBindingObj.Key}, "delete"}, nil, nil))
+	}
 	return confErr.getError()
 }
 

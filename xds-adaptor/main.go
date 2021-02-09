@@ -191,14 +191,21 @@ func main() {
 			os.Exit(1)
 		}
 		cainfo.CertTTL = time.Duration(val) * time.Hour
+		/* Remove earlier certficate files provided CSR is enabled */
+		/* Wait for connection establishment with xDS server till fresh certificates are not created, else certificates get changed after receiving xDS resources. */
+		if _, err := os.Stat(adsclient.ClientCertFile); err == nil {
+			os.Remove(adsclient.ClientCertChainFile)
+			os.Remove(adsclient.ClientCertFile)
+			os.Remove(adsclient.ClientKeyFile)
+		}
 	}
 
 	discoveryClient, err := adsclient.NewAdsClient(adsinfo, nsinfo, cainfo)
 	if err != nil {
-		log.Printf("[ERROR] Unable to initialize ADS client: %v", err)
+		fmt.Printf("Unable to initialize ADS client: %v\n", err)
 		os.Exit(1)
 	}
-
+	log.Printf("[INFO] xds-adaptor version: %s %s", xdsAdaptorVersion, lastCommitID)
 	discoveryClient.StartClient()
 	<-make(chan int)
 }

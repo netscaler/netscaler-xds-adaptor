@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,7 @@ import (
 	"github.com/chiradeep/go-nitro/config/lb"
 	"github.com/chiradeep/go-nitro/config/network"
 	"github.com/chiradeep/go-nitro/config/ns"
+	"github.com/chiradeep/go-nitro/config/policy"
 	"github.com/chiradeep/go-nitro/config/responder"
 	"github.com/chiradeep/go-nitro/config/ssl"
 	"github.com/chiradeep/go-nitro/config/tm"
@@ -75,6 +78,40 @@ type configAdaptor struct {
 	analyticsProfiles []string // Two analyticspofile needed. One for TCP Insight, one for Web Insight
 	localHostVIP      string
 	caServerPort      string
+}
+
+var (
+	multiClusterIngress    = getBoolEnv("MULTICLUSTER_INGRESS")
+	multiClusterStringMap  = "multiClusterStringMap"
+	multiClusterExpression = "multiClusterExpression"
+	multiClusterPolExprStr = os.Getenv("MULTICLUSTER_SVC_DOMAIN") //".global"
+	multiClusterListenPort = getIntEnv("MULTICLUSTER_LISTENER_PORT")
+)
+
+func getBoolEnv(key string) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return false
+	}
+	ret, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		return false
+	}
+	return ret
+}
+
+func getIntEnv(key string) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return -1
+	}
+	ret, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		return -1
+	}
+	return ret
 }
 
 // Check if the given ADC is CPX or VPX/MPX
@@ -234,6 +271,17 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 		{ResourceType: netscaler.Sslcert.Type(), ResourceName: "dummy_xds_cert", Resource: ssl.Sslcert{Certfile: "dummy_xds_cert", Reqfile: "dummy_xds_cert_req", Certtype: "ROOT_CERT", Keyfile: "dummy_xds_key"}, Operation: "create", IgnoreErrors: []string{"File already exists"}},
 	}
 	configs = append(configs, dummySslCertConfigs...)
+	// Config related to multiCluster Ingress gateway
+	if multiClusterIngress == true {
+		// Policy stringmap name and policy expression name should not be same.
+		expr := "HTTP.REQ.HOSTNAME.BEFORE_STR(\"" + multiClusterPolExprStr + "\").MAP_STRING(\"" + multiClusterStringMap + "\")"
+		multiClusterGWConfig := []nsconfigengine.NsConfigEntity{
+			{ResourceType: netscaler.Policystringmap.Type(), ResourceName: multiClusterStringMap, Resource: policy.Policystringmap{Name: multiClusterStringMap, Comment: "Stringmap to select LB vserver from servicename"}, Operation: "add"},
+			{ResourceType: netscaler.Policyexpression.Type(), ResourceName: multiClusterExpression, Resource: policy.Policyexpression{Name: multiClusterExpression, Value: expr}, Operation: "add"},
+		}
+		configs = append(configs, multiClusterGWConfig...)
+	}
+
 	err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 	return err
 }

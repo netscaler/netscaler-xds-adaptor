@@ -14,7 +14,7 @@ The Istio control plane is a set of gRPC based services and it pushes configurat
 
 Citrix service mesh solution provides a container, [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter), which collects the statistical data from Citrix ADC Ingress Gateway device and exports it to [Prometheus](https://prometheus.io).
 
-Citrix also provides its own in-house solution [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) for the telemetry purpose. Citrix ADC CPX running as a sidecar proxy interacts with the Citrix ADC Observability Exporter. Citrix ADC CPX sends metrics and transactions to Citrix ADC Observability Exporter. Citrix ADC Observability Exporter supports endpoints such as Zipkin and Prometheus, and sends the data collected from sidecar proxies to these endpoints in an appropriate format.
+Citrix also provides its own in-house solution [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) for the telemetry purpose. Citrix ADC CPX running as a sidecar proxy interacts with the Citrix Observability Exporter (COE). Citrix ADC CPX sends metrics and transactions to COE. COE supports endpoints such as Zipkin and Prometheus, and sends the data collected from sidecar proxies to these endpoints in an appropriate format.
 
 Citrix ADC can be integrated with Istio in three ways:
 

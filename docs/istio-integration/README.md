@@ -4,13 +4,13 @@ A service mesh is an infrastructure layer that handles communication between mic
 
 Citrix ADC can be integrated with Istio in three ways:
 
-- Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh.
+- Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh. 
 - Citrix ADC CPX as a sidecar proxy with application containers in the service mesh.
 - Citrix ADC CPX as an Egress Gateway for the service mesh.
 
 ## Citrix ADC as an Ingress Gateway for Istio
 
-An Istio ingress gateway acts as an entry point for the incoming traffic and secures and controls access to the service mesh from outside. It also performs routing and load balancing. Citrix ADC CPX, MPX, or VPX can be deployed as an ingress gateway to the Istio service mesh.
+An Istio ingress gateway acts as an entry point for the incoming traffic and secures and controls access to the service mesh from outside. It also performs routing and load balancing. Citrix ADC CPX, MPX, or VPX can be deployed as an ingress gateway to the Istio service mesh. Citrix ADC also works as Ingress gateway for multi-cluster Istio mesh.
 
 ## Citrix ADC CPX as a sidecar proxy for Istio
 
@@ -26,7 +26,7 @@ For more information on the deployment architecture for integrating Citrix ADC w
 
 ## <a name="deployment-options">Deployment Options</a>
 
-In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress Gateway, and/or sidecar proxy in the data plane. You can also use Citrix ADC as an Ingress and/or Egress Gateway for services deployed with or without sidecar (sidecar can be Citrix ADC CPX or Envoy). The following table provides information about the working combinations of Citrix ADC and Envoy proxy.
+In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress Gateway, and/or sidecar proxy in the data plane. You can also use Citrix ADC as an Ingress and/or Egress Gateway for services deployed with or without sidecar (sidecar can be Citrix CPX or Envoy). The following table provides information about the working combinations of Citrix ADC and Envoy proxy.
 
 | Ingress Gateway | Sidecar Proxy | Egress Gateway| Supported |
 |-----------------|---------------|---------------|-----------|
@@ -38,6 +38,8 @@ In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress G
 | Envoy proxy | Citrix ADC CPX| Envoy proxy | Yes |
 
 To deploy Citrix ADC with Istio using Helm charts, see [Deployment](../istio-integration/deploy-istio-adaptor-helm-chart.md).
+
+**Note**: _Citrix ADC deployed as Ingress gateway in multi cluster Istio service mesh works only with Citrix ADC CPXs acting as sidecars._
 
 ## Features
 
@@ -81,12 +83,12 @@ The `xDS-adaptor` monitors the folder where a service mesh deploys certificates 
 
 When a service is deployed in a service mesh, you may be interested to get insights about the service behavior. Citrix ADC proxy provides a rich set of in-built metrics to provide insights about the service behavior. When Citrix ADC CPX is deployed as a sidecar, these metrics represent the telemetry data for an application. It helps to reduce the burden of application developers by eliminating the need to include a lot of instrumentation codes in the application. Instead, the developer can focus on the core application logic.
 
-Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to endpoints such as Prometheus, Zipkin, Kafka, and so on.
+Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to endpoints such as Prometheus, Zipkin, Kafka, and so on.
 
 The statistical data of a Citrix ADC ingress device can be exported to the Prometheus using [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter).
 
-[Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice that collects metrics from Citrix ADCs, and export them to endpoints such as Zipkin, Kafka, and Prometheus.
-For more information about Citrix ADC Observability Exporter, see [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) documentation.
+[Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice that collects metrics from Citrix ADCs, and export them to endpoints such as Zipkin, Kafka, and Prometheus.
+For more information about Citrix Observability Exporter, see [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) documentation.
 
 #### Telemetry in an Ingress or Egress Gateway
 
@@ -94,7 +96,7 @@ For more information about Citrix ADC Observability Exporter, see [Citrix ADC Ob
 
 #### Telemetry and distributed tracing in sidecar proxies
 
-Citrix ADC CPX with Citrix ADC Observability Exporter (COE) can export metrics to Prometheus that is deployed in a service mesh. You can visualize this data in Grafana.
+Citrix ADC CPX with Citrix Observability Exporter (COE) can export metrics to Prometheus that is deployed in a service mesh. You can visualize this data in Grafana.
 
 Citrix ADC CPX sends transactional data to COE which, eventually, exports these traces spans to [Zipkin](https://zipkin.io). This distributed tracing enables you to track a service-to-service communication within a service mesh. It helps to get deeper understanding about request latency, serialization, and parallelism.
 

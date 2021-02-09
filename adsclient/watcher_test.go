@@ -69,17 +69,17 @@ func Test_addDir(t *testing.T) {
 	w, err := newWatcher(configAdaptor)
 	if err == nil {
 		for _, c := range cases {
-			err := w.addDir(c.certName, c.keyName)
+			_, _, _, err := w.addDir(c.certName, c.keyName)
 			if err != nil {
 				t.Errorf(" Exepected: File Added for watch successfully but got failed")
 			}
-			err = w.addDir(c.certName, c.keyName)
+			_, _, _, err = w.addDir(c.certName, c.keyName)
 			if err != nil {
 				t.Errorf("Expected False but got True while adding same cert and key")
 			}
 		}
 	}
-	err = w.addDir("/etc/file1/file.cert", "")
+	_, _, _, err = w.addDir("/etc/file1/file.cert", "")
 	if err != nil {
 		er := errors.New("no such file or directory")
 		if err.Error() != er.Error() {
@@ -109,18 +109,14 @@ func Test_run(t *testing.T) {
 	certPath := "/tmp/adsclienttest/app1.500.rotationroot.com.crt"
 	keyPath := "/tmp/adsclienttest/app1.500.rotationroot.com.key"
 	rootCertPath := "/tmp/adsclienttest/rootCA.crt"
-	certName := nsconfigengine.GetSslCertkeyName(certPath)
-	keyName := nsconfigengine.GetSslCertkeyName(keyPath) + "_key"
-	rootCertName := nsconfigengine.GetSslCertkeyName(rootCertPath)
-	t.Logf("Test UploadCert")
-	err = nsconfigengine.UploadCert(configAdaptor.client, certPath, certName, keyPath, keyName)
-	if err != nil {
-		t.Errorf("Cert upload failed - %v", err)
-	}
-	err = nsconfigengine.UploadCert(configAdaptor.client, rootCertPath, rootCertName, "", "")
-	if err != nil {
-		t.Errorf(" Root Cert upload failed - %v", err)
-	}
+	certData, keyData, err := getCertKeyData(certPath, keyPath)
+	certName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	keyName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
+	rootCertData, _, err := getCertKeyData(rootCertPath, "")
+	rootCertName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(rootCertData)), 55)
+	t.Logf("Test UploadCert %s %s %s", certName, keyName, rootCertName)
+	_, _, _, err = w.addDir(certPath, keyPath)
+	_, _, _, err = w.addDir(rootCertPath, "")
 	t.Logf("Add certkey")
 	_, err = configAdaptor.client.AddResource(netscaler.Sslcertkey.Type(), certName, ssl.Sslcertkey{Certkey: certName, Cert: "/nsconfig/ssl/" + certName, Key: "/nsconfig/ssl/" + keyName})
 	if err != nil {
@@ -144,14 +140,14 @@ func Test_run(t *testing.T) {
 	if err = env.CopyFileContents("../tests/certs/certrotation/app1.1000.rotationroot.com.key", keyPath); err != nil {
 		t.Errorf("Could not copy file. Error: %s", err.Error())
 	}
-	err = w.addDir(certPath, keyPath)
-	err = w.addDir(rootCertPath, "")
 	go w.Run()
 	os.RemoveAll("/tmp/adsclienttest/.Test..")
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
+	certData, keyData, _ = getCertKeyData(certPath, keyPath)
+	certName = nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	certKey, errF = configAdaptor.client.FindResource(netscaler.Sslcertkey.Type(), certName)
 	if errF != nil {
-		t.Errorf("ssl certkey 'cert1' not found on netscaler")
+		t.Errorf("ssl certkey %s not found on netscaler", certName)
 	}
 	daystoexpire2, errE2 := getValueInt(certKey, "daystoexpiration")
 	if errE2 != nil {
@@ -161,4 +157,15 @@ func Test_run(t *testing.T) {
 		t.Errorf("Certificate not updated correctly. DaysToExpire remains same - %d", daystoexpire2)
 	}
 	os.RemoveAll("/tmp/adsclienttest")
+}
+
+func Test_getCertKeyData(t *testing.T) {
+	_, _, err := getCertKeyData("../tests/certs/certrotation/app1.1000.rotationroot.com.crt", "/etc/root/cert.pem")
+	if err == nil {
+		t.Errorf("FAILED Expected ERROR")
+	}
+	_, _, err = getCertKeyData("/etc/certs", "")
+	if err == nil {
+		t.Errorf("FAILED Expected ERROR")
+	}
 }

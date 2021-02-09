@@ -268,10 +268,10 @@ func (ckh *CertKeyHandler) updateCertsAndKey() {
 		log.Println("[TRACE] Empty certificate chain. Create certificate chain from cert file and rootcert file")
 		certChainBytes = append(certBytes, rcBytes...)
 	}
-	_ = writeToFile(ckh.CertChainFile, certChainBytes)
 	// Update key and certificate files
-	_ = writeToFile(ckh.CertFile, certBytes)
 	_ = writeToFile(ckh.KeyFile, privKeyBytes)
+	_ = writeToFile(ckh.CertFile, certBytes)
+	_ = writeToFile(ckh.CertChainFile, certChainBytes)
 }
 
 // StartHandler function starts the certificate-key handler and establishes connection with CA

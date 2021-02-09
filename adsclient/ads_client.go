@@ -172,13 +172,16 @@ func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 			continue
 		}
 		clusterNames[cdsResource.Name] = true
+		edsName := ""
 		if _, ok := client.apiRequests[cdsURL].resources[cdsResource.Name]; ok {
-			edsName := client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, client.apiRequests[cdsURL].resources[cdsResource.Name])
-			if edsName != "" {
-				edsResources[edsName] = cdsResource.Name
-				if _, ok1 := client.apiRequests[edsURL].resources[edsName]; !ok1 {
-					requestEds = true
-				}
+			edsName = client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, client.apiRequests[cdsURL].resources[cdsResource.Name])
+		} else {
+			edsName = client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, "HTTP")
+		}
+		if edsName != "" {
+			edsResources[edsName] = cdsResource.Name
+			if _, ok := client.apiRequests[edsURL].resources[edsName]; !ok {
+				requestEds = true
 			}
 		}
 	}
@@ -452,6 +455,7 @@ func (client *AdsClient) StartClient() {
 					rdsURL: &apiRequest{typeURL: rdsURL, handler: rdsHandler, resources: make(map[string]interface{})},
 				}
 				client.writeADSRequest(client.apiRequests[ldsURL])
+				client.writeADSRequest(client.apiRequests[cdsURL])
 				client.readADSResponse()
 				client.stopClientConnection(true)
 			}

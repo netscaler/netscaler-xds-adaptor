@@ -72,7 +72,7 @@ func Test_CSApi_http(t *testing.T) {
 func Test_CSApi_http_tls(t *testing.T) {
 	csObj := NewCSApi("cs2", "SSL", "2.2.1.1", 8443)
 	csObj.AllowACL = false
-	csObj.FrontendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.crt", PrivateKeyFilename: "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.key", SNICert: true}}
+	csObj.FrontendTLS = []SSLSpec{{CertFilename: "certssvc2_svc2", PrivateKeyFilename: "certssvc2_svc2_key", SNICert: true}}
 	client := env.GetNitroClient()
 	t.Logf("Test CSApi Add")
 	UploadCert(client, "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.crt", "certssvc2_svc2", "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.key", "certssvc2_svc2_key")

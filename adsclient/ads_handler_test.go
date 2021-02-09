@@ -18,6 +18,13 @@ import (
 	"citrix-xds-adaptor/tests/env"
 	"container/list"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"reflect"
+	"sort"
+	"testing"
+
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	v2Cluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
@@ -34,18 +41,14 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
-	"io/ioutil"
 	"istio.io/istio/pilot/pkg/networking/util"
 	"istio.io/istio/pkg/util/gogo"
-	"log"
-	"reflect"
-	"sort"
-	"testing"
 )
 
 const (
 	serverCert = "/etc/certs/server-cert.crt"
 	serverKey  = "/etc/certs/server-key.key"
+	certDir    = "/etc/certs"
 )
 
 func Test_extractPortAndDomainName(t *testing.T) {
@@ -139,11 +142,22 @@ func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resour
 }
 
 func Test_clusterAdd(t *testing.T) {
-	certFileName := "/etc/certs/server-cert.crt"
-	keyFileName := "/etc/certs/server-key.key"
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
+	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
+	//certFileName := "/etc/certs/server-cert.crt"
+	//keyFileName := "/etc/certs/server-key.key"
+	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
-
+	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
 	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
@@ -154,7 +168,7 @@ func Test_clusterAdd(t *testing.T) {
 	lbObj.LbMonitorObj.DownTime = 7
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	lbObj.AutoScale = true
-	err := verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
+	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -178,7 +192,7 @@ func Test_clusterAdd(t *testing.T) {
 	lbObj.MaxConnections = 500
 	lbObj.MaxRequestsPerConnection = 100
 	lbObj.MaxHTTP2ConcurrentStreams = 750
-	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: certFileName, PrivateKeyFilename: keyFileName}}
+	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}
 	lbObj.LbMonitorObj = nil
 	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
@@ -195,6 +209,9 @@ func Test_clusterAdd(t *testing.T) {
 }
 
 func Test_clusterDel(t *testing.T) {
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
 	lbObj := &nsconfigengine.LBApi{Name: "c2"}
 	nsConfAdaptor := getNsConfAdaptor()
 	clusterDel(nsConfAdaptor, "c2")
@@ -241,10 +258,40 @@ func Test_isLogProxyEndpoint(t *testing.T) {
 	}
 }
 func Test_listenerAdd(t *testing.T) {
-	certFileName := "/etc/certs/server-cert.crt"
-	keyFileName := "/etc/certs/server-key.key"
+	//certFileName := "/etc/certs/server-cert.crt"
+	//keyFileName := "/etc/certs/server-key.key"
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
+	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
+	rootCertFile := "../tests/tls_conn_mgmt_certs/client-root-cert.pem"
+	certChainFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
+	certFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
+	keyFile := "../tests/tls_conn_mgmt_certs/key.pem"
 	nsConfAdaptor := getNsConfAdaptor()
+	nsConfAdaptor.client = env.GetNitroClient()
+	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	t.Logf("HTTP listener add")
+	err = os.MkdirAll(certDir, 0777)
+	if err != nil {
+		t.Errorf("Could not create directory /etc/certs")
+	}
+	err = env.SetCertEnv(certDir, rootCertFile, certChainFile, certFile, keyFile)
+	if err != nil {
+		t.Errorf("Could not create certificate environment. %s", err.Error())
+	}
+	certData, keyData, err = env.GetCertKeyData(certChainFile, keyFile)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	lds, err := env.MakeHttpListener("l1", "10.0.0.0", 80, "r1")
 	if err != nil {
 		t.Errorf("MakeHttpListener failed with %v", err)
@@ -270,7 +317,7 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
-	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l3s", IP: "30.2.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: ClientCertFile, PrivateKeyFilename: ClientKeyFile, RootCertFilename: CAcertFile}}}}
+	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l3s", IP: "30.2.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertName, PrivateKeyFilename: nsKeyName, RootCertFilename: nsCertName + "_ic1"}}}}
 	err = verifyObject(nsConfAdaptor, ldsAdd, "l3s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l3s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
@@ -281,7 +328,7 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
-	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l2s", IP: "30.0.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: certFileName, PrivateKeyFilename: keyFileName}}}}
+	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l2s", IP: "30.0.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}}}
 	err = verifyObject(nsConfAdaptor, ldsAdd, "l2s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l2s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
@@ -291,7 +338,7 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
-	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l1s", IP: "30.0.0.0", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: certFileName, PrivateKeyFilename: keyFileName}}}}
+	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l1s", IP: "30.0.0.0", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}}}
 	err = verifyObject(nsConfAdaptor, ldsAdd, "l1s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l1s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
@@ -303,17 +350,17 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("MakeHttpFilter failed %v", err)
 	}
-	fc1 := env.MakeFilterChain("1.1.1.1", 32, 9090, "f1", f1)
+	fc1 := env.MakeFilterChain("1.1.1.1", 32, 9090, "", "f1", f1)
 	f2, err := env.MakeHttpFilter("lm1", "r2", nil)
 	if err != nil {
 		t.Errorf("MakeHttpFilter failed %v", err)
 	}
-	fc2 := env.MakeFilterChain("2.1.1.1", 32, 9070, "f2", f2)
+	fc2 := env.MakeFilterChain("2.1.1.1", 32, 9070, "", "f2", f2)
 	f3, err := env.MakeTcpFilter("lm1", "c3")
 	if err != nil {
 		t.Errorf("MakeTcpFilter failed %v", err)
 	}
-	fc3 := env.MakeFilterChain("1.1.1.1", 32, 1010, "f3", f3)
+	fc3 := env.MakeFilterChain("1.1.1.1", 32, 1010, "", "f3", f3)
 	lds = env.MakeListenerFilterChains("lm1", "0.0.0.0", 15001, []*listener.FilterChain{fc1, fc2, fc3})
 	csObjExpLm1F1 := []*nsconfigengine.CSApi{
 		{Name: "lm1_f1", IP: "1.1.1.1", Port: 9090, VserverType: "HTTP", AllowACL: false},
@@ -340,6 +387,9 @@ func Test_listenerAdd(t *testing.T) {
 	err = verifyObject(nsConfAdaptor, ldsAdd, "lm1_f3", csObjExpLm1F3, listenerAddRetMapExp, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
+	}
+	if err := os.RemoveAll(certDir); err != nil {
+		t.Errorf("Could not delete /etc/certs")
 	}
 }
 
@@ -374,11 +424,19 @@ func Test_routeUpdate(t *testing.T) {
 }
 
 func Test_clusterAdd_transportSocket(t *testing.T) {
-	certFileName := "/etc/certs/server-cert.crt"
-	keyFileName := "/etc/certs/server-key.key"
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
+	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
+	//certFileName := "/etc/certs/server-cert.crt"
+	//`keyFileName := "/etc/certs/server-key.key"
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
-
+	nsConfAdaptor.client = env.GetNitroClient()
+	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	log.Println("HTTP cluster add")
 	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
@@ -389,7 +447,7 @@ func Test_clusterAdd_transportSocket(t *testing.T) {
 	lbObj.LbMonitorObj.DownTime = 7
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	lbObj.AutoScale = true
-	err := verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
+	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -424,7 +482,7 @@ func Test_clusterAdd_transportSocket(t *testing.T) {
 	lbObj.MaxConnections = 500
 	lbObj.MaxRequestsPerConnection = 100
 	lbObj.MaxHTTP2ConcurrentStreams = 750
-	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: certFileName, PrivateKeyFilename: keyFileName}}
+	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}
 	lbObj.LbMonitorObj = nil
 	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
@@ -453,7 +511,7 @@ func Test_clusterAddInline(t *testing.T) {
 	}
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
-
+	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
 	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
@@ -506,8 +564,27 @@ func Test_clusterAddInline(t *testing.T) {
 func Test_clusterAdd_SDS(t *testing.T) {
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
-
+	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
+	rootCertFile := "../tests/tls_conn_mgmt_certs/client-root-cert.pem"
+	certChainFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
+	certFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
+	keyFile := "../tests/tls_conn_mgmt_certs/key.pem"
+	err := os.MkdirAll(certDir, 0777)
+	if err != nil {
+		t.Errorf("Could not create directory /etc/certs")
+	}
+	err = env.SetCertEnv(certDir, rootCertFile, certChainFile, certFile, keyFile)
+	if err != nil {
+		t.Errorf("Could not create certificate environment. %s", err.Error())
+	}
+	certData, keyData, err := env.GetCertKeyData(certChainFile, keyFile)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
+
 	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
 	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
@@ -517,7 +594,7 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	lbObj.LbMonitorObj.DownTime = 7
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
 	lbObj.AutoScale = true
-	err := verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
+	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -552,7 +629,7 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	lbObj.MaxConnections = 500
 	lbObj.MaxRequestsPerConnection = 100
 	lbObj.MaxHTTP2ConcurrentStreams = 750
-	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: ClientCertFile, PrivateKeyFilename: ClientKeyFile, RootCertFilename: CAcertFile}}
+	lbObj.BackendTLS = []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertName, PrivateKeyFilename: nsKeyName, RootCertFilename: nsCertName + "_ic1"}}
 	lbObj.LbMonitorObj = nil
 	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "HTTP"))
 	if err != nil {
@@ -565,6 +642,9 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	err = verifyObject(nsConfAdaptor, cdsAdd, "c1", lbObj, "c1", clusterAdd(nsConfAdaptor, cds, "TCP"))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
+	}
+	if err := os.RemoveAll(certDir); err != nil {
+		t.Errorf("Could not delete /etc/certs")
 	}
 }
 
@@ -712,5 +792,201 @@ func Test_getFault(t *testing.T) {
 	compare = reflect.DeepEqual(expectedFault, outFault)
 	if compare == false {
 		t.Errorf("Expected PersistencyPolicy:%+v    Received PersistencyPolicy=%+v", expectedFault, outFault)
+	}
+}
+
+func Test_isEgressGateway(t *testing.T) {
+	testCases := map[string]struct {
+		input          string
+		expectedOutput bool
+	}{
+		"istio egressgateway case": {
+			input:          "outbound|443|cnn|istio-egressgateway.istio-system.svc.cluster.local",
+			expectedOutput: true,
+		},
+		"citrix egressgateway case": {
+			input:          "outbound|80||citrix-egressgateway.citrix-system.svc.cluster.local",
+			expectedOutput: true,
+		},
+		"not an egressgateway case": {
+			input:          "outbound|80||random-egressgateway.citrix-system.svc.cluster.local",
+			expectedOutput: false,
+		},
+	}
+
+	for id, c := range testCases {
+		if c.expectedOutput != isEgressGateway(c.input) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("%s successful", id)
+		}
+	}
+}
+
+//func getMultiClusterStringMapConfig(clusterName string) *nsconfigengine.StringMapBinding
+func Test_getMultiClusterStringMapConfig(t *testing.T) {
+	sMapBindingObj := new(nsconfigengine.StringMapBinding)
+	type EO struct {
+		retval *nsconfigengine.StringMapBinding
+		key    string
+		value  string
+	}
+	testCases := map[string]struct {
+		inClusterName string
+		expOutput     EO
+	}{
+		"valid-fqdn-cluster": {
+			"outbound|80||httpserver.xyz.svc.cluster.local",
+			EO{
+				sMapBindingObj,
+				"httpserver.xyz",
+				"outbound_80__httpserver_xyz_svc_cluster_local",
+			},
+		},
+		"invalid-fqdn-cluster": {
+			"invalid-name",
+			EO{
+				nil,
+				"",
+				"",
+			},
+		},
+		"invalid-suffix": {
+			"outbound|80||httpserver.xyz.svc.global",
+			EO{
+				nil,
+				"",
+				"",
+			},
+		},
+	}
+	for id, tc := range testCases {
+		output := getMultiClusterStringMapConfig(tc.inClusterName)
+		if output != nil {
+			if (output.Key == tc.expOutput.key) && (output.Value == tc.expOutput.value) {
+				t.Logf("Success for %s", id)
+			} else {
+				t.Errorf("Failed for %s. Expected: %v. Received: %v", id, tc.expOutput, output)
+			}
+		} else {
+			if tc.expOutput.retval == nil {
+				t.Logf("Success for %s", id)
+			} else {
+				t.Errorf("Failed for %s", id)
+			}
+		}
+	}
+}
+
+func Test_multiClusterListenerConfig(t *testing.T) {
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
+	rootCertFileName := "../tests/tls_conn_mgmt_certs/client-root-cert.pem"
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
+	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
+	nsConfAdaptor := getNsConfAdaptor()
+	nsConfAdaptor.client = env.GetNitroClient()
+	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
+	if err != nil {
+		t.Errorf("Failed reading Cert/Key- %v", err)
+	}
+	nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+	nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
+	t.Logf("Multicluster Ingress - SNI listener add")
+	err = os.MkdirAll(certDir, 0777)
+	if err != nil {
+		t.Errorf("Could not create directory /etc/certs")
+	}
+	err = env.SetCertEnv(certDir, rootCertFileName, certFileName, certFileName, keyFileName)
+	if err != nil {
+		t.Errorf("Could not create certificate environment. %s", err.Error())
+	}
+
+	snif1, err := env.MakeSniFilter("0.0.0.0_15443")
+	if err != nil {
+		t.Errorf("MakeSniFilter failed with %v", err)
+	}
+	t.Logf("CS Object verification (LDS add)")
+	snifc1 := env.MakeFilterChain("", 0, 0, multiClusterPolExprStr, "snif1", snif1)
+	lds := env.MakeListenerFilterChains("0.0.0.0_15443", "0.0.0.0", 15443, []*listener.FilterChain{snifc1})
+	csObj := []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "ns_0_0_0_0_15443", IP: "1.1.1.1", Port: 15443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}, FrontendTLSClientAuth: true}}
+	multiClusterListenerConfig(nsConfAdaptor, lds)
+	err = verifyObject(nsConfAdaptor, ldsAdd, "ns_0_0_0_0_15443", csObj, make([]map[string]interface{}, 0), make([]map[string]interface{}, 0))
+	if err != nil {
+		t.Errorf("Verification failed for CS object - %v", err)
+	}
+
+	t.Logf("CS Binding object verification (RDS Add)")
+	csBindings := nsconfigengine.NewCSBindingsAPI("ns_0_0_0_0_15443")
+	csBindings.Bindings = []nsconfigengine.CSBinding{
+		{
+			Rule: nsconfigengine.RouteMatch{
+				Domains: []string{multiClusterPolExprStr},
+			},
+			CsPolicy: nsconfigengine.CsPolicy{
+				Canary: []nsconfigengine.Canary{
+					{
+						TargetVserverExpr: multiClusterExpression,
+					},
+				},
+			},
+		},
+	}
+	//rds := env.MakeRoute("ns_0_0_0_0_15443", []env.RouteInfo{{Domain: "*.global"}})
+	err = verifyObject(nsConfAdaptor, rdsAdd, "ns_0_0_0_0_15443", csBindings, make([]map[string]interface{}, 0), make([]map[string]interface{}, 0))
+	if err != nil {
+		t.Errorf("Verification failed - %v", err)
+	}
+
+	// Cleanup certificate directory
+	if err := os.RemoveAll(certDir); err != nil {
+		t.Errorf("Could not delete /etc/certs")
+	}
+}
+
+func Test_isMultiClusterListener(t *testing.T) {
+	multiClusterListenPort = 15443
+	snif1, err := env.MakeSniFilter("0.0.0.0_15443")
+	if err != nil {
+		t.Errorf("MakeSniFilter failed with %v", err)
+	}
+	snifc1 := env.MakeFilterChain("", 0, 0, "*.global", "snif1", snif1)
+
+	type input struct {
+		filterChainName *listener.FilterChain
+		listenerName    string
+		ip              string
+		port            uint16
+	}
+	testCases := map[string]struct {
+		input     input
+		expOutput bool
+	}{
+		"multiclusterListener": {
+			input{
+				filterChainName: snifc1,
+				listenerName:    "multiclusterListener",
+				ip:              "0.0.0.0",
+				port:            15443,
+			}, true,
+		},
+		"not-multiclusterListener": {
+			input{
+				filterChainName: snifc1,
+				listenerName:    "not-multiclusterListener",
+				ip:              "0.0.0.0",
+				port:            25443,
+			}, false,
+		},
+	}
+
+	for id, tc := range testCases {
+		lds := env.MakeListenerFilterChains(tc.input.listenerName, tc.input.ip, tc.input.port, []*listener.FilterChain{tc.input.filterChainName})
+		if tc.expOutput != isMultiClusterListener(lds) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("Success for %s", id)
+		}
 	}
 }

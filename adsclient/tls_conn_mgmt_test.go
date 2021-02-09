@@ -87,6 +87,7 @@ func Test_verifyPeerCertificate(t *testing.T) {
 
 	idMismatchErr := errors.New("SPIFFE ID mismatch")
 	verifyFailErr := errors.New("x509: certificate signed by unknown authority")
+	certExpiryErr := errors.New("x509: certificate has expired or is not yet valid")
 	//parseErr := errors.New("Could not parse certificate")
 	cases := []struct {
 		input         EI
@@ -118,7 +119,9 @@ func Test_verifyPeerCertificate(t *testing.T) {
 		certChain, err := loadTLSCertificates(c.input.peerCertFile, c.input.peerKeyFile)
 		for _, cert := range certChain {
 			err = peer.verifyPeerCertificate(cert.Certificate, nil)
-			if err != nil && strings.Contains(err.Error(), c.expectedError.Error()) == false {
+			if err != nil && err.Error() == certExpiryErr.Error() {
+				t.Errorf("Certificate expired for %v. Update with latest certs", peer)
+			} else if err != nil && strings.Contains(err.Error(), c.expectedError.Error()) == false {
 				t.Errorf("Failed for peer %v. Received Err = %s. Expected Err = %s", peer, err, c.expectedError)
 			} else {
 				t.Logf("Passed for peer %v", peer)

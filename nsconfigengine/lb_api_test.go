@@ -223,7 +223,8 @@ func Test_LBApi_http_tls(t *testing.T) {
 	lbObj.LbMonitorObj.IntervalUnits = "SEC"
 	lbObj.LbMonitorObj.DownTime = 10
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
-	lbObj.BackendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", PrivateKeyFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", RootCertFilename: "../tests/certs/certssvc1/rootCA.crt"}}
+	lbObj.BackendTLS = []SSLSpec{{CertFilename: "certssvc1_svc1", PrivateKeyFilename: "certssvc1_svc1_key", RootCertFilename: "certssvc1_rootCA"}}
+	//lbObj.BackendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", PrivateKeyFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", RootCertFilename: "../tests/certs/certssvc1/rootCA.crt"}}
 	client := env.GetNitroClient()
 	UploadCert(client, "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certssvc1_svc1", "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", "certssvc1_svc1_key")
 	UploadCert(client, "../tests/certs/certssvc1/rootCA.crt", "certssvc1_rootCA", "", "")
@@ -265,6 +266,24 @@ func Test_LBApi_http_tls(t *testing.T) {
 	if err != nil {
 		t.Errorf("Config verification failed for Delete %v, error %v", "lbent1s", err)
 	}
+}
+
+func Test_LBApi_tcp_to_http(t *testing.T) {
+	lbObj := NewLBApi("lb1", "TCP", "TCP", "ROUNDROBIN")
+	t.Logf("Adding LB of type TCP")
+	client := env.GetNitroClient()
+	err := lbObj.Add(client)
+	if err != nil {
+		t.Errorf("LBApi add failed with %v", err)
+	}
+	t.Logf("Converting LB to type HTTP")
+	lbObj.FrontendServiceType = "HTTP"
+	lbObj.BackendServiceType = "HTTP"
+	err = lbObj.Add(client)
+	if err != nil {
+		t.Errorf("Error converting LB from type tcp to http : %v", err)
+	}
+	lbObj.Delete(client)
 }
 
 func Test_ServiceGroupAPI_ip(t *testing.T) {

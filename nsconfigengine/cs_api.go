@@ -15,6 +15,10 @@ package nsconfigengine
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
 	"github.com/chiradeep/go-nitro/config/cs"
 	"github.com/chiradeep/go-nitro/config/lb"
 	"github.com/chiradeep/go-nitro/config/ns"
@@ -22,9 +26,6 @@ import (
 	"github.com/chiradeep/go-nitro/config/responder"
 	"github.com/chiradeep/go-nitro/config/rewrite"
 	"github.com/chiradeep/go-nitro/netscaler"
-	"log"
-	"net/http"
-	"strings"
 )
 
 const (
@@ -61,10 +62,11 @@ type RewriteAction struct {
 
 //CsPolicyBinding will define members which will be used to configure cs policy
 type CsPolicyBinding struct {
-	PolicyRules   []string
-	TargetLB      string
-	ServiceType   string
-	WeightPercent int
+	PolicyRules       []string
+	TargetLB          string
+	TargetVserverExpr string
+	ServiceType       string
+	WeightPercent     int
 }
 
 // NewCSApi returns a new CSApi object
@@ -202,10 +204,11 @@ type PersistencyPolicy struct {
 
 // Canary specifies a means of splitting traffic between one or more versions of a service
 type Canary struct {
-	LbVserverName string
-	LbVserverType string
-	Weight        int
-	Persistency   *PersistencyPolicy
+	LbVserverName     string
+	LbVserverType     string
+	TargetVserverExpr string
+	Weight            int
+	Persistency       *PersistencyPolicy
 }
 
 // CsPolicy specifies the LB vservers (including versions) to which the traffic is to be forwarded
@@ -367,7 +370,7 @@ func (csBindings *CSBindingsAPI) rewritePolicyAdd(client *netscaler.NitroClient,
 
 func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, confErr *nitroError, csactpolinfo *CsPolicyBinding, persistency *PersistencyPolicy, mirror *HTTPMirror) {
 	/* LBVserver ns_dummy_http is bound to CS Vserver for Redirect case where ResponderPolicy will be hit post selection of Vserver*/
-	if csactpolinfo.TargetLB != "ns_dummy_http" {
+	if (len(csactpolinfo.TargetLB) > 0) && csactpolinfo.TargetLB != "ns_dummy_http" {
 		lbObj := lb.Lbvserver{Name: csactpolinfo.TargetLB, Servicetype: csactpolinfo.ServiceType, Persistencetype: "NONE", Timeout: 2}
 		if persistency != nil {
 			if persistency.HeaderName != "" {
@@ -402,7 +405,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 		} else {
 			csBindings.mirrorPolicyDelete(client, confErr, csBoundEntityName)
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB, Targetvserverexpr: csactpolinfo.TargetVserverExpr}, "add"}, nil, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), csBoundEntityName, cs.Cspolicy{Policyname: csBoundEntityName, Rule: policyRule, Action: csBoundEntityName}, "add"}, nil, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, cs.Csvservercspolicybinding{Name: csBindings.Name, Policyname: csBoundEntityName, Priority: csBindings.curCsPriority}, "add"}, nil, nil))
 		csBindings.curCsPriority = csBindings.curCsPriority + 10
@@ -473,6 +476,7 @@ func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
 			csactpolinfo.TargetLB = canary.LbVserverName
 			csactpolinfo.ServiceType = canary.LbVserverType
 			csactpolinfo.WeightPercent = weightPercentage
+			csactpolinfo.TargetVserverExpr = canary.TargetVserverExpr
 			csBindings.csPolicyAdd(client, confErr, csactpolinfo, canary.Persistency, csBinding.MirrorPolicy)
 			totalWeight = totalWeight - canary.Weight
 		}

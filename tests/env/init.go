@@ -307,8 +307,16 @@ func MakeTcpListener(listenerName string, ip string, port uint16, clusterName st
 	return MakeListener(listenerName, ip, port, filter)
 }
 
-func MakeFilterChain(prefix string, prefixLen uint32, port uint32, filterChainName string, filter *listener.Filter) *listener.FilterChain {
-	return &listener.FilterChain{
+func MakeSniListener(listenerName string, ip string, port uint16) (*xdsapi.Listener, error) {
+	filter, err := MakeSniFilter(listenerName)
+	if err != nil {
+		return nil, err
+	}
+	return MakeListener(listenerName, ip, port, filter)
+}
+
+func MakeFilterChain(prefix string, prefixLen uint32, port uint32, serverName, filterChainName string, filter *listener.Filter) *listener.FilterChain {
+	fc := &listener.FilterChain{
 		Name:    filterChainName,
 		Filters: []*listener.Filter{filter},
 		FilterChainMatch: &listener.FilterChainMatch{
@@ -316,6 +324,10 @@ func MakeFilterChain(prefix string, prefixLen uint32, port uint32, filterChainNa
 			PrefixRanges:    []*core.CidrRange{{AddressPrefix: prefix, PrefixLen: &wrappers.UInt32Value{Value: prefixLen}}},
 		},
 	}
+	if serverName != "" {
+		fc.FilterChainMatch.ServerNames = []string{serverName}
+	}
+	return fc
 }
 
 func MakeHttpFilter(listenerName string, routeName string, route *xdsapi.RouteConfiguration) (*listener.Filter, error) {
@@ -339,6 +351,13 @@ func MakeHttpFilter(listenerName string, routeName string, route *xdsapi.RouteCo
 		ConfigType: &listener.Filter_Config{
 			Config: filterHTTPConn,
 		},
+	}
+	return &filter, nil
+}
+
+func MakeSniFilter(listenerName string) (*listener.Filter, error) {
+	filter := listener.Filter{
+		Name: "envoy.filters.network.sni_cluster",
 	}
 	return &filter, nil
 }

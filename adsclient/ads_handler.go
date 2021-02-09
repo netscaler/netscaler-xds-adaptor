@@ -49,6 +49,10 @@ const (
 	ulfdRestPort        = 5563 // Rest port is used for time-series data which is used in Prometheus
 	defaultWeight       = 1
 	defaultMirrorWeight = 100
+	citrixEgressGateway = "citrix-egressgateway"
+	istioEgressGateway  = "istio-egressgateway"
+	// K8sServiceSuffix is common suffix of k8s service
+	K8sServiceSuffix = "svc.cluster.local"
 )
 
 var valueNameToNum = map[string]int{
@@ -92,15 +96,15 @@ func getLbMethod(lbMethod xdsapi.Cluster_LbPolicy) string {
 	return "ROUNDROBIN"
 }
 
-func addToWatch(nsConfig *configAdaptor, certPath, keyPath string) error {
+func addToWatch(nsConfig *configAdaptor, certPath, keyPath string) (string, string, string, error) {
 	var err error
 	if certPath == "" {
-		return nil
+		return "", "", "", nil
 	}
 	if nsConfig.watch == nil {
 		nsConfig.watch, err = newWatcher(nsConfig)
 		if err != nil {
-			return err
+			return "", "", "", err
 		}
 		go nsConfig.watch.Run()
 	}
@@ -120,23 +124,28 @@ func getTLSDetailsFromTransportSocket(nsConfig *configAdaptor, transportSocket *
 			log.Printf("[ERROR] Could not unmarshal while retrieving (upstream) TLS context %v", err)
 		} else {
 			for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
+				var certFileName, keyFileName, rootCertFileName string
 				if sdsConfig.GetName() == "default" {
-					_ = addToWatch(nsConfig, ClientCertFile, ClientKeyFile)
-					_ = addToWatch(nsConfig, CAcertFile, "")
+					certFileName, keyFileName, rootCertFileName, _ = addToWatch(nsConfig, ClientCertChainFile, ClientKeyFile)
+					if rootCertFileName == "" {
+						_, _, rootCertFileName, _ = addToWatch(nsConfig, CAcertFile, "")
+					}
 					lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-						CertFilename:       ClientCertFile,
-						PrivateKeyFilename: ClientKeyFile,
-						RootCertFilename:   CAcertFile})
+						CertFilename:       certFileName,
+						PrivateKeyFilename: keyFileName,
+						RootCertFilename:   rootCertFileName})
 				}
 			}
 			// If certificates are provided as part of UpstreamTlsContext, then retrieve same
 			for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
-				_ = addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-				_ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				certFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
+				if rootCertFileName == "" {
+					_, _, rootCertFileName, _ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				}
 				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-					CertFilename:       tlsCertificate.GetCertificateChain().GetFilename(),
-					PrivateKeyFilename: tlsCertificate.GetPrivateKey().GetFilename(),
-					RootCertFilename:   tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
+					CertFilename:       certFileName,
+					PrivateKeyFilename: keyFileName,
+					RootCertFilename:   rootCertFileName})
 			}
 		}
 	}
@@ -170,13 +179,39 @@ func isTLSContext(cluster *xdsapi.Cluster) bool {
 	return false
 }
 
+// isEgressGateway checks if the cluster name is citrix-egressgateway or istio-egressgateway
+func isEgressGateway(name string) bool {
+	return strings.Contains(name, citrixEgressGateway) || strings.Contains(name, istioEgressGateway)
+}
+
+// We use policy stringmap configuration to store servicename.namespace as key
+// and associated LB vserver entity's name as the value
+func getMultiClusterStringMapConfig(clusterName string) *nsconfigengine.StringMapBinding {
+	ok, _, domain := extractPortAndDomainName(clusterName)
+	if !ok {
+		log.Printf("[DEBUG] %s resource does not seem to be having FQDN info", clusterName)
+		return nil
+	}
+	// Check if domain is of servicename.namespace.svc.cluster.local format
+	if !strings.HasSuffix(domain, K8sServiceSuffix) {
+		log.Printf("[DEBUG] %s resource does not seem to be a service deployed in the cluster", clusterName)
+		return nil
+	}
+	sn := domain[0 : len(domain)-len(K8sServiceSuffix)-1] // Get servicename.namespace
+	stringMapBindingObj := new(nsconfigengine.StringMapBinding)
+	stringMapBindingObj.StringMapName = multiClusterStringMap
+	stringMapBindingObj.Key = sn
+	stringMapBindingObj.Value = nsconfigengine.GetNSCompatibleName(clusterName)
+	return stringMapBindingObj
+}
+
 func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface{}) string {
 	log.Printf("[TRACE] clusterAdd : %s type %s", cluster.Name, data.(string))
 	log.Printf("[TRACE] clusterAdd :%v", nsconfigengine.GetLogString(cluster))
 	serviceType := data.(string)
 	serviceGroupType := serviceType
 
-	if serviceType != "LOGSTREAM" && isTLSContext(cluster) {
+	if serviceType != "LOGSTREAM" && !isEgressGateway(cluster.Name) && isTLSContext(cluster) {
 		serviceGroupType = "SSL"
 		if serviceType == "TCP" {
 			serviceGroupType = "SSL_TCP"
@@ -203,12 +238,14 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 	if serviceGroupType == "SSL" || serviceGroupType == "SSL_TCP" {
 		for _, tlsCertificate := range cluster.GetTlsContext().GetCommonTlsContext().GetTlsCertificates() {
 			if tlsCertificate.GetCertificateChain().GetFilename() != "" {
-				_ = addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-				_ = addToWatch(nsConfig, cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				certFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
+				if rootCertFileName == "" {
+					_, _, rootCertFileName, _ = addToWatch(nsConfig, cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				}
 				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-					CertFilename:       tlsCertificate.GetCertificateChain().GetFilename(),
-					PrivateKeyFilename: tlsCertificate.GetPrivateKey().GetFilename(),
-					RootCertFilename:   cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
+					CertFilename:       certFileName,
+					PrivateKeyFilename: keyFileName,
+					RootCertFilename:   rootCertFileName})
 			} else if tlsCertificate.GetCertificateChain().GetInlineString() != "" {
 				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
 					Cert:       tlsCertificate.GetCertificateChain().GetInlineString(),
@@ -245,6 +282,10 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 	if cluster.GetType() == xdsapi.Cluster_EDS || cluster.GetType() == xdsapi.Cluster_STATIC {
 		lbObj.AutoScale = true
 	}
+	// Multi Cluster Gateway needs to know point to clusterwide services.
+	if multiClusterIngress {
+		lbObj.StringMapBindingObj = getMultiClusterStringMapConfig(cluster.GetName())
+	}
 	nsConfig.addConfig(&configBlock{configType: cdsAdd, resourceName: cluster.Name, resource: lbObj})
 	if (cluster.GetType() == xdsapi.Cluster_STATIC) || (cluster.GetType() == xdsapi.Cluster_STRICT_DNS) {
 		if cluster.GetLoadAssignment() != nil {
@@ -268,6 +309,9 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 func clusterDel(nsConfig *configAdaptor, clusterName string) {
 	log.Printf("[TRACE] clusterDel : %s", clusterName)
 	lbObj := &nsconfigengine.LBApi{Name: nsconfigengine.GetNSCompatibleName(clusterName)}
+	if multiClusterIngress {
+		lbObj.StringMapBindingObj = getMultiClusterStringMapConfig(clusterName)
+	}
 	confBl := configBlock{
 		configType:   cdsDel,
 		resourceName: clusterName,
@@ -323,9 +367,11 @@ func getTLSfromTransportSocket(nsConfig *configAdaptor, csObj *nsconfigengine.CS
 	}
 	for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
 		if sdsConfig.GetName() == "default" {
-			_ = addToWatch(nsConfig, ClientCertFile, ClientKeyFile)
-			_ = addToWatch(nsConfig, CAcertFile, "")
-			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: ClientCertFile, PrivateKeyFilename: ClientKeyFile, RootCertFilename: CAcertFile})
+			certKeyFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, ClientCertChainFile, ClientKeyFile)
+			if rootCertFileName == "" {
+				_, _, rootCertFileName, _ = addToWatch(nsConfig, CAcertFile, "")
+			}
+			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: certKeyFileName, PrivateKeyFilename: keyFileName, RootCertFilename: rootCertFileName})
 		}
 		return nil
 	}
@@ -341,9 +387,12 @@ func getFrontEndTLSConfig(nsConfig *configAdaptor, csObj *nsconfigengine.CSApi, 
 	}
 	for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
 		if tlsCertificate.GetCertificateChain().GetFilename() != "" {
-			_ = addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-			_ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
-			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: tlsCertificate.GetCertificateChain().GetFilename(), PrivateKeyFilename: tlsCertificate.GetPrivateKey().GetFilename(), RootCertFilename: tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()})
+			rootCertFileName := ""
+			certKeyFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
+			if rootCertFileName == "" {
+				_, _, rootCertFileName, _ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+			}
+			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: certKeyFileName, PrivateKeyFilename: keyFileName, RootCertFilename: rootCertFileName})
 		} else if tlsCertificate.GetCertificateChain().GetInlineString() != "" {
 			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{
 				SNICert:    sniCertVal,
@@ -403,7 +452,7 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 		}
 		//SSL Passthrough case
 		if filterChain.GetTlsContext().GetCommonTlsContext().GetTlsCertificates() == nil && vserverType == "SSL" && serviceType == "TCP" {
-			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: "dummy_xds_cert", PrivateKeyFilename: "dummy_xds"})
+			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: "dummy_xds_cert", PrivateKeyFilename: "dummy_xds_key"})
 		}
 		getFrontEndTLSConfig(nsConfig, csObj, filterChain, sniCertVal)
 	}
@@ -507,6 +556,76 @@ func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) 
 	return nil
 }
 
+// TODO: How do we identify if it is a special listener?
+// 1. Check for special port 15443 (take value from ENV var)
+// 2. Also check if tcp_cluster_rewrite filter is mentioned or not
+func isMultiClusterListener(listener *xdsapi.Listener) bool {
+	port := listener.GetAddress().GetSocketAddress().GetPortValue()
+	if int(port) == multiClusterListenPort {
+		return true
+	}
+	return false
+}
+
+// Config for special listener:
+/*
+	add cs vserver cs1 SSL NSIP/VIP 15443
+	add ssl certkey cs1_certkey
+	bind ssl vserver cs1 -certkeyname cs1_certkey
+	add cs action cs1 -targetVserverExpr multiClusterExpression
+	add cs policy cs1 -rule "HTTP.REQ.HOSTNAME.CONTAINS(\".global\")" -action cs1
+	bind cs vserver cs1 -policyName cs1 -priority 1
+
+*/
+func multiClusterListenerConfig(nsConfig *configAdaptor, listener *xdsapi.Listener) {
+	// Step 1: ldsAdd confBlock. This will create CS vserver of type SSL
+	entityName := nsconfigengine.GetNSCompatibleName(listener.GetName())
+	vserverAddress := listener.GetAddress().GetSocketAddress().GetAddress()
+	vserverPort := listener.GetAddress().GetSocketAddress().GetPortValue()
+	if vserverAddress == "0.0.0.0" {
+		vserverAddress = "*"
+		if nsConfig.vserverIP != "" {
+			vserverAddress = nsConfig.vserverIP
+		}
+	} else if vserverAddress == localHostIP {
+		vserverAddress = nsConfig.localHostVIP
+	}
+
+	csObj := nsconfigengine.NewCSApi(entityName, "SSL", vserverAddress, int(vserverPort))
+	if vserverAddress == nsConfig.nsip {
+		csObj.AllowACL = true
+		csObj.AnalyticsProfileNames = nsConfig.analyticsProfiles
+	}
+	// Populate FrontendTLS
+	certKeyFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, ClientCertChainFile, ClientKeyFile)
+	if rootCertFileName == "" {
+		_, _, rootCertFileName, _ = addToWatch(nsConfig, CAcertFile, "")
+	}
+	csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: false, CertFilename: certKeyFileName, PrivateKeyFilename: keyFileName, RootCertFilename: rootCertFileName})
+	csObj.FrontendTLSClientAuth = true
+	ldsConfBl := configBlock{
+		configType:   ldsAdd,
+		resourceName: entityName,
+		resource:     []*nsconfigengine.CSApi{csObj},
+	}
+	nsConfig.addConfig(&ldsConfBl)
+
+	// Step 2: rdsAdd confBlock (csPolicyAdd). This will create CS action, policy and bind to CS vserver
+	csBindings := nsconfigengine.NewCSBindingsAPI(entityName)
+	binding := nsconfigengine.CSBinding{}
+	binding.Rule = nsconfigengine.RouteMatch{Domains: []string{multiClusterPolExprStr}} // ".global"
+	canary := nsconfigengine.Canary{TargetVserverExpr: multiClusterExpression}
+	binding.CsPolicy.Canary = append(binding.CsPolicy.Canary, canary)
+	csBindings.Bindings = append(csBindings.Bindings, binding)
+	rdsConfBl := configBlock{
+		configType:   rdsAdd,
+		resourceName: entityName,
+		resource:     csBindings,
+	}
+	nsConfig.addConfig(&rdsConfBl)
+
+}
+
 func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[string]interface{} {
 	log.Printf("[TRACE] listenerAdd : %s", listener.GetName())
 	log.Printf("[TRACE] listenerAdd : %v", nsconfigengine.GetLogString(listener))
@@ -516,6 +635,13 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 	 * routeUpdate function adds configblock for csBindings.
 	 * Thus the order of adding configBlocks matter
 	 */
+	csObjList := make([]map[string]interface{}, 0)
+	// If it is multiCluster gateway, then special config needs to be done for special port (mostly 15443)
+	// This type of listener does not provide HTTP CM filter or TCP proxy filter, and it does not have routes/cluster details
+	if multiClusterIngress == true && isMultiClusterListener(listener) {
+		multiClusterListenerConfig(nsConfig, listener)
+		return csObjList
+	}
 	csObjMaps := make(map[string]interface{})
 
 	for _, filterChain := range listener.GetFilterChains() {
@@ -579,7 +705,6 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 			}
 		}
 	}
-	csObjList := make([]map[string]interface{}, 0)
 	for _, csObjMap := range csObjMaps {
 		delete(csObjMap.(map[string]interface{}), "csObj")
 		csObjList = append(csObjList, csObjMap.(map[string]interface{}))
