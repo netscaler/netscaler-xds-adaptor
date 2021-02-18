@@ -10,11 +10,11 @@ The Istio control plane is a set of gRPC based services and it pushes configurat
  
 **Pilot** is a gRPC based xDS server and provides configuration data to proxies. Citrix provides an xDS client called `xDS-adaptor` to communicate with the Istio control plane for installing Citrix ADCs in Istio service mesh. It acts as a gRPC client to the control plane API server and listens to updates. Based on the updates from the control plane, `xDS-adaptor` generates the equivalent Citrix ADC configuration. Then, it configures the Citrix ADC ingress or proxy device accordingly.
 
-**Citadel** is a control plane service which provides key and certificate management. It is responsible for providing TLS certificates to data plane proxies. Citrix `xDS-adaptor` monitors secrets managed by Citadel, and updates the Citrix ADC proxy with relevant details.
+**Citadel** is a control plane service which provides key and certificate management. It is responsible for providing TLS certificates to data plane proxies. Citrix ADC `xDS-adaptor` monitors secrets managed by Citadel, and updates the Citrix ADC proxy with relevant details.
 
 Citrix service mesh solution provides a container, [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter), which collects the statistical data from Citrix ADC Ingress Gateway device and exports it to [Prometheus](https://prometheus.io).
 
-Citrix also provides its own in-house solution [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) for the telemetry purpose. Citrix ADC CPX running as a sidecar proxy interacts with the Citrix Observability Exporter (COE). Citrix ADC CPX sends metrics and transactions to COE. COE supports endpoints such as Zipkin and Prometheus, and sends the data collected from sidecar proxies to these endpoints in an appropriate format.
+Citrix also provides its own in-house solution [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) for the telemetry purpose. Citrix ADC CPX running as a sidecar proxy interacts with the Citrix ADC Observability Exporter. Citrix ADC CPX sends metrics and transactions to Citrix ADC Observability Exporter. Citrix ADC Observability Exporter supports endpoints such as Zipkin and Prometheus, and sends the data collected from sidecar proxies to these endpoints in an appropriate format.
 
 Citrix ADC can be integrated with Istio in three ways:
 
