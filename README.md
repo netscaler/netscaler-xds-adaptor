@@ -1,4 +1,4 @@
-![Citrix Logo](docs/media/Citrix_icon.png)
+![Citrix Logo](docs/media/Citrix_Logo_Trademark.png)
 
 # Citrix ADC integration with xDS-based service mesh
 
