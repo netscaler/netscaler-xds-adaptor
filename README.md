@@ -1,4 +1,4 @@
-![Citrix Logo](docs/media/Citrix_icon.png)
+![Citrix Logo](docs/media/Citrix_Logo_Trademark.png)
 
 # Citrix ADC integration with xDS-based service mesh
 
@@ -81,8 +81,8 @@ Citrix has built a couple of auxiliary tools such as [Citrix ADC Metrics Exporte
 
 The statistical data of a Citrix ADC ingress device can be exported to the Prometheus using [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter).
 
-[Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) (COE) is a microservice designed to collect metrics from Citrix ADCs, and export them to observability tools such as Zipkin, Kafka, and Prometheus.
-For more information about COE, see this [link](https://github.com/citrix/citrix-observability-exporter).
+[Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice designed to collect metrics from Citrix ADCs, and export them to observability tools such as Zipkin, Kafka, and Prometheus.
+For more information about Citrix ADC Observability Exporter, see this [link](https://github.com/citrix/citrix-observability-exporter).
 
 ## <a name="blogs">Blogs</a>
 

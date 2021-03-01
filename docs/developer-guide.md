@@ -1,6 +1,6 @@
 # Developer Guide
 
-## Build the Citrix xDS-adaptor
+## Build the Citrix ADC xDS-adaptor
 
 To build the `xDS-adaptor` container, you need to have the following software installed on your machine:
 
@@ -16,9 +16,9 @@ To create the xDS-adaptor container, run the following command:
 
     make docker_build
 
-## Testing the Citrix xDS-adaptor
+## Testing the Citrix ADC xDS-adaptor
 
-Citrix's `xDS-adaptor` is developed to work generically for Ingress and sidecar proxy. So, testing `xDS-adaptor` in any mode of Citrix ADC CPX is enough. Citrix `xDS-adaptor`'s test coverage primarily focuses on [Unit testing](https://en.wikipedia.org/wiki/Unit_testing) of `xDS-adaptor` code and [Integration testing](https://en.wikipedia.org/wiki/Integration_testing) with Citrix ADC.
+Citrix ADC `xDS-adaptor` is developed to work generically for Ingress and sidecar proxy. So, testing `xDS-adaptor` in any mode of Citrix ADC CPX is enough. Citrix ADC `xDS-adaptor`'s test coverage primarily focuses on [Unit testing](https://en.wikipedia.org/wiki/Unit_testing) of `xDS-adaptor` code and [Integration testing](https://en.wikipedia.org/wiki/Integration_testing) with Citrix ADC.
 As a prerequisite for testing `xDS-adaptor`, run [Citrix ADC CPX](https://docs.citrix.com/en-us/citrix-adc-cpx/12-1/deploy-using-docker-image-file.html) in the same machine.
 Specify the following environment variables before running the test command.
 
