@@ -1,4 +1,4 @@
-module github.com/citrix/citrix-xds-adaptor
+module citrix-xds-adaptor
 
 go 1.13
 
