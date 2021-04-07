@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,8 @@ limitations under the License.
 package client_test
 
 import (
-	"citrix-istio-adaptor/adsclient"
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/adsclient"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 	"time"
 )
@@ -27,7 +27,10 @@ func init() {
 func Test_http_frontend(t *testing.T) {
 	t.Log("Http service test start")
 	env.ClearNetscalerConfig()
-	grpcServer := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(1234)
+	if err != nil {
+		t.Errorf("GRPC server creation failed: %v", err)
+	}
 	httpServer, err := env.StartHTTPServer(9000, "/path1", "Hello World!")
 	if err != nil {
 		t.Errorf("http server creation failed : %v", err)
@@ -46,12 +49,12 @@ func Test_http_frontend(t *testing.T) {
 	nsinfo.NetProfile = ""
 	nsinfo.AnalyticsServerIP = ""
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
-	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo)
+	discoveryClient, errc := adsclient.NewAdsClient(adsinfo, nsinfo, nil)
 	if errc != nil {
 		t.Errorf("newAdsClient failed with %v", errc)
 	}
 	discoveryClient.StartClient()
-	route := env.MakeRoute("r1", "*", "c1")
+	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
 	listener, errl := env.MakeHttpListener("l1", "0.0.0.0", 8000, "r1")
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
@@ -64,7 +67,7 @@ func Test_http_frontend(t *testing.T) {
 		t.Errorf("updateSpanshotCache failed with %v", err)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	code, resp, err1 := env.DoHTTPGet("http://" + env.GetNetscalerIP() + ":8000/path1")
 	if err1 != nil {

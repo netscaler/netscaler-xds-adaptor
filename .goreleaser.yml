@@ -1,8 +1,8 @@
 # .goreleaser.yml
 # Build customization
 builds:
-  - binary: citrix-istio-adaptor
-    main: ./istio-adaptor/main.go
+  - binary: citrix-xds-adaptor
+    main: ./xds-adaptor
     goos:
       - windows
       - darwin

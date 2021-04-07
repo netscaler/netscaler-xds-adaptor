@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,15 +14,15 @@ limitations under the License.
 package nsconfigengine
 
 import (
+	"crypto/md5"
 	"fmt"
+	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/chiradeep/go-nitro/netscaler"
 )
 
 type nitroError struct {
@@ -57,18 +57,20 @@ type nitroConfig struct {
 	operation    string
 }
 
-func commitConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
+func attemptLogin(client *netscaler.NitroClient) error {
 	var err error
 	// Establish session with ADC if not already established.
 	for i := 0; i <= 2; i++ { // Try login attempt thrice
 		err = client.Login()
-		if err == nil { // Login successful
-			break
-		} else if i == 2 {
-			log.Printf("[DEBUG]: Token based Login is not successful!")
+		if err == nil {
+			return nil
 		}
 	}
+	return fmt.Errorf("Login attempts failed : %v", err)
+}
 
+func attemptConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
+	var err error
 	if operation == "add" {
 		_, err = client.AddResource(resourceType, resourceName, resource)
 	} else if operation == "set" {
@@ -81,6 +83,22 @@ func commitConfig(client *netscaler.NitroClient, resourceType string, resourceNa
 		}
 	} else {
 		err = client.ActOnResource(resourceType, resource, operation)
+	}
+	return err
+}
+
+func commitConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
+	var err error
+
+	for i := 0; i < 2; i++ {
+		err := attemptLogin(client)
+		if err != nil {
+			return err
+		}
+		err = attemptConfig(client, resourceType, resourceName, resource, operation)
+		if err == nil || !strings.Contains(err.Error(), "Not logged in or connection timed out") {
+			return err
+		}
 	}
 	return err
 }
@@ -121,6 +139,28 @@ func GetNSCompatibleName(entityName string) string {
 		return name
 	}
 	return "ns_" + re.ReplaceAllString(entityName, "_")
+}
+
+// GetNSCompatibleNameHash returns a md5 Hash value
+func GetNSCompatibleNameHash(input string, length int) string {
+	md5 := md5.Sum([]byte(input))
+	output := GetNSCompatibleName(fmt.Sprintf("%x", md5[:]))
+	if !unicode.IsLetter(rune(output[0])) {
+		output = "ns_" + output
+	}
+	if len(output) > length {
+		return output[0:length]
+	}
+	return output
+}
+
+// GetNSCompatibleNameByLen returns a name, not greater than length characters long, which is accepted by the config module on the Citrix-ADC
+func GetNSCompatibleNameByLen(entityName string, length int) string {
+	name := GetNSCompatibleName(entityName)
+	if len(name) > length {
+		return GetNSCompatibleNameHash(entityName, length)
+	}
+	return name
 }
 
 func getValueString(obj map[string]interface{}, name string) (string, error) {
@@ -190,4 +230,14 @@ func getBuildInfo(nsVersion map[string]interface{}) (float64, float64, error) {
 	}
 	return release, buildNo, nil
 
+}
+
+// GetLogString will mask sensitive info
+func GetLogString(data interface{}) string {
+	s := fmt.Sprintf("%v", data)
+	s = strings.Replace(s, "\n", "", -1)
+	m1 := regexp.MustCompile("BEGIN CERTIFICATE(.*)END CERTIFICATE")
+	s = m1.ReplaceAllString(s, " XXX ")
+	m1 = regexp.MustCompile("BEGIN EC PRIVATE KEY(.*)END EC PRIVATE KEY")
+	return m1.ReplaceAllString(s, " XXX ")
 }

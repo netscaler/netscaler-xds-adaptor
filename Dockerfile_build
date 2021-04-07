@@ -1,0 +1,15 @@
+FROM golang:1.13
+
+COPY . /citrix-xds-adaptor
+
+WORKDIR /citrix-xds-adaptor
+
+RUN GOARCH=amd64 CGO_ENABLED=0 GOOS=linux go mod download
+
+RUN go get golang.org/x/lint/golint
+RUN go get github.com/wadey/gocovmerge
+RUN go get github.com/axw/gocov/gocov
+RUN go get github.com/AlekSi/gocov-xml 
+
+RUN rm -r /citrix-xds-adaptor
+

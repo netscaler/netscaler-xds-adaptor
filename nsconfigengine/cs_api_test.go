@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,7 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 )
 
@@ -72,7 +72,7 @@ func Test_CSApi_http(t *testing.T) {
 func Test_CSApi_http_tls(t *testing.T) {
 	csObj := NewCSApi("cs2", "SSL", "2.2.1.1", 8443)
 	csObj.AllowACL = false
-	csObj.FrontendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.crt", PrivateKeyFilename: "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.key", SNICert: true}}
+	csObj.FrontendTLS = []SSLSpec{{CertFilename: "certssvc2_svc2", PrivateKeyFilename: "certssvc2_svc2_key", SNICert: true}}
 	client := env.GetNitroClient()
 	t.Logf("Test CSApi Add")
 	UploadCert(client, "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.crt", "certssvc2_svc2", "../tests/certs/certssvc2/svc2.citrixrootdummy2.com.key", "certssvc2_svc2_key")
@@ -89,7 +89,7 @@ func Test_CSApi_http_tls(t *testing.T) {
 	if err != nil {
 		t.Errorf("Config verification failed for Add cs2, error %v", err)
 	}
-	err = env.VerifyBindings(client, "sslvserver", "cs2", "sslcertkey", []map[string]interface{}{{"ca": false, "certkeyname": "certssvc2_svc2", "vservername": "cs2"}})
+	err = env.VerifyBindings(client, "sslvserver", "cs2", "sslcertkey", []map[string]interface{}{{"certkeyname": "certssvc2_svc2", "vservername": "cs2"}})
 	if err != nil {
 		t.Errorf("Config verification failed for Add binding cs2, error %v", err)
 	}

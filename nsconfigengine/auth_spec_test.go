@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,8 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
+	"fmt"
 	"testing"
 )
 
@@ -106,7 +107,13 @@ func Test_patset(t *testing.T) {
 func Test_auth(t *testing.T) {
 	client := env.GetNitroClient()
 	t.Logf("Test authAdd")
-	authSpec := &AuthSpec{Name: "csvsvrauthn", IncludePaths: []AuthRuleMatch{{Prefix: "/login"}}, ExcludePaths: []AuthRuleMatch{{Suffix: ".net"}}, Issuer: "google", JwksURI: "https://www.google.auth.com/gettoken", Audiences: []string{"string1"}, JwtHeaders: []string{"header1", "header2"}, JwtParams: []string{"param1", "param2", "param3"}}
+	jwksInterface := []byte(`{ "keys":[ {"e":"AQAB","kid":"DHFbpoIUqrY8t2zpA2qXfCmr5VO5ZEr4RzHU_-envvQ","kty":"RSA","n":"xAE7eB6qugXyCAG3yhh7pkDkT65pHymX-P7KfIupjf59vsdo91bSP9C8H07pSAGQO1MV_xFj9VswgsCg4R6otmg5PV2He95lZdHtOcU5DXIg_pbhLdKXbi66GlVeK6ABZOUW3WYtnNHD-91gVuoeJT_DwtGGcp4ignkgXfkiEm4sw-4sfb4qdt5oLbyVpmW6x9cfa7vs2WTfURiCrBoUqgBo_-4WTiULmmHSGZHOjzwa8WtrtOQGsAFjIbno85jp6MnGGGZPYZbDAa_b3y5u-YpW7ypZrvD8BgtKVjgtQgZhLAGezMt0ua3DRrWnKqTZ0BJ_EyxOGuHJrLsn00fnMQ"}]}`)
+	jwks := fmt.Sprintf("%v", string(jwksInterface))
+	jwksInterface2 := []byte(`{"keys": [{"e":"AQAB","kty":"RSA","n":"3LlzeRY6gbIVwGO7AxO1bN3-CgWwIpWOT8m485AzkOdhxgCWc2F-3OqAigDyyDMqXtH1ovCaZnEIf3ZkJin7Y_zC48TNQwlKnuM29CrTjnYR1c_w30ZT4PNIisEwLKuEX5uRHuIrKYBxwwVf4eqoFmtpZbrmwDPCA1ZMFox0v40q1m_SecCB286alE42Ohb6j0ZuntjO5rg2ZyQt3EmxEDPE2Iuh737gYhXLuFhTiYH5S_kFokX1Yv0RdUyiGcmaxXgGaF3iglnsOHv9209uwlzrcDAouOD7PYbLjCoqpWydVLyxcJGqjF5i7CK36q_SVmpGHbIsdOlZQLWNA97AgQ"}]}`)
+	jwks2 := fmt.Sprintf("%v", string(jwksInterface2))
+	file1 := "/nsconfig/ssl/ns_897f7f67ed30b9c4f01e540c39e2aab8"
+	file2 := "/nsconfig/ssl/ns_8f7c0711838ebd8a70c57e9199519b1d"
+	authSpec := &AuthSpec{Name: "csvsvrauthn", IncludePaths: []AuthRuleMatch{{Prefix: "/login"}}, ExcludePaths: []AuthRuleMatch{{Suffix: ".net"}}, Issuer: "google", Jwks: jwks, Audiences: []string{"string1"}, JwtHeaders: []JwtHeader{{Name: "header1", Prefix: "Bearer"}, {Name: "header2", Prefix: "Bearer"}}, JwtParams: []string{"param1", "param2", "param3"}}
 	confErr := newNitroError()
 	authSpec.authAdd(client, confErr)
 	if confErr.getError() != nil {
@@ -114,13 +121,13 @@ func Test_auth(t *testing.T) {
 	}
 	configs := []env.VerifyNitroConfig{
 		{"authenticationvserver", "csvsvrauthn", map[string]interface{}{"ipv46": "0.0.0.0", "name": "csvsvrauthn", "servicetype": "SSL"}},
-		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string1", "authorizationendpoint": "https://dummy.com", "certendpoint": "https://www.google.auth.com/gettoken", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com"}},
+		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string1", "authorizationendpoint": "https://dummy.com", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com", "certfilepath": file1}},
 		{"authenticationpolicy", "csvsvrauthn_10", map[string]interface{}{"action": "csvsvrauthn_10", "name": "csvsvrauthn_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\"))"}},
 		{"authenticationpolicy", "csvsvrauthn_20", map[string]interface{}{"action": "NO_AUTHN", "name": "csvsvrauthn_20", "rule": "(HTTP.REQ.URL.ENDSWITH(\".net\"))"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_10", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_10", "userexpression": "HTTP.REQ.HEADER(\"header1\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\")) && HTTP.REQ.HEADER(\"header1\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\")) && ( HTTP.REQ.HEADER(\"header1\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_20", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_20", "userexpression": "HTTP.REQ.HEADER(\"header2\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\")) && HTTP.REQ.HEADER(\"header2\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\")) && ( HTTP.REQ.HEADER(\"header2\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_30", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_30", "userexpression": "HTTP.REQ.URL.QUERY.VALUE(\"param1\")"}},
 		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/login\")) && HTTP.REQ.URL.QUERY.VALUE(\"param1\").LENGTH.GT(0)"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_40", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_40", "userexpression": "HTTP.REQ.URL.QUERY.VALUE(\"param2\")"}},
@@ -150,7 +157,7 @@ func Test_auth(t *testing.T) {
 		t.Errorf("Config verification failed for authAdd authenticationloginschemapolicy binding csvsvrauthn, error  %v", err)
 	}
 	t.Logf("Test authAdd update")
-	authSpec = &AuthSpec{Name: "csvsvrauthn", IncludePaths: []AuthRuleMatch{{Prefix: "/logout"}}, Issuer: "google", JwksURI: "https://www.google.auth.com/gettokennew", Audiences: []string{"string2"}, JwtHeaders: []string{"header11", "header2", "header3"}, JwtParams: []string{"param2"}}
+	authSpec = &AuthSpec{Name: "csvsvrauthn", IncludePaths: []AuthRuleMatch{{Prefix: "/logout"}}, Issuer: "google", Jwks: jwks2, Audiences: []string{"string2"}, JwtHeaders: []JwtHeader{{Name: "header11", Prefix: "Bearer"}, {Name: "header2", Prefix: "Bearer"}, {Name: "header3", Prefix: "Bearer"}}, JwtParams: []string{"param2"}}
 	confErr = newNitroError()
 	authSpec.authAdd(client, confErr)
 	if confErr.getError() != nil {
@@ -158,15 +165,15 @@ func Test_auth(t *testing.T) {
 	}
 	configs = []env.VerifyNitroConfig{
 		{"authenticationvserver", "csvsvrauthn", map[string]interface{}{"ipv46": "0.0.0.0", "name": "csvsvrauthn", "servicetype": "SSL"}},
-		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string2", "authorizationendpoint": "https://dummy.com", "certendpoint": "https://www.google.auth.com/gettokennew", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com"}},
+		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string2", "authorizationendpoint": "https://dummy.com", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com", "certfilepath": file2}},
 		{"authenticationpolicy", "csvsvrauthn_10", map[string]interface{}{"action": "csvsvrauthn_10", "name": "csvsvrauthn_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\"))"}},
 		{"authenticationpolicy", "csvsvrauthn_20", map[string]interface{}{"action": "NO_AUTHN", "name": "csvsvrauthn_20", "rule": "true"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_10", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_10", "userexpression": "HTTP.REQ.HEADER(\"header11\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && HTTP.REQ.HEADER(\"header11\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && ( HTTP.REQ.HEADER(\"header11\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_20", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_20", "userexpression": "HTTP.REQ.HEADER(\"header2\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && HTTP.REQ.HEADER(\"header2\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && ( HTTP.REQ.HEADER(\"header2\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_30", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_30", "userexpression": "HTTP.REQ.HEADER(\"header3\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && HTTP.REQ.HEADER(\"header3\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && ( HTTP.REQ.HEADER(\"header3\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_40", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_40", "userexpression": "HTTP.REQ.URL.QUERY.VALUE(\"param2\")"}},
 		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_40", map[string]interface{}{"action": "csvsvrauthn_lgnschm_40", "name": "csvsvrauthn_lgnschm_40", "rule": "(HTTP.REQ.URL.STARTSWITH(\"/logout\")) && HTTP.REQ.URL.QUERY.VALUE(\"param2\").LENGTH.GT(0)"}},
 	}
@@ -199,7 +206,7 @@ func Test_auth(t *testing.T) {
 		t.Errorf("Config verification failed for auth deleteStale csvsvrauthn, error %v", err)
 	}
 	t.Logf("Test authAdd update")
-	authSpec = &AuthSpec{Name: "csvsvrauthn", Issuer: "google", JwksURI: "https://www.google.auth.com/gettokennew", Audiences: []string{}, JwtHeaders: []string{"header11", "header2", "header3"}, JwtParams: []string{"param2"}}
+	authSpec = &AuthSpec{Name: "csvsvrauthn", Issuer: "google", Jwks: jwks2, Audiences: []string{}, JwtHeaders: []JwtHeader{{Name: "header11", Prefix: "Bearer"}, {Name: "header2", Prefix: "Bearer"}, {Name: "header3", Prefix: "Bearer"}}, JwtParams: []string{"param2"}}
 	confErr = newNitroError()
 	authSpec.authAdd(client, confErr)
 	if confErr.getError() != nil {
@@ -207,14 +214,14 @@ func Test_auth(t *testing.T) {
 	}
 	configs = []env.VerifyNitroConfig{
 		{"authenticationvserver", "csvsvrauthn", map[string]interface{}{"ipv46": "0.0.0.0", "name": "csvsvrauthn", "servicetype": "SSL"}},
-		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"authorizationendpoint": "https://dummy.com", "certendpoint": "https://www.google.auth.com/gettokennew", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com"}},
+		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"authorizationendpoint": "https://dummy.com", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com", "certfilepath": file2}},
 		{"authenticationpolicy", "csvsvrauthn_10", map[string]interface{}{"action": "csvsvrauthn_10", "name": "csvsvrauthn_10", "rule": "true"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_10", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_10", "userexpression": "HTTP.REQ.HEADER(\"header11\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "HTTP.REQ.HEADER(\"header11\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "( HTTP.REQ.HEADER(\"header11\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_20", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_20", "userexpression": "HTTP.REQ.HEADER(\"header2\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "HTTP.REQ.HEADER(\"header2\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "( HTTP.REQ.HEADER(\"header2\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_30", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_30", "userexpression": "HTTP.REQ.HEADER(\"header3\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "HTTP.REQ.HEADER(\"header3\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "( HTTP.REQ.HEADER(\"header3\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_40", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_40", "userexpression": "HTTP.REQ.URL.QUERY.VALUE(\"param2\")"}},
 		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_40", map[string]interface{}{"action": "csvsvrauthn_lgnschm_40", "name": "csvsvrauthn_lgnschm_40", "rule": "HTTP.REQ.URL.QUERY.VALUE(\"param2\").LENGTH.GT(0)"}},
 	}
@@ -246,7 +253,7 @@ func Test_auth(t *testing.T) {
 		t.Errorf("Config verification failed for auth deleteStale csvsvrauthn, error %v", err)
 	}
 	t.Logf("Test authAdd update")
-	authSpec = &AuthSpec{Name: "csvsvrauthn", ExcludePaths: []AuthRuleMatch{{Suffix: ".net"}}, Issuer: "google", JwksURI: "https://www.google.auth.com/gettokennew", Audiences: []string{"string2"}, JwtHeaders: []string{"header11", "header2", "header3"}, JwtParams: []string{"param2"}}
+	authSpec = &AuthSpec{Name: "csvsvrauthn", ExcludePaths: []AuthRuleMatch{{Suffix: ".net"}}, Issuer: "google", Jwks: jwks, Audiences: []string{"string2"}, JwtHeaders: []JwtHeader{{Name: "header11", Prefix: "Bearer"}, {Name: "header2", Prefix: "Bearer"}, {Name: "header3", Prefix: "Bearer"}}, JwtParams: []string{"param2"}}
 	confErr = newNitroError()
 	authSpec.authAdd(client, confErr)
 	if confErr.getError() != nil {
@@ -254,15 +261,15 @@ func Test_auth(t *testing.T) {
 	}
 	configs = []env.VerifyNitroConfig{
 		{"authenticationvserver", "csvsvrauthn", map[string]interface{}{"ipv46": "0.0.0.0", "name": "csvsvrauthn", "servicetype": "SSL"}},
-		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string2", "authorizationendpoint": "https://dummy.com", "certendpoint": "https://www.google.auth.com/gettokennew", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com"}},
+		{"authenticationoauthaction", "csvsvrauthn_10", map[string]interface{}{"audience": "string2", "authorizationendpoint": "https://dummy.com", "clientid": "testcitrix", "issuer": "google", "name": "csvsvrauthn_10", "tokenendpoint": "https://dummy.com", "certfilepath": file1}},
 		{"authenticationpolicy", "csvsvrauthn_10", map[string]interface{}{"action": "csvsvrauthn_10", "name": "csvsvrauthn_10", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\")))"}},
 		{"authenticationpolicy", "csvsvrauthn_20", map[string]interface{}{"action": "NO_AUTHN", "name": "csvsvrauthn_20", "rule": "(HTTP.REQ.URL.ENDSWITH(\".net\"))"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_10", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_10", "userexpression": "HTTP.REQ.HEADER(\"header11\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && HTTP.REQ.HEADER(\"header11\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_10", map[string]interface{}{"action": "csvsvrauthn_lgnschm_10", "name": "csvsvrauthn_lgnschm_10", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && ( HTTP.REQ.HEADER(\"header11\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_20", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_20", "userexpression": "HTTP.REQ.HEADER(\"header2\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && HTTP.REQ.HEADER(\"header2\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_20", map[string]interface{}{"action": "csvsvrauthn_lgnschm_20", "name": "csvsvrauthn_lgnschm_20", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && ( HTTP.REQ.HEADER(\"header2\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_30", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_30", "userexpression": "HTTP.REQ.HEADER(\"header3\")"}},
-		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && HTTP.REQ.HEADER(\"header3\").EXISTS"}},
+		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_30", map[string]interface{}{"action": "csvsvrauthn_lgnschm_30", "name": "csvsvrauthn_lgnschm_30", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && ( HTTP.REQ.HEADER(\"header3\").EXISTS )"}},
 		{"authenticationloginschema", "csvsvrauthn_lgnschm_40", map[string]interface{}{"authenticationschema": "noschema", "name": "csvsvrauthn_lgnschm_40", "userexpression": "HTTP.REQ.URL.QUERY.VALUE(\"param2\")"}},
 		{"authenticationloginschemapolicy", "csvsvrauthn_lgnschm_40", map[string]interface{}{"action": "csvsvrauthn_lgnschm_40", "name": "csvsvrauthn_lgnschm_40", "rule": "(!(HTTP.REQ.URL.ENDSWITH(\".net\"))) && HTTP.REQ.URL.QUERY.VALUE(\"param2\").LENGTH.GT(0)"}},
 	}

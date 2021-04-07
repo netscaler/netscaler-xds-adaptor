@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -62,10 +62,11 @@ type RewriteAction struct {
 
 //CsPolicyBinding will define members which will be used to configure cs policy
 type CsPolicyBinding struct {
-	PolicyRules   []string
-	TargetLB      string
-	ServiceType   string
-	WeightPercent int
+	PolicyRules       []string
+	TargetLB          string
+	TargetVserverExpr string
+	ServiceType       string
+	WeightPercent     int
 }
 
 // NewCSApi returns a new CSApi object
@@ -80,7 +81,7 @@ func NewCSApi(name string, vserverType string, ip string, port int) *CSApi {
 
 // Add method creates/updates a CS vserver object on the Citrix-ADC
 func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSApi add: %v", csObj)
+	log.Printf("[TRACE] CSApi add: %s", GetLogString(csObj))
 	confErr := newNitroError()
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}, nil, []nitroConfig{{netscaler.Csvserver.Type(), csObj.Name, nil, "delete"}, {netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}}))
 	if csObj.AllowACL == true {
@@ -203,10 +204,11 @@ type PersistencyPolicy struct {
 
 // Canary specifies a means of splitting traffic between one or more versions of a service
 type Canary struct {
-	LbVserverName string
-	LbVserverType string
-	Weight        int
-	Persistency   *PersistencyPolicy
+	LbVserverName     string
+	LbVserverType     string
+	TargetVserverExpr string
+	Weight            int
+	Persistency       *PersistencyPolicy
 }
 
 // CsPolicy specifies the LB vservers (including versions) to which the traffic is to be forwarded
@@ -290,7 +292,7 @@ func mirrorPolicyDeleteWithLBvserver(client *netscaler.NitroClient, confErr *nit
 }
 
 func (csBindings *CSBindingsAPI) mirrorPolicyDelete(client *netscaler.NitroClient, confErr *nitroError, policyName string) {
-	mirrorPolicy := policyName + "_call_Mirror"
+	mirrorPolicy := GetNSCompatibleNameByLen(policyName+"_call_Mirror", 31)
 	calloutPolicy, err := client.FindResourceArray(netscaler.Policyhttpcallout.Type(), mirrorPolicy)
 	if err == nil {
 		for _, callout := range calloutPolicy {
@@ -368,7 +370,7 @@ func (csBindings *CSBindingsAPI) rewritePolicyAdd(client *netscaler.NitroClient,
 
 func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, confErr *nitroError, csactpolinfo *CsPolicyBinding, persistency *PersistencyPolicy, mirror *HTTPMirror) {
 	/* LBVserver ns_dummy_http is bound to CS Vserver for Redirect case where ResponderPolicy will be hit post selection of Vserver*/
-	if csactpolinfo.TargetLB != "ns_dummy_http" {
+	if (len(csactpolinfo.TargetLB) > 0) && csactpolinfo.TargetLB != "ns_dummy_http" {
 		lbObj := lb.Lbvserver{Name: csactpolinfo.TargetLB, Servicetype: csactpolinfo.ServiceType, Persistencetype: "NONE", Timeout: 2}
 		if persistency != nil {
 			if persistency.HeaderName != "" {
@@ -392,7 +394,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 		if csactpolinfo.WeightPercent != defaultMirrorWeight {
 			policyRule = "(" + policyRule + " && sys.random.mul(100).lt(" + fmt.Sprint(csactpolinfo.WeightPercent) + "))"
 		}
-		mirrorCallout := csBoundEntityName + "_call_Mirror"
+		mirrorCallout := GetNSCompatibleNameByLen(csBoundEntityName+"_call_Mirror", 31)
 		if mirror != nil {
 			csBindings.mirrorPolicyAdd(client, confErr, mirror.Callout, mirrorCallout)
 			if mirror.Weight != 100 {
@@ -403,7 +405,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 		} else {
 			csBindings.mirrorPolicyDelete(client, confErr, csBoundEntityName)
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB, Targetvserverexpr: csactpolinfo.TargetVserverExpr}, "add"}, nil, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), csBoundEntityName, cs.Cspolicy{Policyname: csBoundEntityName, Rule: policyRule, Action: csBoundEntityName}, "add"}, nil, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, cs.Csvservercspolicybinding{Name: csBindings.Name, Policyname: csBoundEntityName, Priority: csBindings.curCsPriority}, "add"}, nil, nil))
 		csBindings.curCsPriority = csBindings.curCsPriority + 10
@@ -413,7 +415,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 
 // Add method binds/updates policies to a CS vserver
 func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSBindingsAPI add: %v", csBindings)
+	log.Printf("[TRACE] CSBindingsAPI add: %+v", csBindings)
 	confErr := newNitroError()
 	rewritepolinfo := new(RewriteAction)
 	for _, csBinding := range csBindings.Bindings {
@@ -423,7 +425,7 @@ func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
 			csBindings.responderPolicyAdd(client, confErr, "(("+curPolicyRule+")"+" && sys.random.mul(100).lt("+fmt.Sprint(csBinding.Fault.AbortPercent)+"))", "respondwith", "\"HTTP/1.1 "+fmt.Sprint(csBinding.Fault.AbortHTTPStatus)+" "+http.StatusText(csBinding.Fault.AbortHTTPStatus)+"\r\n\r\n\"", 0)
 		}
 		bindingName := csBindings.Name + "_" + fmt.Sprint(csBindings.curCsPriority)
-		httpCalloutName := bindingName + "_call_Delay"
+		httpCalloutName := GetNSCompatibleNameByLen(bindingName+"_call_Delay", 31)
 		if csBinding.Fault.DelayPercent != 0 {
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, policy.Policyhttpcallout{Name: httpCalloutName, Ipaddress: "192.0.0.2", Port: delayServerPort, Returntype: "TEXT", Hostexpr: "\"127.0.0.1\"", Urlstemexpr: "\"/?sleep=" + fmt.Sprint(csBinding.Fault.DelaySeconds) + "\"", Resultexpr: "http.res.body(100)"}, "add"}, nil, nil))
 			curDelayRule = "(" + curPolicyRule + " && sys.random.mul(100).lt(" + fmt.Sprint(csBinding.Fault.DelayPercent) + ") && sys.http_callout(" + httpCalloutName + ").length.gt(0))"
@@ -433,7 +435,7 @@ func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
 				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bindingName}, "delete"}, nil, nil))
 				confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bindingName, nil, "delete"}, nil, nil))
 				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bindingName, nil, "delete"}, nil, nil))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), bindingName + "_call_Delay", nil, "delete"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, nil, "delete"}, nil, nil))
 			}
 		}
 		rewritepolinfo.Bindpoint = "REQUEST"
@@ -474,6 +476,7 @@ func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
 			csactpolinfo.TargetLB = canary.LbVserverName
 			csactpolinfo.ServiceType = canary.LbVserverType
 			csactpolinfo.WeightPercent = weightPercentage
+			csactpolinfo.TargetVserverExpr = canary.TargetVserverExpr
 			csBindings.csPolicyAdd(client, confErr, csactpolinfo, canary.Persistency, csBinding.MirrorPolicy)
 			totalWeight = totalWeight - canary.Weight
 		}
@@ -527,10 +530,10 @@ func (csBindings *CSBindingsAPI) deleteState(client *netscaler.NitroClient, conf
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete"}, nil, nil))
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), bPolicyName + "_call_Delay", nil, "delete"}, nil, nil))
-			calloutPolicy, err := client.FindResource(netscaler.Policyhttpcallout.Type(), bPolicyName+"_call_Mirror")
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), GetNSCompatibleNameByLen(bPolicyName+"_call_Delay", 31), nil, "delete"}, nil, nil))
+			calloutPolicy, err := client.FindResource(netscaler.Policyhttpcallout.Type(), GetNSCompatibleNameByLen(bPolicyName+"_call_Mirror", 31))
 			if err == nil {
-				mirrorPolicyDeleteWithLBvserver(client, confErr, bPolicyName+"_call_Mirror", calloutPolicy["vserver"].(string))
+				mirrorPolicyDeleteWithLBvserver(client, confErr, GetNSCompatibleNameByLen(bPolicyName+"_call_Mirror", 31), calloutPolicy["vserver"].(string))
 			}
 		}
 	}

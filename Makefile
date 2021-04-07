@@ -1,21 +1,26 @@
-.PHONY: docker_build test clean coverage 
-TARGETS=nsconfigengine adsclient istio-adaptor delayserver tests
+TARGETS=nsconfigengine adsclient xds-adaptor delayserver certkeyhandler tests
 
-build:
-	go install citrix-istio-adaptor/istio-adaptor
- 
-docker_build:
-	docker build --no-cache -t istio-adaptor:latest -f Dockerfile .
+VERSION=0.9.5
 
+DOCKER_CMD=docker run $(DOCKER_CMD_OPTIONS) -v `pwd`:/citrix-xds-adaptor -w /citrix-xds-adaptor --rm xds-build:$(VERSION)
+
+
+build_builder:
+	docker build --no-cache -t xds-build:$(VERSION) -f Dockerfile_build .
+
+build-dev-docker:
+	docker build --no-cache --build-arg=START_CONTAINER=xds-build:$(VERSION) -t xds-adaptor:$(VERSION) -f Dockerfile .
+
+build: build_builder build-dev-docker
+	
 format:
-	gofmt -w -d $(TARGETS)
+	$(DOCKER_CMD) gofmt -w -d $(TARGETS)
 
 check_format:
-	test -z $(shell gofmt -l $(TARGETS))
+	test -z $(shell $(DOCKER_CMD) gofmt -l $(TARGETS))
 
 lint:
-	go get golang.org/x/lint/golint
-	golint --set_exit_status $(TARGETS)
+	$(DOCKER_CMD) golint --set_exit_status $(TARGETS)
 
 check: check_format lint
 
@@ -25,20 +30,61 @@ utest: unit_test integration_test coverage_report
 create_certs:
 	sh tests/create_cert.sh
 
-unit_test:
-	go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v citrix-istio-adaptor/nsconfigengine citrix-istio-adaptor/adsclient citrix-istio-adaptor/istio-adaptor citrix-istio-adaptor/delayserver
+destroy_certs:
+	- rm -r tests/certs
 
-integration_test:
-	go test -race -timeout 1m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-istio-adaptor/adsclient,citrix-istio-adaptor/nsconfigengine -v citrix-istio-adaptor/tests
+create_deviceinfo:
+	- mkdir -p tests/deviceinfo
+
+destroy_deviceinfo:
+	- rm -r tests/deviceinfo
 
 coverage_report:
-	go get github.com/wadey/gocovmerge
-	gocovmerge integrationtestcov.out unittestcov.out > combinedcoverage.out
-	go tool cover -func=combinedcoverage.out
-	go tool cover -html=combinedcoverage.out -o combinedcoverage.html
-	go get github.com/axw/gocov/gocov
-	go get github.com/AlekSi/gocov-xml
-	gocov convert combinedcoverage.out | gocov-xml > combinedcoverage.xml
+	$(DOCKER_CMD) gocovmerge integrationtestcov.out unittestcov.out > combinedcoverage.out
+	$(DOCKER_CMD) go tool cover -func=combinedcoverage.out
+	$(DOCKER_CMD) go tool cover -html=combinedcoverage.out -o combinedcoverage.html
+	$(DOCKER_CMD) sh -c "gocov convert combinedcoverage.out | gocov-xml > combinedcoverage.xml"
 
-clean:
+NS_TEST_IP=""
+INGRESS_ADC_NAME="ingress_adc"
+SIDECAR_CPX_NAME="sidecar_test_cpx"
+CPX_IMAGE=quay.io/citrix/citrix-k8s-cpx-ingress:13.0-64.35
+
+unit_test:
+	make create_certs
+	make create_deviceinfo
+	$(eval load := $(shell docker run --name $(SIDECAR_CPX_NAME) -dt --privileged=true -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
+	$(eval DOCKER_CMD_OPTIONS := --net=container:$(SIDECAR_CPX_NAME) -e NS_TEST_IP=127.0.0.1 -e NS_TEST_NITRO_PORT=80 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct -v `pwd`/tests/deviceinfo:/var/deviceinfo )
+	$(DOCKER_CMD) go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v /citrix-xds-adaptor/nsconfigengine /citrix-xds-adaptor/adsclient /citrix-xds-adaptor/xds-adaptor /citrix-xds-adaptor/delayserver /citrix-xds-adaptor/certkeyhandler
+	docker kill $(SIDECAR_CPX_NAME)
+	docker rm $(SIDECAR_CPX_NAME)
+	make destroy_certs
+	make destroy_deviceinfo
+
+integration_test:
+	make create_certs
+	make create_deviceinfo
+	$(eval load := $(shell docker run --name $(INGRESS_ADC_NAME) -dt --privileged=true -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
+	$(eval NS_TEST_IP := $(shell docker inspect --format '{{ .NetworkSettings.IPAddress }}' $(INGRESS_ADC_NAME)))
+	$(eval DOCKER_CMD_OPTIONS := -e NS_TEST_IP=$(NS_TEST_IP) -e NS_TEST_NITRO_PORT=9080 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct -v `pwd`/tests/deviceinfo:/var/deviceinfo )
+	$(DOCKER_CMD) go test -race -timeout 2m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-xds-adaptor/adsclient,citrix-xds-adaptor/nsconfigengine -v /citrix-xds-adaptor/tests
+	docker kill $(INGRESS_ADC_NAME)
+	docker rm $(INGRESS_ADC_NAME)
+	make destroy_certs
+	make destroy_deviceinfo
+
+clean_cpx:
+	-docker kill $(INGRESS_ADC_NAME)
+	-docker rm $(INGRESS_ADC_NAME)
+	-docker kill $(SIDECAR_CPX_NAME)
+	-docker rm $(SIDECAR_CPX_NAME)
+
+docker_clean:
+	docker rmi -f $$(docker images -q -f dangling=true) || true
+	docker rmi -f xds-adaptor:$(VERSION) || true
+	docker rmi -f xds-build:$(VERSION) || true
+
+clean: clean_cpx destroy_certs destroy_deviceinfo
 	- rm integrationtestcov.out unittestcov.out combinedcoverage.out combinedcoverage.html combinedcoverage.xml
+
+clean-all: clean docker_clean

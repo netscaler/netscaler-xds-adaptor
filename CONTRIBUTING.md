@@ -1,4 +1,4 @@
-# Contributing to the Citrix Istio Adaptor
+# Contributing to the Citrix xDS Adaptor
 
  We're glad you want to contribute to this project! This document will help answer common questions you may have during your first contribution.
 

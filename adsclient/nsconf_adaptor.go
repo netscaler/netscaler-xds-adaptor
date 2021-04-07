@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,14 +14,14 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-istio-adaptor/nsconfigengine"
+	"citrix-xds-adaptor/nsconfigengine"
 	"container/list"
-	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +32,9 @@ import (
 	"github.com/chiradeep/go-nitro/config/lb"
 	"github.com/chiradeep/go-nitro/config/network"
 	"github.com/chiradeep/go-nitro/config/ns"
+	"github.com/chiradeep/go-nitro/config/policy"
 	"github.com/chiradeep/go-nitro/config/responder"
+	"github.com/chiradeep/go-nitro/config/ssl"
 	"github.com/chiradeep/go-nitro/config/tm"
 	"github.com/chiradeep/go-nitro/netscaler"
 )
@@ -47,9 +49,7 @@ const (
 	edsAdd
 	rdsAdd
 	//MSS for setting various tcp profiles
-	MSS            = 1410
-	cpxConnRetries = 60
-	vpxConnRetries = 3
+	MSS = 1410
 )
 
 type configBlock struct {
@@ -73,8 +73,45 @@ type configAdaptor struct {
 	vserverIP         string
 	netProfile        string
 	analyticsServerIP string
+	licenseServerIP   string
 	logProxyURL       string
 	analyticsProfiles []string // Two analyticspofile needed. One for TCP Insight, one for Web Insight
+	localHostVIP      string
+	caServerPort      string
+}
+
+var (
+	multiClusterIngress    = getBoolEnv("MULTICLUSTER_INGRESS")
+	multiClusterStringMap  = "multiClusterStringMap"
+	multiClusterExpression = "multiClusterExpression"
+	multiClusterPolExprStr = os.Getenv("MULTICLUSTER_SVC_DOMAIN") //".global"
+	multiClusterListenPort = getIntEnv("MULTICLUSTER_LISTENER_PORT")
+)
+
+func getBoolEnv(key string) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return false
+	}
+	ret, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		return false
+	}
+	return ret
+}
+
+func getIntEnv(key string) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return -1
+	}
+	ret, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		return -1
+	}
+	return ret
 }
 
 // Check if the given ADC is CPX or VPX/MPX
@@ -85,9 +122,9 @@ func isCPX(url string) bool {
 	return false
 }
 
-func newConfigAdaptor(nsinfo *NSDetails, adsServerPort string) (*configAdaptor, error) {
+func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 	configAdaptor := new(configAdaptor)
-	configAdaptor.adsServerPort = adsServerPort
+	configAdaptor.adsServerPort = nsinfo.adsServerPort
 	configAdaptor.vserverIP = nsinfo.NetscalerVIP
 	configAdaptor.netProfile = nsinfo.NetProfile
 	configAdaptor.configs = list.New()
@@ -97,36 +134,23 @@ func newConfigAdaptor(nsinfo *NSDetails, adsServerPort string) (*configAdaptor, 
 	configAdaptor.rdsHash = make(map[string]*list.Element)
 	configAdaptor.quit = make(chan bool)
 	configAdaptor.analyticsServerIP = nsinfo.AnalyticsServerIP
+	configAdaptor.licenseServerIP = nsinfo.LicenseServerIP
 	configAdaptor.logProxyURL = nsinfo.LogProxyURL
+	configAdaptor.localHostVIP = nsinfo.LocalHostVIP
+	configAdaptor.caServerPort = nsinfo.caServerPort
 	var err error
-	masterkey := make([]byte, 32)
-	_, err = rand.Read(masterkey)
-	if err != nil {
-		log.Printf("[ERROR]: Could not generate cryptographically secure random number")
-		return nil, err
-	}
-	// 32-byte key will be derived using PBKDF2 which uses 8-byte cryptographic salt and SHA256 hash function in 1000 iterations.
-	keyspec := netscaler.NewKeyspec(masterkey, 8, 1000, 32, sha256.New) // Saltsize: 8, Iterations: 1000, Key-length: 32, HMAC: SHA256
-	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, Keyspec: keyspec})
+	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, SslVerify: nsinfo.SslVerify, RootCAPath: nsinfo.RootCAPath, ServerName: nsinfo.ServerName})
 	if err != nil {
 		return nil, err
 	}
-	i := 0
-	connRetries := vpxConnRetries
-	if isCPX(nsinfo.NetscalerURL) {
-		connRetries = cpxConnRetries
-	}
-	for i = 0; i < connRetries; i++ {
+	for {
 		nsip, err := configAdaptor.getNitroObject(netscaler.Nsip.Type(), map[string]string{"type": "NSIP"})
 		if err == nil {
 			configAdaptor.nsip = nsip["ipaddress"].(string)
 			break
 		}
+		log.Println("[TRACE] Error connecting to the ADC ", err)
 		time.Sleep(1 * time.Second)
-	}
-	if i == connRetries {
-		log.Println("[ERROR]: Could not establish connectivity with the ADC. Exiting!")
-		return nil, fmt.Errorf("Connection establishment with ADC is unsuccessful")
 	}
 	if isCPX(nsinfo.NetscalerURL) {
 		err = configAdaptor.sidecarBootstrapConfig()
@@ -136,6 +160,7 @@ func newConfigAdaptor(nsinfo *NSDetails, adsServerPort string) (*configAdaptor, 
 	}
 	err = configAdaptor.bootstrapConfig()
 	if err != nil {
+		log.Printf("[ERROR] bootstrapConfig failed with error: %v", err)
 		return nil, err
 	}
 	err = configAdaptor.dologProxyConfig()
@@ -183,17 +208,24 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserverservicebinding{Name: "dns_vserver", Servicename: "dns_service"}},
 		{ResourceType: netscaler.Dnsnameserver.Type(), ResourceName: "dns_vserver", Resource: &dns.Dnsnameserver{Dnsvservername: "dns_vserver"}},
 		{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowpromexp", Resource: ns.Nsacl{Aclname: "allowpromexp", Aclaction: "ALLOW", Protocol: "TCP", Destport: true, Destportval: "8888", Priority: 65536}},
-		{ResourceType: netscaler.Nsacl.Type(), ResourceName: "denyall", Resource: ns.Nsacl{Aclname: "denyall", Aclaction: "DENY", Priority: 100000}},
-		{ResourceType: netscaler.Nsacls.Type(), ResourceName: "", Resource: ns.Nsacls{}, Operation: "apply"},
 	}
-	if confAdaptor.analyticsServerIP != "" {
-		// TODO - allowing all connection to ADS server;s port. Must find a way to allow outbound connection from adsclient and not from application server
+	listenPolicy := "CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ")"
+	// CA port and xDS server's ports can be different
+	if len(confAdaptor.caServerPort) > 0 && (confAdaptor.caServerPort != confAdaptor.adsServerPort) {
+		listenPolicy = listenPolicy + " && CLIENT.TCP.DSTPORT.NE(" + confAdaptor.caServerPort + ")"
+	}
+	if len(confAdaptor.analyticsServerIP) > 0 {
+		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.analyticsServerIP + ")"
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowadmserver", Resource: ns.Nsacl{Aclname: "allowadmserver", Aclaction: "ALLOW", Srcip: true, Srcipval: confAdaptor.analyticsServerIP, Priority: 65537}})
-		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "drop_all_vserver", Resource: lb.Lbvserver{Name: "drop_all_vserver", Servicetype: "ANY", Ipv46: "*", Port: 65535, Listenpolicy: "(CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ") && CLIENT.IP.DST.NE(" + confAdaptor.analyticsServerIP + "))"}})
-	} else {
-		// TODO - allowing all connection to ADS server;s port. Must find a way to allow outbound connection from adsclient and not from application server
-		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "drop_all_vserver", Resource: lb.Lbvserver{Name: "drop_all_vserver", Servicetype: "ANY", Ipv46: "*", Port: 65535, Listenpolicy: "CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ")"}})
 	}
+	if len(confAdaptor.licenseServerIP) > 0 && confAdaptor.licenseServerIP != confAdaptor.analyticsServerIP {
+		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.licenseServerIP + ")"
+		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowlicenseserver", Resource: ns.Nsacl{Aclname: "allowlicenseserver", Aclaction: "ALLOW", Srcip: true, Srcipval: confAdaptor.licenseServerIP, Priority: 65538}})
+	}
+	// Create drop_all_vserver config
+	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "drop_all_vserver", Resource: lb.Lbvserver{Name: "drop_all_vserver", Servicetype: "ANY", Ipv46: "*", Port: 65535, Listenpolicy: listenPolicy}})
+	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "denyall", Resource: ns.Nsacl{Aclname: "denyall", Aclaction: "DENY", Priority: 100000}})
+	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacls.Type(), ResourceName: "", Resource: ns.Nsacls{}, Operation: "apply"})
 	err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 	return err
 }
@@ -233,6 +265,23 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 		}
 		configs = append(configs, netprof)
 	}
+	dummySslCertConfigs := []nsconfigengine.NsConfigEntity{
+		{ResourceType: netscaler.Sslrsakey.Type(), ResourceName: "dummy_xds_key", Resource: ssl.Sslrsakey{Keyfile: "dummy_xds_key", Bits: 512}, Operation: "create", IgnoreErrors: []string{"File already exists"}},
+		{ResourceType: netscaler.Sslcertreq.Type(), ResourceName: "dummy_xds_cert_req", Resource: ssl.Sslcertreq{Reqfile: "dummy_xds_cert_req", Keyfile: "dummy_xds_key", Countryname: "US", Statename: "Florida", Organizationname: "Citrix", Commonname: "dummy.citrix.xds"}, Operation: "create", IgnoreErrors: []string{"File already exists"}},
+		{ResourceType: netscaler.Sslcert.Type(), ResourceName: "dummy_xds_cert", Resource: ssl.Sslcert{Certfile: "dummy_xds_cert", Reqfile: "dummy_xds_cert_req", Certtype: "ROOT_CERT", Keyfile: "dummy_xds_key"}, Operation: "create", IgnoreErrors: []string{"File already exists"}},
+	}
+	configs = append(configs, dummySslCertConfigs...)
+	// Config related to multiCluster Ingress gateway
+	if multiClusterIngress == true {
+		// Policy stringmap name and policy expression name should not be same.
+		expr := "HTTP.REQ.HOSTNAME.BEFORE_STR(\"" + multiClusterPolExprStr + "\").MAP_STRING(\"" + multiClusterStringMap + "\")"
+		multiClusterGWConfig := []nsconfigengine.NsConfigEntity{
+			{ResourceType: netscaler.Policystringmap.Type(), ResourceName: multiClusterStringMap, Resource: policy.Policystringmap{Name: multiClusterStringMap, Comment: "Stringmap to select LB vserver from servicename"}, Operation: "add"},
+			{ResourceType: netscaler.Policyexpression.Type(), ResourceName: multiClusterExpression, Resource: policy.Policyexpression{Name: multiClusterExpression, Value: expr}, Operation: "add"},
+		}
+		configs = append(configs, multiClusterGWConfig...)
+	}
+
 	err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 	return err
 }
@@ -255,6 +304,7 @@ func (confAdaptor *configAdaptor) dologProxyConfig() error {
 			{ResourceType: netscaler.Appflowparam.Type(), ResourceName: "", Resource: appflowResource, Operation: "set"},
 			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_http_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_http_profile", Type: "webinsight", Httpurl: "ENABLED", Httphost: "ENABLED", Httpmethod: "ENABLED", Httpuseragent: "ENABLED", Urlcategory: "ENABLED", Httpcontenttype: "ENABLED", Httpvia: "ENABLED", Httpdomainname: "ENABLED", Httpurlquery: "ENABLED"}},
 			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_default_tcp_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_default_tcp_profile", Type: "tcpinsight"}},
+			{ResourceType: "analyticsprofile", ResourceName: "ns_analytics_time_series_profile", Resource: analytics.Analyticsprofile{Name: "ns_analytics_time_series_profile", Type: "timeseries", Outputmode: "prometheus", Metrics: "ENABLED"}},
 		}
 		err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 		if err != nil {
@@ -342,9 +392,11 @@ func (confAdaptor *configAdaptor) delConfig(config *configBlock) {
 	confAdaptor.mux.Unlock()
 }
 
-func (confAdaptor *configAdaptor) startConfigAdaptor() {
+func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 	go func() {
 		log.Println("[TRACE] Starting Config adaptor")
+		previousUptime := -1
+		lastQueryTime := int64(0)
 		for {
 			select {
 			case <-confAdaptor.quit:
@@ -371,9 +423,20 @@ func (confAdaptor *configAdaptor) startConfigAdaptor() {
 					case cdsDel:
 						err = config.resource.(*nsconfigengine.LBApi).Delete(confAdaptor.client)
 					case ldsAdd:
-						err = config.resource.(*nsconfigengine.CSApi).Add(confAdaptor.client)
+						fallthrough
 					case ldsDel:
-						err = config.resource.(*nsconfigengine.CSApi).Delete(confAdaptor.client)
+						csResources := config.resource.([]*nsconfigengine.CSApi)
+						for _, csResource := range csResources {
+							var errCs error
+							if config.configType == ldsAdd {
+								errCs = csResource.Add(confAdaptor.client)
+							} else {
+								errCs = csResource.Delete(confAdaptor.client)
+							}
+							if errCs != nil {
+								log.Printf("xDS application (%v) failed with error %v", config.configType, errCs)
+							}
+						}
 					case edsAdd:
 						err = config.resource.(*nsconfigengine.ServiceGroupAPI).Add(confAdaptor.client)
 					case rdsAdd:
@@ -385,6 +448,20 @@ func (confAdaptor *configAdaptor) startConfigAdaptor() {
 				} else {
 					time.Sleep(1 * time.Second)
 				}
+			}
+			curTime := time.Now().Unix()
+			if curTime > lastQueryTime+7 {
+				currentUptime, err := nsconfigengine.GetNsUptime(confAdaptor.client)
+				if err != nil {
+					continue
+				}
+				if currentUptime < previousUptime {
+					log.Println("[ERROR] ADC crash/reboot detected.")
+					adsClient.stopClientConnection(false)
+					return
+				}
+				previousUptime = currentUptime
+				lastQueryTime = curTime
 			}
 		}
 	}()

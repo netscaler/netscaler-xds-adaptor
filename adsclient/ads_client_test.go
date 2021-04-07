@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,10 +14,27 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/certkeyhandler"
+	"citrix-xds-adaptor/tests/env"
+	"fmt"
+	"os"
 	"testing"
 	"time"
+
+	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 )
+
+func setCertEnv(certpath string) error {
+	err := os.MkdirAll("/etc/certs", 0777)
+	if err != nil {
+		return fmt.Errorf("Could not create directory /etc/certs")
+	}
+	err = copyFile(certpath, ClientCertFile)
+	if err != nil {
+		return fmt.Errorf("Could not copy %s contents to %s. Err=%s", certpath, ClientCertFile, err)
+	}
+	return nil
+}
 
 func Test_StartClient(t *testing.T) {
 	t.Logf("ads StartClient with unreachable secure ads grpc server")
@@ -34,21 +51,101 @@ func Test_StartClient(t *testing.T) {
 	nsinfo.NetscalerVIP = "nsip"
 	nsinfo.NetProfile = ""
 	nsinfo.AnalyticsServerIP = ""
+	nsinfo.LicenseServerIP = ""
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
-	adsClient, err := NewAdsClient(adsinfo, nsinfo)
+	// CA details
+	cainfo := new(certkeyhandler.CADetails)
+	cainfo.CAAddress = "localhost:15012"
+	cainfo.CAProvider = "Istiod"
+	cainfo.ClusterID = "Kubernetes"
+	cainfo.Env = "onprem"
+	cainfo.TrustDomain = "cluster.local"
+	cainfo.NameSpace = "my-namespace"
+	cainfo.SAName = "my-service"
+	cainfo.CertTTL = 1 * time.Hour
+	err := setCertEnv("../tests/tls_conn_mgmt_certs/client-cert.pem")
+	if err != nil {
+		t.Errorf("Could not set certificate environment for StartClient")
+	}
+	adsClient, err := NewAdsClient(adsinfo, nsinfo, cainfo)
 	if err != nil {
 		t.Errorf("newAdsClient failed with %v", err)
 	}
+
 	adsClient.StartClient()
 	time.Sleep(3 * time.Second)
 	adsClient.StopClient()
 	t.Logf("ads StartClient with unreachable insecure ads grpc server")
 	adsinfo.AdsServerURL = "localhost:15010"
-	adsClient, err = NewAdsClient(adsinfo, nsinfo)
+	adsClient, err = NewAdsClient(adsinfo, nsinfo, nil)
 	if err != nil {
 		t.Errorf("newAdsClient failed with %v", err)
 	}
 	adsClient.StartClient()
 	time.Sleep(2 * time.Second)
 	adsClient.StopClient()
+	// Delete the etc/certs directory created in setCertEnv
+	if err := os.RemoveAll("/etc/certs"); err != nil {
+		t.Errorf("Could not delete /etc/certs")
+	}
+}
+
+func Test_http_clusters(t *testing.T) {
+	t.Log("http clusters test start")
+	env.ClearNetscalerConfig()
+	grpcServer, err := env.NewGrpcADSServer(1234)
+	if err != nil {
+		t.Errorf("GRPC server creation failed: %v", err)
+	}
+	adsinfo := new(AdsDetails)
+	nsinfo := new(NSDetails)
+	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerSpiffeID = ""
+	adsinfo.SecureConnect = false
+	adsinfo.NodeID = "ads_client_node_1"
+	adsinfo.ApplicationName = "test-app"
+	nsinfo.NetscalerURL = env.GetNetscalerURL()
+	nsinfo.NetscalerUsername = env.GetNetscalerUser()
+	nsinfo.NetscalerPassword = env.GetNetscalerPassword()
+	nsinfo.NetscalerVIP = "nsip"
+	nsinfo.NetProfile = ""
+	nsinfo.AnalyticsServerIP = ""
+	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
+	discoveryClient, err := NewAdsClient(adsinfo, nsinfo, nil)
+	if err != nil {
+		t.Errorf("newAdsClient failed with %v", err)
+	}
+	discoveryClient.StartClient()
+	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
+	listener, err := env.MakeHttpListener("l1", "0.0.0.0", 8000, "r1")
+	if err != nil {
+		t.Errorf("makeListener failed with %v", err)
+	}
+	cluster := env.MakeCluster("c1")
+	endpoint := env.MakeEndpoint("c1", []env.ServiceEndpoint{{env.GetLocalIP(), 9000, 1}})
+
+	clusterC2 := env.MakeCluster("c2")
+	clusterC3 := env.MakeCluster("c3")
+
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{route}, []*xdsapi.Cluster{cluster, clusterC3, clusterC2}, []*xdsapi.ClusterLoadAssignment{endpoint})
+	if err != nil {
+		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
+	}
+
+	time.Sleep(5 * time.Second)
+
+	configs := []env.VerifyNitroConfig{
+		{"lbvserver", "c1", map[string]interface{}{"name": "c1", "servicetype": "HTTP"}},
+		{"lbvserver", "c2", map[string]interface{}{"name": "c2", "servicetype": "HTTP"}},
+		{"lbvserver", "c3", map[string]interface{}{"name": "c3", "servicetype": "HTTP"}},
+	}
+	client := env.GetNitroClient()
+	err = env.VerifyConfigBlockPresence(client, configs)
+	if err != nil {
+		t.Errorf("Clusters verification failed with %v", err)
+	}
+
+	discoveryClient.StopClient()
+	grpcServer.StopGrpcADSServer()
+	t.Log("HTTP clusters test stop")
 }

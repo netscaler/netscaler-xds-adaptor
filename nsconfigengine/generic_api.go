@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,6 +14,9 @@ limitations under the License.
 package nsconfigengine
 
 import (
+	"log"
+	"strconv"
+
 	"github.com/chiradeep/go-nitro/netscaler"
 )
 
@@ -37,4 +40,20 @@ func NsConfigCommit(client *netscaler.NitroClient, configs []NsConfigEntity) err
 		confErr.updateError(doNitro(client, nitroConfig{config.ResourceType, config.ResourceName, config.Resource, operation}, config.IgnoreErrors, nil))
 	}
 	return confErr.getError()
+}
+
+// GetNsUptime returns the number of seconds since boot up
+func GetNsUptime(client *netscaler.NitroClient) (int, error) {
+	var currentUptime int
+	uptime, err := client.FindStatWithArgs("nsglobalcntr", "", []string{"counters:sys_cur_duration_sincestart"})
+	if err != nil {
+		log.Println("[ERROR] Unable to get Uptime beginningStat. ", err)
+		return 0, err
+	}
+	//log.Printf("[TRACE] Duration since start : %v, %s", uptime, uptime["sys_cur_duration_sincestart"].(string))
+	currentUptime, err = strconv.Atoi(uptime["sys_cur_duration_sincestart"].(string))
+	if err != nil {
+		return 0, err
+	}
+	return currentUptime, nil
 }

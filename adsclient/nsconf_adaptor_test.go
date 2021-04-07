@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,9 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -69,17 +70,26 @@ func verifyModes(t *testing.T, client *netscaler.NitroClient, modes []string) {
 func Test_bootstrapConfig(t *testing.T) {
 	t.Log("Verify BootStrap Config")
 	var err interface{}
+	analyticserverip := "1.1.1.1"
+	licenseserverip := "1.1.1.2"
+	configAdaptorerrorlog := "Unable to get a config adaptor. newConfigAdaptor failed with"
+	bootstrapconfiglog := "Config verification failed for sidecar bootstrap config, error"
 	nsinfo := new(NSDetails)
 	nsinfo.NetscalerURL = env.GetNetscalerURL()
 	nsinfo.NetscalerUsername = env.GetNetscalerUser()
 	nsinfo.NetscalerPassword = env.GetNetscalerPassword()
 	nsinfo.NetscalerVIP = ""
 	nsinfo.NetProfile = "k8s"
-	nsinfo.AnalyticsServerIP = ""
+	nsinfo.AnalyticsServerIP = analyticserverip
+	nsinfo.LicenseServerIP = licenseserverip
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
-	configAd, err := newConfigAdaptor(nsinfo, "15010")
+	nsinfo.adsServerPort = "15010"
+	multiClusterIngress = true
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
+	configAd, err := newConfigAdaptor(nsinfo)
 	if err != nil {
-		t.Errorf("Unable to get a config adaptor. newConfigAdaptor failed with %v", err)
+		t.Errorf(" %s  %v", configAdaptorerrorlog, err)
 	}
 	if strings.Contains(env.GetNetscalerURL(), "localhost") || strings.Contains(env.GetNetscalerURL(), "127.0.0.1") {
 		t.Logf("Verifying sidecar bootstrap config")
@@ -90,11 +100,72 @@ func Test_bootstrapConfig(t *testing.T) {
 			{"dnsnameserver", "dns_vserver", map[string]interface{}{"dnsvservername": "dns_vserver"}},
 			{"nsacl", "allowpromexp", map[string]interface{}{"aclname": "allowpromexp", "aclaction": "ALLOW", "protocol": "TCP", "destportval": "8888", "priority": 65536, "kernelstate": "APPLIED"}},
 			{"nsacl", "denyall", map[string]interface{}{"aclname": "denyall", "aclaction": "DENY", "priority": 100000, "kernelstate": "APPLIED"}},
+		}
+		configs2 := []env.VerifyNitroConfig{
+			{"nsacl", "allowadmserver", map[string]interface{}{"aclname": "allowadmserver", "aclaction": "ALLOW", "srcipval": "1.1.1.1", "priority": 65537}},
+			{"nsacl", "allowlicenseserver", map[string]interface{}{"aclname": "allowlicenseserver", "aclaction": "ALLOW", "srcipval": "1.1.1.2", "priority": 65538}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1) && CLIENT.IP.DST.NE(1.1.1.2)"}},
+		}
+		configs3 := []env.VerifyNitroConfig{}
+		configs3 = append(configs, configs2...)
+		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
+		if err != nil {
+			t.Errorf("%s %v", bootstrapconfiglog, err)
+		}
+		nsinfo.AnalyticsServerIP = ""
+		nsinfo.LicenseServerIP = licenseserverip
+		nsinfo.caServerPort = "15012"
+		configAd, err := newConfigAdaptor(nsinfo)
+		if err != nil {
+			t.Errorf("%s %v", configAdaptorerrorlog, err)
+		}
+		configs2 = []env.VerifyNitroConfig{
+			{"nsacl", "allowlicenseserver", map[string]interface{}{"aclname": "allowlicenseserver", "aclaction": "ALLOW", "srcipval": "1.1.1.2", "priority": 65538}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.TCP.DSTPORT.NE(15012) && CLIENT.IP.DST.NE(1.1.1.2)"}},
+		}
+		configs3 = append(configs, configs2...)
+		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
+		if err != nil {
+			t.Errorf("%s %v", bootstrapconfiglog, err)
+		}
+		nsinfo.AnalyticsServerIP = analyticserverip
+		nsinfo.LicenseServerIP = ""
+		nsinfo.caServerPort = ""
+		configAd, err = newConfigAdaptor(nsinfo)
+		if err != nil {
+			t.Errorf("%s %v", configAdaptorerrorlog, err)
+		}
+		configs2 = []env.VerifyNitroConfig{
+			{"nsacl", "allowadmserver", map[string]interface{}{"aclname": "allowadmserver", "aclaction": "ALLOW", "srcipval": "1.1.1.1", "priority": 65537}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1)"}},
+		}
+		configs3 = append(configs, configs2...)
+		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
+		if err != nil {
+			t.Errorf("%s %v", bootstrapconfiglog, err)
+		}
+		nsinfo.LicenseServerIP = analyticserverip
+		configAd, err = newConfigAdaptor(nsinfo)
+		if err != nil {
+			t.Errorf("%s %v", configAdaptorerrorlog, err)
+		}
+		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
+		if err != nil {
+			t.Errorf("%s %v", bootstrapconfiglog, err)
+		}
+		nsinfo.AnalyticsServerIP = ""
+		nsinfo.LicenseServerIP = ""
+		configAd, err = newConfigAdaptor(nsinfo)
+		if err != nil {
+			t.Errorf("%s %v", configAdaptorerrorlog, err)
+		}
+		configs2 = []env.VerifyNitroConfig{
 			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010)"}},
 		}
-		err = env.VerifyConfigBlockPresence(configAd.client, configs)
+		configs3 = append(configs, configs2...)
+		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
 		if err != nil {
-			t.Errorf("Config verification failed for sidecar bootstrap config, error %v", err)
+			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
 	}
 	t.Log("Verify Features Applied")
@@ -131,5 +202,75 @@ func Test_bootstrapConfig(t *testing.T) {
 	err = env.VerifyConfigBlockPresence(configAd.client, configs)
 	if err != nil {
 		t.Errorf("Config verification failed for logproxy config, error %v", err)
+	}
+}
+
+func Test_getBoolEnv(t *testing.T) {
+	os.Setenv("EMPTY_VAR", "")
+	os.Setenv("TRUE_VAR", "1")
+	os.Setenv("FALSE_VAR", "f")
+	os.Setenv("INVALID_VAR", "helloworld")
+
+	tc := map[string]struct {
+		envVar    string
+		expOutput bool
+	}{
+		"empty-env": {
+			envVar:    "EMPTY_VAR",
+			expOutput: false,
+		},
+		"true-env": {
+			envVar:    "TRUE_VAR",
+			expOutput: true,
+		},
+		"false-env": {
+			envVar:    "FALSE_VAR",
+			expOutput: false,
+		},
+		"invalid-var": {
+			envVar:    "INVALID_VAR",
+			expOutput: false,
+		},
+	}
+
+	for id, c := range tc {
+		if c.expOutput != getBoolEnv(c.envVar) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("Succeed for %s", id)
+		}
+	}
+}
+
+//func getIntEnv(key string) int
+func Test_getIntEnv(t *testing.T) {
+	os.Setenv("EMPTY_VAR", "")
+	os.Setenv("VALID_VAR", "10001")
+	os.Setenv("INVALID_VAR", "helloworld")
+
+	tc := map[string]struct {
+		envVar    string
+		expOutput int
+	}{
+		"empty-env": {
+			envVar:    "EMPTY_VAR",
+			expOutput: -1,
+		},
+		"valid-env": {
+			envVar:    "VALID_VAR",
+			expOutput: 10001,
+		},
+		"invalid-var": {
+			envVar:    "INVALID_VAR",
+			expOutput: -1,
+		},
+	}
+
+	for id, c := range tc {
+		if c.expOutput != getIntEnv(c.envVar) {
+			t.Errorf("Failed for %s", id)
+		} else {
+			t.Logf("Succeed for %s", id)
+		}
 	}
 }

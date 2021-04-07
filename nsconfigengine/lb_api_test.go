@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Citrix Systems, Inc
+Copyright 2020 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,7 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-istio-adaptor/tests/env"
+	"citrix-xds-adaptor/tests/env"
 	"testing"
 )
 
@@ -223,7 +223,8 @@ func Test_LBApi_http_tls(t *testing.T) {
 	lbObj.LbMonitorObj.IntervalUnits = "SEC"
 	lbObj.LbMonitorObj.DownTime = 10
 	lbObj.LbMonitorObj.DownTimeUnits = "SEC"
-	lbObj.BackendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", PrivateKeyFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", RootCertFilename: "../tests/certs/certssvc1/rootCA.crt"}}
+	lbObj.BackendTLS = []SSLSpec{{CertFilename: "certssvc1_svc1", PrivateKeyFilename: "certssvc1_svc1_key", RootCertFilename: "certssvc1_rootCA"}}
+	//lbObj.BackendTLS = []SSLSpec{{CertFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", PrivateKeyFilename: "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", RootCertFilename: "../tests/certs/certssvc1/rootCA.crt"}}
 	client := env.GetNitroClient()
 	UploadCert(client, "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certssvc1_svc1", "../tests/certs/certssvc1/svc1.citrixrootdummy1.com.key", "certssvc1_svc1_key")
 	UploadCert(client, "../tests/certs/certssvc1/rootCA.crt", "certssvc1_rootCA", "", "")
@@ -267,6 +268,24 @@ func Test_LBApi_http_tls(t *testing.T) {
 	}
 }
 
+func Test_LBApi_tcp_to_http(t *testing.T) {
+	lbObj := NewLBApi("lb1", "TCP", "TCP", "ROUNDROBIN")
+	t.Logf("Adding LB of type TCP")
+	client := env.GetNitroClient()
+	err := lbObj.Add(client)
+	if err != nil {
+		t.Errorf("LBApi add failed with %v", err)
+	}
+	t.Logf("Converting LB to type HTTP")
+	lbObj.FrontendServiceType = "HTTP"
+	lbObj.BackendServiceType = "HTTP"
+	err = lbObj.Add(client)
+	if err != nil {
+		t.Errorf("Error converting LB from type tcp to http : %v", err)
+	}
+	lbObj.Delete(client)
+}
+
 func Test_ServiceGroupAPI_ip(t *testing.T) {
 	client := env.GetNitroClient()
 	client.AddResource("servicegroup", "svcgp1", map[string]interface{}{"servicegroupname": "svcgp1", "servicetype": "HTTP"})
@@ -300,6 +319,8 @@ func Test_ServiceGroupAPI_domain(t *testing.T) {
 	client.AddResource("servicegroup", "svcgp2", map[string]interface{}{"servicegroupname": "svcgp2", "servicetype": "HTTP"})
 	svcGpObj := NewServiceGroupAPI("svcgp2")
 	svcGpObj.IsIPOnlySvcGroup = false
+	svcGpObj.IsLogProxySvcGrp = true
+	svcGpObj.PromEP = "www_abc_org" // Prometheus Server Name.
 	svcGpObj.Members = []ServiceGroupMember{{Domain: "www.google.com", Port: 80}, {Domain: "www.abc.org", Port: 9090}, {Domain: "www.facebook.com", Port: 80}}
 	err := svcGpObj.Add(client)
 	if err != nil {
@@ -332,8 +353,9 @@ func Test_ServiceGroupAPI_desiredState(t *testing.T) {
 	// Case 1: Adding servicegroup with only IP members from the beginning
 	client.AddResource("servicegroup", "svcgp1", map[string]interface{}{"servicegroupname": "svcgp1", "servicetype": "HTTP", "autoscale": "API"})
 	svcGpObj := NewServiceGroupAPI("svcgp1")
-
 	svcGpObj.Members = []ServiceGroupMember{{IP: "1.1.1.1", Port: 80}, {IP: "2.2.2.2", Port: 9090}, {IP: "1.1.1.2", Port: 80}}
+	svcGpObj.IsLogProxySvcGrp = true
+	svcGpObj.PromEP = "1.1.1.2"
 	err := svcGpObj.Add(client)
 	if err != nil {
 		t.Errorf("Desired State API based ServiceGroup members add failed with %v", err)
