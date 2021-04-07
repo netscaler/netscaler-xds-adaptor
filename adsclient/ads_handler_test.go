@@ -25,30 +25,30 @@ import (
 	"sort"
 	"testing"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	v2Cluster "github.com/envoyproxy/go-control-plane/envoy/api/v2/cluster"
-	v2Core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	xdsfault "github.com/envoyproxy/go-control-plane/envoy/config/filter/fault/v2"
-	xdshttpfault "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/fault/v2"
-	envoy_jwt "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
-	http_conn "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	xdstype "github.com/envoyproxy/go-control-plane/envoy/type"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	xdsfault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/common/fault/v3"
+	xdshttpfault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/fault/v3"
+	envoy_jwt "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
+	http_conn "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	auth "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	xdstype "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	xdsutil "github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"github.com/gogo/protobuf/types"
+	ptypes "github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
-	"istio.io/istio/pilot/pkg/networking/util"
-	"istio.io/istio/pkg/util/gogo"
 )
 
 const (
-	serverCert = "/etc/certs/server-cert.crt"
-	serverKey  = "/etc/certs/server-key.key"
-	certDir    = "/etc/certs"
+	serverCert         = "/etc/certs/server-cert.crt"
+	serverKey          = "/etc/certs/server-key.key"
+	certDir            = "/etc/certs"
+	EnvoyTLSSocketName = "envoy.transport_sockets.tls"
+	inboundDir         = "INBOUND"
+	outboundDir        = "OUTBOUND"
 )
 
 func Test_extractPortAndDomainName(t *testing.T) {
@@ -81,14 +81,13 @@ func Test_extractPortAndDomainName(t *testing.T) {
 
 func Test_getLbMethod(t *testing.T) {
 	cases := []struct {
-		input          xdsapi.Cluster_LbPolicy
+		input          cluster.Cluster_LbPolicy
 		expectedOutput string
 	}{
-		{xdsapi.Cluster_ROUND_ROBIN, "ROUNDROBIN"},
-		{xdsapi.Cluster_LEAST_REQUEST, "LEASTCONNECTION"},
-		{xdsapi.Cluster_RANDOM, "LEASTCONNECTION"},
-		{xdsapi.Cluster_RING_HASH, "ROUNDROBIN"},
-		{xdsapi.Cluster_ORIGINAL_DST_LB, "ROUNDROBIN"},
+		{cluster.Cluster_ROUND_ROBIN, "ROUNDROBIN"},
+		{cluster.Cluster_LEAST_REQUEST, "LEASTCONNECTION"},
+		{cluster.Cluster_RANDOM, "LEASTCONNECTION"},
+		{cluster.Cluster_RING_HASH, "ROUNDROBIN"},
 	}
 
 	for _, c := range cases {
@@ -142,13 +141,11 @@ func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resour
 }
 
 func Test_clusterAdd(t *testing.T) {
-	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
-	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
 	multiClusterIngress = true
 	multiClusterPolExprStr = ".global"
 	multiClusterListenPort = 15443
-	//certFileName := "/etc/certs/server-cert.crt"
-	//keyFileName := "/etc/certs/server-key.key"
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem" // Single leaf certificate
+	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
 	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
 	if err != nil {
 		t.Errorf("Failed reading Cert/Key- %v", err)
@@ -159,7 +156,7 @@ func Test_clusterAdd(t *testing.T) {
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
 	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
 	lbObj.LbMonitorObj.Retries = 9
@@ -182,11 +179,13 @@ func Test_clusterAdd(t *testing.T) {
 	}
 
 	log.Println("HTTPS cluster add")
-	cds.EdsClusterConfig = &xdsapi.Cluster_EdsClusterConfig{EdsConfig: &v2Core.ConfigSource{ConfigSourceSpecifier: &v2Core.ConfigSource_Ads{Ads: &v2Core.AggregatedConfigSource{}}}}
-	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
+	cds.EdsClusterConfig = &cluster.Cluster_EdsClusterConfig{EdsConfig: &core.ConfigSource{ConfigSourceSpecifier: &core.ConfigSource_Ads{Ads: &core.AggregatedConfigSource{}}}}
+	cds.CircuitBreakers = &cluster.CircuitBreakers{Thresholds: []*cluster.CircuitBreakers_Thresholds{&cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
 	cds.MaxRequestsPerConnection = &wrappers.UInt32Value{Value: uint32(100)}
-	cds.TlsContext = &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", false)}
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
+	tlsContextM := &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", false)}
+	tlsContext, _ := ptypes.MarshalAny(tlsContextM)
+	cds.TransportSocket = &core.TransportSocket{Name: EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: tlsContext}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
 	lbObj.FrontendServiceType = "HTTP"
 	lbObj.BackendServiceType = "SSL"
 	lbObj.MaxConnections = 500
@@ -258,14 +257,12 @@ func Test_isLogProxyEndpoint(t *testing.T) {
 	}
 }
 func Test_listenerAdd(t *testing.T) {
-	//certFileName := "/etc/certs/server-cert.crt"
-	//keyFileName := "/etc/certs/server-key.key"
 	multiClusterIngress = true
 	multiClusterPolExprStr = ".global"
 	multiClusterListenPort = 15443
-	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
+	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem" // Single leaf certificate
 	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
-	rootCertFile := "../tests/tls_conn_mgmt_certs/client-root-cert.pem"
+	rootCertFile := "../tests/tls_conn_mgmt_certs/root-cert.pem"
 	certChainFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
 	certFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
 	keyFile := "../tests/tls_conn_mgmt_certs/key.pem"
@@ -292,7 +289,7 @@ func Test_listenerAdd(t *testing.T) {
 	}
 	nsCertName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	nsKeyName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
-	lds, err := env.MakeHttpListener("l1", "10.0.0.0", 80, "r1")
+	lds, err := env.MakeHttpListener("l1", "10.0.0.0", 80, outboundDir, "r1")
 	if err != nil {
 		t.Errorf("MakeHttpListener failed with %v", err)
 	}
@@ -303,7 +300,7 @@ func Test_listenerAdd(t *testing.T) {
 	}
 
 	t.Logf("TCP listener add")
-	lds, err = env.MakeTcpListener("l2", "20.0.0.0", 25, "cl1")
+	lds, err = env.MakeTcpListener("l2", "20.0.0.0", 25, outboundDir, "cl1")
 	if err != nil {
 		t.Errorf("MakeTcpListener failed with %v", err)
 	}
@@ -312,8 +309,8 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
-	t.Logf("HTTPS listener add")
-	lds, err = env.MakeHttpsListener("l3s", "30.2.0.1", 443, "r1", certFileName, keyFileName, "", false, true, false, true)
+	t.Logf("HTTPS listener add with SDS TLS transport socket")
+	lds, err = env.MakeHttpsListener("l3s", "30.2.0.1", 443, outboundDir, "r1", certFileName, keyFileName, "", false, true, false, true)
 	if err != nil {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
@@ -323,8 +320,8 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("Verification failed - %v", err)
 	}
 
-	t.Logf("HTTPS listener add")
-	lds, err = env.MakeHttpsListener("l2s", "30.0.0.1", 443, "r1", certFileName, keyFileName, "", false, true, false, false)
+	t.Logf("HTTPS listener add with downstream TLS transport socket")
+	lds, err = env.MakeHttpsListener("l2s", "30.0.0.1", 443, outboundDir, "r1", certFileName, keyFileName, "", false, true, false, false)
 	if err != nil {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
@@ -333,17 +330,6 @@ func Test_listenerAdd(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
-	t.Logf("HTTPS listener add")
-	lds, err = env.MakeHttpsListener("l1s", "30.0.0.0", 443, "r1", certFileName, keyFileName, "", false, false, false, false)
-	if err != nil {
-		t.Errorf("MakeHttpsListener failed with %v", err)
-	}
-	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l1s", IP: "30.0.0.0", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}}}
-	err = verifyObject(nsConfAdaptor, ldsAdd, "l1s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l1s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
-	if err != nil {
-		t.Errorf("Verification failed - %v", err)
-	}
-
 	t.Logf("HTTP multiple filterchain listener add")
 	r1 := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
 	f1, err := env.MakeHttpFilter("lm1", "", r1)
@@ -361,7 +347,7 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("MakeTcpFilter failed %v", err)
 	}
 	fc3 := env.MakeFilterChain("1.1.1.1", 32, 1010, "", "f3", f3)
-	lds = env.MakeListenerFilterChains("lm1", "0.0.0.0", 15001, []*listener.FilterChain{fc1, fc2, fc3})
+	lds = env.MakeListenerFilterChains("lm1", "0.0.0.0", 15001, outboundDir, []*listener.FilterChain{fc1, fc2, fc3})
 	csObjExpLm1F1 := []*nsconfigengine.CSApi{
 		{Name: "lm1_f1", IP: "1.1.1.1", Port: 9090, VserverType: "HTTP", AllowACL: false},
 	}
@@ -417,7 +403,7 @@ func Test_routeUpdate(t *testing.T) {
 	csBindings := nsconfigengine.NewCSBindingsAPI("cs1")
 	csBindings.Bindings = []nsconfigengine.CSBinding{{Rule: nsconfigengine.RouteMatch{Domains: []string{"*"}, Prefix: "/"}, CsPolicy: nsconfigengine.CsPolicy{Canary: []nsconfigengine.Canary{{LbVserverName: "cl1", LbVserverType: "HTTP", Weight: 100}}}}}
 	rds := env.MakeRoute("rt1", []env.RouteInfo{{Domain: "*", ClusterName: "cl1"}})
-	err := verifyObject(nsConfAdaptor, rdsAdd, "cs1", csBindings, map[string]interface{}{"cdsNames": []string{"cl1"}, "serviceType": "HTTP"}, routeUpdate(nsConfAdaptor, []*xdsapi.RouteConfiguration{rds}, map[string]interface{}{"listenerName": "cs1", "filterChainName": "", "serviceType": "HTTP"}))
+	err := verifyObject(nsConfAdaptor, rdsAdd, "cs1", csBindings, map[string]interface{}{"cdsNames": []string{"cl1"}, "serviceType": "HTTP"}, routeUpdate(nsConfAdaptor, []*route.RouteConfiguration{rds}, map[string]interface{}{"listenerName": "cs1", "filterChainName": "", "serviceType": "HTTP"}))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -438,7 +424,7 @@ func Test_clusterAdd_transportSocket(t *testing.T) {
 	nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	log.Println("HTTP cluster add")
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
 	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
 	lbObj.LbMonitorObj.Retries = 9
@@ -462,21 +448,23 @@ func Test_clusterAdd_transportSocket(t *testing.T) {
 	}
 
 	log.Println("HTTPS cluster add")
-	cds.EdsClusterConfig = &xdsapi.Cluster_EdsClusterConfig{EdsConfig: &v2Core.ConfigSource{ConfigSourceSpecifier: &v2Core.ConfigSource_Ads{Ads: &v2Core.AggregatedConfigSource{}}}}
-	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
-	tlsContext := &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", false)}
+	cds.EdsClusterConfig = &cluster.Cluster_EdsClusterConfig{EdsConfig: &core.ConfigSource{ConfigSourceSpecifier: &core.ConfigSource_Ads{Ads: &core.AggregatedConfigSource{}}}}
+	cds.CircuitBreakers = &cluster.CircuitBreakers{Thresholds: []*cluster.CircuitBreakers_Thresholds{&cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
+	tlsContextM := &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", false)}
+	tlsContext, _ := ptypes.MarshalAny(tlsContextM)
+
 	cds.MaxRequestsPerConnection = &wrappers.UInt32Value{Value: uint32(100)}
-	transportSocket := &v2Core.TransportSocket{
-		Name:       util.EnvoyTLSSocketName,
-		ConfigType: &v2Core.TransportSocket_TypedConfig{TypedConfig: util.MessageToAny(tlsContext)},
+	transportSocket := &core.TransportSocket{
+		Name:       EnvoyTLSSocketName,
+		ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: tlsContext},
 	}
-	cds.TransportSocketMatches = []*xdsapi.Cluster_TransportSocketMatch{
+	cds.TransportSocketMatches = []*cluster.Cluster_TransportSocketMatch{
 		{
 			Name:            "tlsMode-istio",
 			TransportSocket: transportSocket,
 		},
 	}
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
 	lbObj.FrontendServiceType = "HTTP"
 	lbObj.BackendServiceType = "SSL"
 	lbObj.MaxConnections = 500
@@ -513,7 +501,7 @@ func Test_clusterAddInline(t *testing.T) {
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
 	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
 	lbObj.LbMonitorObj.Retries = 9
@@ -536,11 +524,15 @@ func Test_clusterAddInline(t *testing.T) {
 	}
 
 	log.Println("HTTPS cluster add")
-	cds.EdsClusterConfig = &xdsapi.Cluster_EdsClusterConfig{EdsConfig: &v2Core.ConfigSource{ConfigSourceSpecifier: &v2Core.ConfigSource_Ads{Ads: &v2Core.AggregatedConfigSource{}}}}
-	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
+	cds.EdsClusterConfig = &cluster.Cluster_EdsClusterConfig{EdsConfig: &core.ConfigSource{ConfigSourceSpecifier: &core.ConfigSource_Ads{Ads: &core.AggregatedConfigSource{}}}}
+	cds.CircuitBreakers = &cluster.CircuitBreakers{Thresholds: []*cluster.CircuitBreakers_Thresholds{&cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
 	cds.MaxRequestsPerConnection = &wrappers.UInt32Value{Value: uint32(100)}
-	cds.TlsContext = &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", true)}
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
+
+	tlsContextM := &auth.UpstreamTlsContext{CommonTlsContext: env.MakeTLSContext(certFileName, keyFileName, "", true)}
+	tlsContext, _ := ptypes.MarshalAny(tlsContextM)
+	cds.TransportSocket = &core.TransportSocket{Name: EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: tlsContext}}
+
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
 	lbObj.FrontendServiceType = "HTTP"
 	lbObj.BackendServiceType = "SSL"
 	lbObj.MaxConnections = 500
@@ -566,7 +558,7 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
 	log.Println("HTTP cluster add")
-	rootCertFile := "../tests/tls_conn_mgmt_certs/client-root-cert.pem"
+	rootCertFile := "../tests/tls_conn_mgmt_certs/root-cert.pem"
 	certChainFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
 	certFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
 	keyFile := "../tests/tls_conn_mgmt_certs/key.pem"
@@ -585,7 +577,7 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	nsCertName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	nsKeyName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
 	lbObj.LbMonitorObj = new(nsconfigengine.LBMonitor)
 	lbObj.LbMonitorObj.Retries = 9
@@ -609,21 +601,24 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	}
 
 	log.Println("HTTPS cluster add")
-	cds.EdsClusterConfig = &xdsapi.Cluster_EdsClusterConfig{EdsConfig: &v2Core.ConfigSource{ConfigSourceSpecifier: &v2Core.ConfigSource_Ads{Ads: &v2Core.AggregatedConfigSource{}}}}
-	cds.CircuitBreakers = &v2Cluster.CircuitBreakers{Thresholds: []*v2Cluster.CircuitBreakers_Thresholds{&v2Cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
+	cds.EdsClusterConfig = &cluster.Cluster_EdsClusterConfig{EdsConfig: &core.ConfigSource{ConfigSourceSpecifier: &core.ConfigSource_Ads{Ads: &core.AggregatedConfigSource{}}}}
+	cds.CircuitBreakers = &cluster.CircuitBreakers{Thresholds: []*cluster.CircuitBreakers_Thresholds{&cluster.CircuitBreakers_Thresholds{MaxConnections: &wrappers.UInt32Value{Value: uint32(500)}, MaxRequests: &wrappers.UInt32Value{Value: uint32(750)}}}}
 	tlsContext := &auth.UpstreamTlsContext{CommonTlsContext: env.CreateSDSTlsStreamSDS()}
 	cds.MaxRequestsPerConnection = &wrappers.UInt32Value{Value: uint32(100)}
-	transportSocket := &v2Core.TransportSocket{
-		Name:       util.EnvoyTLSSocketName,
-		ConfigType: &v2Core.TransportSocket_TypedConfig{TypedConfig: util.MessageToAny(tlsContext)},
+	mt, _ := ptypes.MarshalAny(tlsContext)
+	transportSocket := &core.TransportSocket{
+		Name: EnvoyTLSSocketName,
+		ConfigType: &core.TransportSocket_TypedConfig{
+			TypedConfig: mt,
+		},
 	}
-	cds.TransportSocketMatches = []*xdsapi.Cluster_TransportSocketMatch{
+	cds.TransportSocketMatches = []*cluster.Cluster_TransportSocketMatch{
 		{
 			Name:            "tlsMode-istio",
 			TransportSocket: transportSocket,
 		},
 	}
-	cds.OutlierDetection = &v2Cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
+	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(21000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7), Nanos: int32(500000000)}}
 	lbObj.FrontendServiceType = "HTTP"
 	lbObj.BackendServiceType = "SSL"
 	lbObj.MaxConnections = 500
@@ -652,50 +647,54 @@ func Test_getAuthConfig(t *testing.T) {
 	jwks := []byte(`{ "keys":[ {"e":"AQAB","kid":"DHFbpoIUqrY8t2zpA2qXfCmr5VO5ZEr4RzHU_-envvQ","kty":"RSA","n":"xAE7eB6qugXyCAG3yhh7pkDkT65pHymX-P7KfIupjf59vsdo91bSP9C8H07pSAGQO1MV_xFj9VswgsCg4R6otmg5PV2He95lZdHtOcU5DXIg_pbhLdKXbi66GlVeK6ABZOUW3WYtnNHD-91gVuoeJT_DwtGGcp4ignkgXfkiEm4sw-4sfb4qdt5oLbyVpmW6x9cfa7vs2WTfURiCrBoUqgBo_-4WTiULmmHSGZHOjzwa8WtrtOQGsAFjIbno85jp6MnGGGZPYZbDAa_b3y5u-YpW7ypZrvD8BgtKVjgtQgZhLAGezMt0ua3DRrWnKqTZ0BJ_EyxOGuHJrLsn00fnMQ"}]}`)
 	jwtKey := fmt.Sprintf("%v", string(jwks))
 	var httpFilters []*http_conn.HttpFilter
-	httpFilter := http_conn.HttpFilter{
-		Name: "envoy.filters.http.jwt_authn",
-		ConfigType: &http_conn.HttpFilter_TypedConfig{
-			TypedConfig: util.MessageToAny(
-				&envoy_jwt.JwtAuthentication{
-					Rules: []*envoy_jwt.RequirementRule{
-						{
-							Match: &route.RouteMatch{
-								PathSpecifier: &route.RouteMatch_Prefix{
-									Prefix: "/",
-								},
-							},
-							Requires: &envoy_jwt.JwtRequirement{
-								RequiresType: &envoy_jwt.JwtRequirement_RequiresAny{
-									RequiresAny: &envoy_jwt.JwtRequirementOrList{
-										Requirements: []*envoy_jwt.JwtRequirement{
-											{
-												RequiresType: &envoy_jwt.JwtRequirement_ProviderName{
-													ProviderName: "origins-0",
-												},
-											},
+	jwtAuthM := &envoy_jwt.JwtAuthentication{
+		Rules: []*envoy_jwt.RequirementRule{
+			{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Prefix{
+						Prefix: "/",
+					},
+				},
+				RequirementType: &envoy_jwt.RequirementRule_Requires{
+					Requires: &envoy_jwt.JwtRequirement{
+						RequiresType: &envoy_jwt.JwtRequirement_RequiresAny{
+							RequiresAny: &envoy_jwt.JwtRequirementOrList{
+								Requirements: []*envoy_jwt.JwtRequirement{
+									{
+										RequiresType: &envoy_jwt.JwtRequirement_ProviderName{
+											ProviderName: "origins-0",
 										},
 									},
 								},
 							},
 						},
 					},
-					Providers: map[string]*envoy_jwt.JwtProvider{
-						"origins-0": {
-							Issuer: "https://secret.foo.com",
-							JwksSourceSpecifier: &envoy_jwt.JwtProvider_LocalJwks{
-								LocalJwks: &v2Core.DataSource{
-									Specifier: &v2Core.DataSource_InlineString{
-										InlineString: jwtKey,
-									},
-								},
-							},
-							Forward:              false,
-							PayloadInMetadata:    "https://secret.foo.com",
-							ForwardPayloadHeader: "x-header",
-							Audiences:            []string{"a1", "a2"},
+				},
+			},
+		},
+		Providers: map[string]*envoy_jwt.JwtProvider{
+			"origins-0": {
+				Issuer: "https://secret.foo.com",
+				JwksSourceSpecifier: &envoy_jwt.JwtProvider_LocalJwks{
+					LocalJwks: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: jwtKey,
 						},
 					},
-				}),
+				},
+				Forward:              false,
+				PayloadInMetadata:    "https://secret.foo.com",
+				ForwardPayloadHeader: "x-header",
+				Audiences:            []string{"a1", "a2"},
+			},
+		},
+	}
+	jwtAuth, _ := ptypes.MarshalAny(jwtAuthM)
+
+	httpFilter := http_conn.HttpFilter{
+		Name: "envoy.filters.http.jwt_authn",
+		ConfigType: &http_conn.HttpFilter_TypedConfig{
+			TypedConfig: jwtAuth,
 		},
 	}
 	httpFilters = append(httpFilters, &httpFilter)
@@ -710,12 +709,11 @@ func Test_getAuthConfig(t *testing.T) {
 }
 
 func Test_getPersistencyPolicy(t *testing.T) {
-	ttl := types.Duration{Seconds: 1}
 	hashPolicy := route.RouteAction_HashPolicy{
 		PolicySpecifier: &route.RouteAction_HashPolicy_Cookie_{
 			Cookie: &route.RouteAction_HashPolicy_Cookie{
 				Name: "hash-cookie",
-				Ttl:  gogo.DurationToProtoDuration(&ttl),
+				Ttl:  &duration.Duration{Seconds: int64(1)},
 			},
 		},
 	}
@@ -768,25 +766,27 @@ func percentToFractPercent(percent float64) *xdstype.FractionalPercent {
 func Test_getFault(t *testing.T) {
 	typedPerFilterConfig := make(map[string]*any.Any)
 	fault := xdshttpfault.HTTPFault{}
-	fault.Delay = &xdsfault.FaultDelay{Type: xdsfault.FaultDelay_FIXED}
+	fault.Delay = &xdsfault.FaultDelay{} //Type: xdsfault.FaultDelay_FIXED
 	fault.Delay.Percentage = percentToFractPercent(50)
-	duration := types.Duration{Seconds: 1}
 	fault.Delay.FaultDelaySecifier = &xdsfault.FaultDelay_FixedDelay{
-		FixedDelay: gogo.DurationToProtoDuration(&duration),
+		FixedDelay: &duration.Duration{Seconds: int64(1)},
 	}
-	typedPerFilterConfig[xdsutil.Fault] = util.MessageToAny(&fault)
+	faultp, _ := ptypes.MarshalAny(&fault)
+	typedPerFilterConfig[xdsutil.Fault] = faultp
 	outFault := getFault(typedPerFilterConfig)
 	expectedFault := nsconfigengine.Fault{DelayPercent: 50, DelaySeconds: 1, AbortPercent: 0, AbortHTTPStatus: 0}
 	compare := reflect.DeepEqual(expectedFault, outFault)
 	if compare == false {
 		t.Errorf("Expected PersistencyPolicy:%+v    Received PersistencyPolicy=%+v", expectedFault, outFault)
 	}
+
 	fault.Abort = &xdshttpfault.FaultAbort{}
 	fault.Abort.Percentage = percentToFractPercent(10)
 	fault.Abort.ErrorType = &xdshttpfault.FaultAbort_HttpStatus{
 		HttpStatus: uint32(501),
 	}
-	typedPerFilterConfig[xdsutil.Fault] = util.MessageToAny(&fault)
+	faultp, _ = ptypes.MarshalAny(&fault)
+	typedPerFilterConfig[xdsutil.Fault] = faultp
 	outFault = getFault(typedPerFilterConfig)
 	expectedFault = nsconfigengine.Fault{AbortPercent: 10, AbortHTTPStatus: 501, DelayPercent: 50, DelaySeconds: 1}
 	compare = reflect.DeepEqual(expectedFault, outFault)
@@ -909,7 +909,7 @@ func Test_multiClusterListenerConfig(t *testing.T) {
 	}
 	t.Logf("CS Object verification (LDS add)")
 	snifc1 := env.MakeFilterChain("", 0, 0, multiClusterPolExprStr, "snif1", snif1)
-	lds := env.MakeListenerFilterChains("0.0.0.0_15443", "0.0.0.0", 15443, []*listener.FilterChain{snifc1})
+	lds := env.MakeListenerFilterChains("0.0.0.0_15443", "0.0.0.0", 15443, outboundDir, []*listener.FilterChain{snifc1})
 	csObj := []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "ns_0_0_0_0_15443", IP: "1.1.1.1", Port: 15443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}, FrontendTLSClientAuth: true}}
 	multiClusterListenerConfig(nsConfAdaptor, lds)
 	err = verifyObject(nsConfAdaptor, ldsAdd, "ns_0_0_0_0_15443", csObj, make([]map[string]interface{}, 0), make([]map[string]interface{}, 0))
@@ -958,6 +958,7 @@ func Test_isMultiClusterListener(t *testing.T) {
 		listenerName    string
 		ip              string
 		port            uint16
+		direction       string
 	}
 	testCases := map[string]struct {
 		input     input
@@ -969,6 +970,7 @@ func Test_isMultiClusterListener(t *testing.T) {
 				listenerName:    "multiclusterListener",
 				ip:              "0.0.0.0",
 				port:            15443,
+				direction:       outboundDir,
 			}, true,
 		},
 		"not-multiclusterListener": {
@@ -977,12 +979,13 @@ func Test_isMultiClusterListener(t *testing.T) {
 				listenerName:    "not-multiclusterListener",
 				ip:              "0.0.0.0",
 				port:            25443,
+				direction:       outboundDir,
 			}, false,
 		},
 	}
 
 	for id, tc := range testCases {
-		lds := env.MakeListenerFilterChains(tc.input.listenerName, tc.input.ip, tc.input.port, []*listener.FilterChain{tc.input.filterChainName})
+		lds := env.MakeListenerFilterChains(tc.input.listenerName, tc.input.ip, tc.input.port, tc.input.direction, []*listener.FilterChain{tc.input.filterChainName})
 		if tc.expOutput != isMultiClusterListener(lds) {
 			t.Errorf("Failed for %s", id)
 		} else {

@@ -93,18 +93,18 @@ func Test_verifyPeerCertificate(t *testing.T) {
 		input         EI
 		expectedError error
 	}{
-		{EI{"../tests/tls_conn_mgmt_certs/root-cert.pem",
-			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account",
+		{EI{"../tests/tls_conn_mgmt_certs/client-root-cert.pem",
+			"spiffe://cluster.local/ns/default/sa/httpserver",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, nil,
 		},
-		{EI{"../tests/tls_conn_mgmt_certs/root-cert.pem",
-			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account-wrong",
+		{EI{"../tests/tls_conn_mgmt_certs/client-root-cert.pem",
+			"spiffe://cluster.local/ns/default/sa/httpserver-wrong",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, idMismatchErr,
 		},
 		{EI{"../tests/tls_conn_mgmt_certs/cert-chain.pem",
-			"spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account",
+			"spiffe://cluster.local/ns/default/sa/httpserver",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, verifyFailErr,
 		},
@@ -162,9 +162,9 @@ func Test_secureConnectToServer(t *testing.T) {
 		input          EI
 		expectedOutput EO
 	}{
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/tls_conn_mgmt_certs/root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
 			EO{nil, errors.New("connection error: desc = \"transport: error while dialing: dial tcp 127.0.0.1:15011: connect: connection refused\"")}},
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/istio-system/sa/istio-pilot-service-account", "../tests/tls_conn_mgmt_certs/root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
 			EO{nil, errors.New("tls: failed to find any PEM data in key input")}},
 	}
 

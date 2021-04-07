@@ -23,27 +23,33 @@ import (
 	"sync"
 	"time"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	envoy_api_v2_core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/golang/protobuf/ptypes"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"google.golang.org/grpc"
 )
 
 const (
-	cdsURL = "type.googleapis.com/envoy.api.v2.Cluster"
-	ldsURL = "type.googleapis.com/envoy.api.v2.Listener"
-	edsURL = "type.googleapis.com/envoy.api.v2.ClusterLoadAssignment"
-	rdsURL = "type.googleapis.com/envoy.api.v2.RouteConfiguration"
+	cdsURL = resource.ClusterType  //"type.googleapis.com/envoy.config.cluster.v3.Cluster"
+	ldsURL = resource.ListenerType //"type.googleapis.com/envoy.config.listener.v3.Listener"
+	edsURL = resource.EndpointType //"type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment"
+	rdsURL = resource.RouteType    //"type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
 )
 
-type cdsAddHandlerType func(*configAdaptor, *xdsapi.Cluster, interface{}) string
+type cdsAddHandlerType func(*configAdaptor, *cluster.Cluster, interface{}) string
 type cdsDelHandlerType func(*configAdaptor, string)
-type edsAddHandlerType func(*configAdaptor, *xdsapi.ClusterLoadAssignment, interface{})
-type ldsAddHandlerType func(*configAdaptor, *xdsapi.Listener) []map[string]interface{}
+type edsAddHandlerType func(*configAdaptor, *endpoint.ClusterLoadAssignment, interface{})
+type ldsAddHandlerType func(*configAdaptor, *listener.Listener) []map[string]interface{}
 type ldsDelHandlerType func(*configAdaptor, string, []string)
-type rdsAddHandlerType func(*configAdaptor, []*xdsapi.RouteConfiguration, interface{}) map[string]interface{}
+type rdsAddHandlerType func(*configAdaptor, []*route.RouteConfiguration, interface{}) map[string]interface{}
 
 //AdsDetails will define the members which will be read up at bootup time
 type AdsDetails struct {
@@ -83,7 +89,7 @@ type apiRequest struct {
 		cdsURL -> serviceType
 		edsURL -> cds Name
 	*/
-	handler func(*AdsClient, *xdsapi.DiscoveryResponse)
+	handler func(*AdsClient, *discovery.DiscoveryResponse)
 }
 
 // AdsClient is a client to an Aggregated Discovery Service
@@ -92,7 +98,7 @@ type AdsClient struct {
 	adsServerURL       string
 	adsServerSpiffeID  string
 	secureConnect      bool
-	nodeID             *envoy_api_v2_core.Node
+	nodeID             *core.Node
 	apiRequests        map[string]*apiRequest
 	connection         *grpc.ClientConn
 	connectionMux      sync.Mutex
@@ -121,7 +127,7 @@ func (client *AdsClient) writeADSRequest(req *apiRequest) {
 			i++
 		}
 	}
-	msg := &xdsapi.DiscoveryRequest{TypeUrl: req.typeURL, Node: client.nodeID, VersionInfo: req.versionInfo, ResponseNonce: req.nonce, ResourceNames: resourceNames}
+	msg := &discovery.DiscoveryRequest{TypeUrl: req.typeURL, Node: client.nodeID, VersionInfo: req.versionInfo, ResponseNonce: req.nonce, ResourceNames: resourceNames}
 	if err := client.stream.SendMsg(msg); err != nil {
 		log.Printf("[ERROR] Failed to send a message: %v", err)
 	} else {
@@ -129,7 +135,7 @@ func (client *AdsClient) writeADSRequest(req *apiRequest) {
 	}
 }
 
-func (client *AdsClient) callRequestHandler(msg *xdsapi.DiscoveryResponse) error {
+func (client *AdsClient) callRequestHandler(msg *discovery.DiscoveryResponse) error {
 	if client.apiRequests[msg.TypeUrl].handler != nil {
 		client.nsConfigAdaptorMux.Lock()
 		defer client.nsConfigAdaptorMux.Unlock()
@@ -144,7 +150,7 @@ func (client *AdsClient) callRequestHandler(msg *xdsapi.DiscoveryResponse) error
 
 func (client *AdsClient) readADSResponse() {
 	for {
-		m := new(xdsapi.DiscoveryResponse)
+		m := new(discovery.DiscoveryResponse)
 		if err := client.stream.RecvMsg(m); err != nil {
 			log.Printf("[ERROR] Failed to recv a message: %v", err)
 			time.Sleep(2 * time.Second)
@@ -161,11 +167,11 @@ func (client *AdsClient) readADSResponse() {
 	}
 }
 
-func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
+func cdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	clusterNames := make(map[string]bool)
 	edsResources := make(map[string]interface{})
 	requestEds := false
-	cdsResource := &xdsapi.Cluster{}
+	cdsResource := &cluster.Cluster{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, cdsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in CDS Handler")
@@ -197,12 +203,12 @@ func cdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	}
 }
 
-func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
+func ldsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	rdsResources := make(map[string]interface{})
 	ldsResources := make(map[string]interface{})
 	requestRds := false
 	requestCds := false
-	ldsResource := &xdsapi.Listener{}
+	ldsResource := &listener.Listener{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, ldsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in LDS handler")
@@ -245,8 +251,8 @@ func ldsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	}
 }
 
-func edsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
-	edsResource := &xdsapi.ClusterLoadAssignment{}
+func edsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
+	edsResource := &endpoint.ClusterLoadAssignment{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, edsResource); err != nil {
 			log.Printf("[TRACE]:Could not find Unmarshal resources in EDS handler")
@@ -260,11 +266,11 @@ func edsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 	}
 }
 
-func rdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
+func rdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	requestCds := false
-	rdsToLds := make(map[string][]*xdsapi.RouteConfiguration)
+	rdsToLds := make(map[string][]*route.RouteConfiguration)
 	for _, resource := range m.Resources {
-		rdsResource := &xdsapi.RouteConfiguration{}
+		rdsResource := &route.RouteConfiguration{}
 		if err := ptypes.UnmarshalAny(resource, rdsResource); err != nil {
 			continue
 		}
@@ -274,7 +280,7 @@ func rdsHandler(client *AdsClient, m *xdsapi.DiscoveryResponse) {
 		}
 		listenerName := client.apiRequests[rdsURL].resources[rdsResource.GetName()].(map[string]interface{})["listenerName"].(string)
 		if _, ok := rdsToLds[listenerName]; !ok {
-			rdsToLds[listenerName] = make([]*xdsapi.RouteConfiguration, 0)
+			rdsToLds[listenerName] = make([]*route.RouteConfiguration, 0)
 		}
 		rdsToLds[listenerName] = append(rdsToLds[listenerName], rdsResource)
 	}
@@ -306,7 +312,7 @@ func (client *AdsClient) reloadCds() {
 		log.Printf("[ERROR] reloadCds create stream failed : %v", err)
 		return
 	}
-	if err = stream.Send(&xdsapi.DiscoveryRequest{TypeUrl: cdsURL, Node: client.nodeID}); err != nil {
+	if err = stream.Send(&discovery.DiscoveryRequest{TypeUrl: cdsURL, Node: client.nodeID}); err != nil {
 		log.Printf("[ERROR] reloadCds send request failed : %v", err)
 	} else {
 		res, err := stream.Recv()
@@ -338,7 +344,7 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 			"TRUSTJWT":         {Kind: &_struct.Value_StringValue{StringValue: "true"}},
 		},
 	}
-	adsClient.nodeID = &envoy_api_v2_core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &metadata}
+	adsClient.nodeID = &core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &metadata}
 	log.Println("[TRACE] Node details: ", adsClient.nodeID)
 	adsClient.quit = make(chan int)
 	adsClient.cdsAddHandler = clusterAdd
@@ -364,7 +370,7 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 }
 
 // GetNodeID returns the node ID of the client
-func (client *AdsClient) GetNodeID() *envoy_api_v2_core.Node {
+func (client *AdsClient) GetNodeID() *core.Node {
 	return client.nodeID
 }
 

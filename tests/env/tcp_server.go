@@ -47,7 +47,7 @@ func StartTCPServer(port int) (net.Listener, error) {
 			bytes, err1 := reader.ReadBytes(byte('\n'))
 			if err1 != nil {
 				if err1 != io.EOF {
-					log.Printf("TCP server failed to read data, err:", err1)
+					log.Println("TCP server failed to read data, err:", err1)
 				}
 				continue
 			}

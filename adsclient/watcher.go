@@ -16,13 +16,14 @@ package adsclient
 import (
 	"citrix-xds-adaptor/nsconfigengine"
 	"encoding/pem"
-	"github.com/fsnotify/fsnotify"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 // Watcher is for watching certificate directory
@@ -31,6 +32,7 @@ type Watcher struct {
 	nsConfig   *configAdaptor
 	watcher    *fsnotify.Watcher
 	watcherMux sync.Mutex
+	stopCh     chan bool
 }
 
 func newWatcher(nsConfig *configAdaptor) (*Watcher, error) {
@@ -38,6 +40,7 @@ func newWatcher(nsConfig *configAdaptor) (*Watcher, error) {
 	watch := &Watcher{
 		dirNames: make(map[string]map[string]string),
 	}
+	watch.stopCh = make(chan bool, 1)
 	watch.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		log.Println("[ERROR] Failed to create fsnotify.Watcher:", err)
@@ -196,6 +199,9 @@ func (w *Watcher) addDir(certPath, keyPath string) (string, string, string, erro
 func (w *Watcher) Run() {
 	for {
 		select {
+		case <-w.stopCh:
+			log.Printf("[INFO] xDS-adaptor's Watcher thread stopped")
+			return
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				log.Println("[ERROR] Error Watching Events")
@@ -264,4 +270,15 @@ func (w *Watcher) Run() {
 			log.Println("[ERROR] Watcher error:", err)
 		}
 	}
+}
+
+// Stop function would stop the watcher
+func (w *Watcher) Stop() {
+	if w.watcher != nil {
+		w.watcher.Close()
+		log.Printf("[DEBUG] fsnotify.watcher is closed for directory %+v", w.dirNames)
+	}
+	w.nsConfig = nil
+	w.stopCh <- true
+	log.Println("[DEBUG] Watcher is stopped")
 }

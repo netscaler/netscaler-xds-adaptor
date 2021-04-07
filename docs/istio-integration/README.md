@@ -6,7 +6,7 @@ Citrix ADC can be integrated with Istio in three ways:
 
 - Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh. 
 - Citrix ADC CPX as a sidecar proxy with application containers in the service mesh.
-- Citrix ADC CPX as an Egress Gateway for the service mesh.
+- Citrix ADC CPX, MPX, or VPX as an Egress Gateway for the service mesh.
 
 ## Citrix ADC as an Ingress Gateway for Istio
 
@@ -16,9 +16,9 @@ An Istio ingress gateway acts as an entry point for the incoming traffic and sec
 
 In Istio service mesh, a sidecar proxy runs alongside application pods and it intercepts and manage incoming and outgoing traffic for applications. Citrix ADC CPX can be deployed as the sidecar proxy in the application pods. A sidecar proxy applies the configured routing policies or rules to the ingress and egress traffic from the pod.
 
-## Citrix ADC CPX as an Egress Gateway for Istio
+## Citrix ADC as an Egress Gateway for Istio
 
-An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC CPX as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh. It also provides routing rules to exit the Istio service mesh.
+An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh. It also provides routing rules to exit the Istio service mesh.
 
 ## <a name="architecture">Architecture</a>
 
@@ -30,11 +30,11 @@ In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress G
 
 | Ingress Gateway | Sidecar Proxy | Egress Gateway| Supported |
 |-----------------|---------------|---------------|-----------|
-| Citrix ADC | Citrix ADC CPX | Citrix ADC CPX | Yes |
+| Citrix ADC | Citrix ADC CPX | Citrix ADC | Yes |
 | Citrix ADC | Citrix ADC CPX | Envoy proxy | Yes |
-| Citrix ADC | Envoy proxy | Citrix ADC CPX | Yes |
+| Citrix ADC | Envoy proxy | Citrix ADC | Yes |
 | Citrix ADC | Envoy proxy | Envoy proxy | Yes |
-| Envoy proxy | Citrix ADC CPX| Citrix ADC CPX | Yes |
+| Envoy proxy | Citrix ADC CPX| Citrix ADC | Yes |
 | Envoy proxy | Citrix ADC CPX| Envoy proxy | Yes |
 
 To deploy Citrix ADC with Istio using Helm charts, see [Deployment](../istio-integration/deploy-istio-adaptor-helm-chart.md).
@@ -88,7 +88,7 @@ Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-a
 The statistical data of a Citrix ADC ingress device can be exported to the Prometheus using [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter).
 
 [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice that collects metrics from Citrix ADCs, and export them to endpoints such as Zipkin, Kafka, and Prometheus.
-For more information about Citrix Observability Exporter, see [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) documentation.
+For more information about Citrix ADC Observability Exporter, see [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) documentation.
 
 #### Telemetry in an Ingress or Egress Gateway
 
@@ -96,8 +96,8 @@ For more information about Citrix Observability Exporter, see [Citrix Observabil
 
 #### Telemetry and distributed tracing in sidecar proxies
 
-Citrix ADC CPX with Citrix Observability Exporter (COE) can export metrics to Prometheus that is deployed in a service mesh. You can visualize this data in Grafana.
+Citrix ADC CPX with Citrix ADC Observability Exporter can export metrics to Prometheus that is deployed in a service mesh. You can visualize this data in Grafana.
 
-Citrix ADC CPX sends transactional data to COE which, eventually, exports these traces spans to [Zipkin](https://zipkin.io). This distributed tracing enables you to track a service-to-service communication within a service mesh. It helps to get deeper understanding about request latency, serialization, and parallelism.
+Citrix ADC CPX sends transactional data to Citrix ADC Observability Exporter which, eventually, exports these traces spans to [Zipkin](https://zipkin.io). This distributed tracing enables you to track a service-to-service communication within a service mesh. It helps to get deeper understanding about request latency, serialization, and parallelism.
 
 To know the list of supported fields on Citrix ADC as per the service mesh CRDs (Destination Rule, Virtual Service, Policy, Gateway, and Service Entry), see [features](features.md).

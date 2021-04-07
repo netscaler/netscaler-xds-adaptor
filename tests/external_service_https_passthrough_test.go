@@ -16,10 +16,12 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 )
 
 func Test_external_service_https_passthrough(t *testing.T) {
@@ -30,13 +32,13 @@ func Test_external_service_https_passthrough(t *testing.T) {
 	}
 	env.ClearNetscalerConfig()
 	env.ConfigureDNS()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -55,14 +57,14 @@ func Test_external_service_https_passthrough(t *testing.T) {
 		{ServerName: "www.google.com", ClusterName: "cl_google"},
 		{ServerName: "www.citrix.com", ClusterName: "cl_citrix"},
 	}
-	listener, errl := env.MakeTcpSniListener("l1", "0.0.0.0", 443, sniInfo)
+	listenerL, errl := env.MakeTcpSniListener("l1", "0.0.0.0", 443, sniInfo)
 	if errl != nil {
 		t.Errorf("MakeTcpSniListener returned error : %v", errl)
 	}
 	clusterG := env.MakeClusterDNS("cl_google", "www.google.com", 443)
 	clusterC := env.MakeClusterDNS("cl_citrix", "www.citrix.com", 443)
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, nil, []*xdsapi.Cluster{clusterG, clusterC}, nil)
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, nil, []*cluster.Cluster{clusterG, clusterC}, nil)
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}

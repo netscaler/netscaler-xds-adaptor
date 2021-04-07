@@ -15,6 +15,7 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -22,7 +23,7 @@ import (
 func Test_tcp_frontend(t *testing.T) {
 	t.Log("TCP service test start")
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -32,7 +33,7 @@ func Test_tcp_frontend(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -50,7 +51,7 @@ func Test_tcp_frontend(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 
-	listener, errl := env.MakeTcpListener("l1", "0.0.0.0", 8001, "ctcp")
+	listener, errl := env.MakeTcpListener("l1", "0.0.0.0", 8001, "OUTBOUND", "ctcp")
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
 	}

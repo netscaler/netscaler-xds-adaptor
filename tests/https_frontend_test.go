@@ -16,6 +16,7 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -27,7 +28,7 @@ func Test_https_frontend(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", errh)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -37,7 +38,7 @@ func Test_https_frontend(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -55,7 +56,7 @@ func Test_https_frontend(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
-	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "", false, false, false, false)
+	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "OUTBOUND", "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "", false, true, false, false)
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
 	}
@@ -91,7 +92,7 @@ func Test_https_frontend_transportSocket(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", errh)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -101,7 +102,7 @@ func Test_https_frontend_transportSocket(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -119,7 +120,7 @@ func Test_https_frontend_transportSocket(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
-	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "", false, true, false, false)
+	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "OUTBOUND", "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "", false, true, false, false)
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
 	}
@@ -155,7 +156,7 @@ func Test_https_frontendInline(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", errh)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -165,7 +166,7 @@ func Test_https_frontendInline(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -183,7 +184,7 @@ func Test_https_frontendInline(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
-	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "certs/certssvc1/rootCA.crt", false, false, true, false)
+	listener, errl := env.MakeHttpsListener("l1", "0.0.0.0", 8002, "OUTBOUND", "r1", "certs/certssvc1/svc1.citrixrootdummy1.com.crt", "certs/certssvc1/svc1.citrixrootdummy1.com.key", "certs/certssvc1/rootCA.crt", false, true, true, false)
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
 	}
@@ -205,7 +206,7 @@ func Test_https_frontendInline(t *testing.T) {
 	if code != 200 {
 		t.Errorf("Expected 200 OK response, received %d", code)
 	}
-	listener, errl = env.MakeHttpsListener("l1", "0.0.0.0", 8002, "r1", "certs/certssvc1/new_svc1.citrixrootdummy1.com.crt", "certs/certssvc1/new_svc1.citrixrootdummy1.com.key", "certs/certssvc1/new_rootCA.crt", false, false, true, false)
+	listener, errl = env.MakeHttpsListener("l1", "0.0.0.0", 8002, "OUTBOUND", "r1", "certs/certssvc1/new_svc1.citrixrootdummy1.com.crt", "certs/certssvc1/new_svc1.citrixrootdummy1.com.key", "certs/certssvc1/new_rootCA.crt", false, true, true, false)
 	if errl != nil {
 		t.Errorf("makeListener failed with %v", errl)
 	}
