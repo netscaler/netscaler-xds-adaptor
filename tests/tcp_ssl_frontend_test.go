@@ -16,6 +16,7 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -27,7 +28,7 @@ func Test_tcp_ssl_frontend(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", errh)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -37,7 +38,7 @@ func Test_tcp_ssl_frontend(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -55,7 +56,7 @@ func Test_tcp_ssl_frontend(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 
-	listener, errl := env.MakeTcpSslListener("ls1", "0.0.0.0", 8003, "cstcp", "certs/certssvc2/svc2.citrixrootdummy2.com.crt", "certs/certssvc2/svc2.citrixrootdummy2.com.key", "", false)
+	listener, errl := env.MakeTcpSslListener("ls1", "0.0.0.0", 8003, "OUTBOUND", "cstcp", "certs/certssvc2/svc2.citrixrootdummy2.com.crt", "certs/certssvc2/svc2.citrixrootdummy2.com.key", "", false)
 	if errl != nil {
 		t.Errorf("makeTcpSslListener failed with %v", errl)
 	}

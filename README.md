@@ -76,7 +76,7 @@ The `xDS-adaptor` monitors the folder where a service mesh deploys certificates 
 
 When a service is deployed in a service mesh, users may be interested to get insights about the service behavior. Citrix ADC proxy provides a rich set of in-built metrics to provide insights about the service behavior. When Citrix ADC CPX is deployed as a sidecar, these metrics represent the telemetry data for an application. It helps to reduce the burden of application developers by eliminating the need to include a lot of instrumentation code in the application. Instead, the developer can focus on the core application logic.
 
-Citrix has built a couple of auxiliary tools such as [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to observability tools such as Prometheus, Zipkin, Kafka, and so on.
+Citrix has built a couple of auxiliary tools such as [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to observability tools such as Prometheus, Zipkin, Kafka, and so on.
 
 
 The statistical data of a Citrix ADC ingress device can be exported to the Prometheus using [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter).
@@ -97,7 +97,7 @@ Following is a list of blogs which explains the integration of Citrix ADC with s
 
 ## <a name="release-notes">Release notes</a>
 
-Click [here](docs/release-notes.md) for the release notes of the latest Citrix `xDS-adaptor`.
+Click [here](docs/release-notes.md) for the release notes of the latest Citrix ADC `xDS-adaptor`.
 
 ## <a name="contributions">Contributions</a>
 
@@ -124,4 +124,4 @@ This project adheres to the [Kubernetes Community Code of Conduct](https://githu
 
 ## <a name="licensing">Licensing</a>
 
-The Citrix `xDS-adaptor` is licensed with [Apache License 2.0](license/LICENSE)
+The Citrix ADC `xDS-adaptor` is licensed with [Apache License 2.0](license/LICENSE)

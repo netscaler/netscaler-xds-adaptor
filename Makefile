@@ -1,6 +1,6 @@
 TARGETS=nsconfigengine adsclient xds-adaptor delayserver certkeyhandler tests
 
-VERSION=0.9.5
+VERSION=0.9.8
 
 DOCKER_CMD=docker run $(DOCKER_CMD_OPTIONS) -v `pwd`:/citrix-xds-adaptor -w /citrix-xds-adaptor --rm xds-build:$(VERSION)
 
@@ -53,7 +53,7 @@ CPX_IMAGE=quay.io/citrix/citrix-k8s-cpx-ingress:13.0-64.35
 unit_test:
 	make create_certs
 	make create_deviceinfo
-	$(eval load := $(shell docker run --name $(SIDECAR_CPX_NAME) -dt --privileged=true -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
+	$(eval load := $(shell docker run --name $(SIDECAR_CPX_NAME) -dt --cap-add=NET_ADMIN -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
 	$(eval DOCKER_CMD_OPTIONS := --net=container:$(SIDECAR_CPX_NAME) -e NS_TEST_IP=127.0.0.1 -e NS_TEST_NITRO_PORT=80 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct -v `pwd`/tests/deviceinfo:/var/deviceinfo )
 	$(DOCKER_CMD) go test -p 1 -race -timeout 1m -cover -coverprofile=unittestcov.out -v /citrix-xds-adaptor/nsconfigengine /citrix-xds-adaptor/adsclient /citrix-xds-adaptor/xds-adaptor /citrix-xds-adaptor/delayserver /citrix-xds-adaptor/certkeyhandler
 	docker kill $(SIDECAR_CPX_NAME)
@@ -64,7 +64,7 @@ unit_test:
 integration_test:
 	make create_certs
 	make create_deviceinfo
-	$(eval load := $(shell docker run --name $(INGRESS_ADC_NAME) -dt --privileged=true -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
+	$(eval load := $(shell docker run --name $(INGRESS_ADC_NAME) -dt --cap-add=NET_ADMIN -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
 	$(eval NS_TEST_IP := $(shell docker inspect --format '{{ .NetworkSettings.IPAddress }}' $(INGRESS_ADC_NAME)))
 	$(eval DOCKER_CMD_OPTIONS := -e NS_TEST_IP=$(NS_TEST_IP) -e NS_TEST_NITRO_PORT=9080 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct -v `pwd`/tests/deviceinfo:/var/deviceinfo )
 	$(DOCKER_CMD) go test -race -timeout 2m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-xds-adaptor/adsclient,citrix-xds-adaptor/nsconfigengine -v /citrix-xds-adaptor/tests

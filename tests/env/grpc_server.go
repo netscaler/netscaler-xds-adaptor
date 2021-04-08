@@ -16,16 +16,25 @@ package env
 import (
 	"context"
 	"fmt"
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	"net"
+	"strconv"
+	"strings"
+
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	clusterserver "github.com/envoyproxy/go-control-plane/envoy/service/cluster/v3"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	epserver "github.com/envoyproxy/go-control-plane/envoy/service/endpoint/v3"
+	listenerserver "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
+	routeserver "github.com/envoyproxy/go-control-plane/envoy/service/route/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/envoyproxy/go-control-plane/pkg/cache/v2"
-	xds "github.com/envoyproxy/go-control-plane/pkg/server/v2"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	xds "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"net"
 )
 
 type logger struct{}
@@ -46,7 +55,8 @@ func (logger logger) Errorf(format string, args ...interface{}) {
 }
 
 type GrpcADSServer struct {
-	port       int
+	//Port: If zero value is passed, then available port will be used, and same will be populated in this field
+	Port       int
 	snapshot   cache.SnapshotCache
 	grpcServer *grpc.Server
 }
@@ -59,11 +69,12 @@ func (n NodeConfig) ID(node *core.Node) string {
 	return node.GetId()
 }
 
+// NewGrpcADSServer starts gRPC server on passed port on localhost IP.
+// If port is zero, then available port will be selected to start the server
 func NewGrpcADSServer(port int) (*GrpcADSServer, error) {
 	grpcAdsServer := new(GrpcADSServer)
-	grpcAdsServer.port = port
+	grpcAdsServer.Port = port
 	log.SetLevel(log.DebugLevel)
-	log.Printf("Starting grpc server at port %d", port)
 	grpcAdsServer.snapshot = cache.NewSnapshotCache(true, NodeConfig{}, logger{})
 	server := xds.NewServer(context.Background(), grpcAdsServer.snapshot, nil)
 	grpcAdsServer.grpcServer = grpc.NewServer()
@@ -71,12 +82,14 @@ func NewGrpcADSServer(port int) (*GrpcADSServer, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	arr := strings.Split(lis.Addr().String(), ":")
+	grpcAdsServer.Port, _ = strconv.Atoi(arr[len(arr)-1])
+	log.Printf("Starting grpc server at port %d", grpcAdsServer.Port)
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
-	api.RegisterEndpointDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
-	api.RegisterClusterDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
-	api.RegisterRouteDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
-	api.RegisterListenerDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
+	epserver.RegisterEndpointDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
+	clusterserver.RegisterClusterDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
+	routeserver.RegisterRouteDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
+	listenerserver.RegisterListenerDiscoveryServiceServer(grpcAdsServer.grpcServer, server)
 	go func() {
 		if err := grpcAdsServer.grpcServer.Serve(lis); err != nil {
 		}
@@ -88,8 +101,8 @@ func (grpcAdsServer *GrpcADSServer) StopGrpcADSServer() {
 	grpcAdsServer.grpcServer.Stop()
 }
 
-func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *core.Node, listener *xdsapi.Listener,
-	route *xdsapi.RouteConfiguration, cluster *xdsapi.Cluster, endpoint *xdsapi.ClusterLoadAssignment) error {
+func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *core.Node, listener *listener.Listener,
+	route *route.RouteConfiguration, cluster *cluster.Cluster, endpoint *endpoint.ClusterLoadAssignment) error {
 	endpoints := []types.Resource{}
 	clusters := []types.Resource{}
 	routes := []types.Resource{}
@@ -106,12 +119,12 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *
 	if listener != nil {
 		listeners = append(listeners, listener)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil)
+	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil, nil)
 	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
 }
 
-func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nodeID *core.Node, listener []*xdsapi.Listener,
-	route []*xdsapi.RouteConfiguration, cluster []*xdsapi.Cluster, endpoint []*xdsapi.ClusterLoadAssignment) error {
+func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nodeID *core.Node, listener []*listener.Listener,
+	route []*route.RouteConfiguration, cluster []*cluster.Cluster, endpoint []*endpoint.ClusterLoadAssignment) error {
 	endpoints := []types.Resource{}
 	clusters := []types.Resource{}
 	routes := []types.Resource{}
@@ -128,6 +141,6 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nod
 	for _, lt := range listener {
 		listeners = append(listeners, lt)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil)
+	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil, nil)
 	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
 }

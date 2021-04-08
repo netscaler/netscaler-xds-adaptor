@@ -16,10 +16,13 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 )
 
 func Test_external_service_http_passthrough(t *testing.T) {
@@ -30,13 +33,13 @@ func Test_external_service_http_passthrough(t *testing.T) {
 	}
 	env.ClearNetscalerConfig()
 	env.ConfigureDNS()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("Grpc server creation failed  - %v", err)
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -52,14 +55,14 @@ func Test_external_service_http_passthrough(t *testing.T) {
 	}
 	discoveryClient.StartClient()
 	routeGC := env.MakeRoute("rts", []env.RouteInfo{{Domain: "www.google.com", ClusterName: "cl_google"}, {Domain: "www.citrix.com", ClusterName: "cl_citrix"}})
-	listener, errl := env.MakeHttpListener("l1", "0.0.0.0", 80, "rts")
+	listenerL, errl := env.MakeHttpListener("l1", "0.0.0.0", 80, "OUTBOUND", "rts")
 	if errl != nil {
 		t.Errorf("MakeHttpListener returned error : %v", errl)
 	}
 	clusterG := env.MakeClusterDNS("cl_google", "www.google.com", 80)
 	clusterC := env.MakeClusterDNS("cl_citrix", "www.citrix.com", 80)
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeGC}, []*xdsapi.Cluster{clusterG, clusterC}, nil)
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, []*route.RouteConfiguration{routeGC}, []*cluster.Cluster{clusterG, clusterC}, nil)
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}

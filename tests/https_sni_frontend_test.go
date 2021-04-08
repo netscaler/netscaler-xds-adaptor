@@ -16,10 +16,14 @@ package client_test
 import (
 	"citrix-xds-adaptor/adsclient"
 	"citrix-xds-adaptor/tests/env"
+	"strconv"
 	"testing"
 	"time"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 )
 
 const (
@@ -40,7 +44,7 @@ func Test_https_sni_frontend(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", err)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -54,7 +58,7 @@ func Test_https_sni_frontend(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -77,7 +81,7 @@ func Test_https_sni_frontend(t *testing.T) {
 		{ServerName: domainA, RouteName: "ra", CertFile: certFileA, KeyFile: keyFileA, RootFile: rootCertA},
 		{ServerName: domainB, RouteName: "rb", CertFile: certFileB, KeyFile: keyFileB, RootFile: rootCertB},
 	}
-	listener, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, false, false)
+	listenerL, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, true, false)
 	if errl != nil {
 		t.Errorf("MakeHttpsSniListener failed with %v", errl)
 	}
@@ -86,7 +90,7 @@ func Test_https_sni_frontend(t *testing.T) {
 	clusterB := env.MakeCluster("cb")
 	endpointB := env.MakeEndpoint("cb", []env.ServiceEndpoint{{env.GetLocalIP(), 9042, 1}})
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeA, routeB}, []*xdsapi.Cluster{clusterA, clusterB}, []*xdsapi.ClusterLoadAssignment{endpointA, endpointB})
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, []*route.RouteConfiguration{routeA, routeB}, []*cluster.Cluster{clusterA, clusterB}, []*endpoint.ClusterLoadAssignment{endpointA, endpointB})
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}
@@ -132,7 +136,7 @@ func Test_https_sni_frontend_transportSocket(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", err)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -146,7 +150,7 @@ func Test_https_sni_frontend_transportSocket(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -169,7 +173,7 @@ func Test_https_sni_frontend_transportSocket(t *testing.T) {
 		{ServerName: domainA, RouteName: "ra", CertFile: certFileA, KeyFile: keyFileA, RootFile: rootCertA},
 		{ServerName: domainB, RouteName: "rb", CertFile: certFileB, KeyFile: keyFileB, RootFile: rootCertB},
 	}
-	listener, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, true, false)
+	listenerL, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, true, false)
 	if errl != nil {
 		t.Errorf("MakeHttpsSniListener failed with %v", errl)
 	}
@@ -178,7 +182,7 @@ func Test_https_sni_frontend_transportSocket(t *testing.T) {
 	clusterB := env.MakeCluster("cb")
 	endpointB := env.MakeEndpoint("cb", []env.ServiceEndpoint{{env.GetLocalIP(), 9042, 1}})
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeA, routeB}, []*xdsapi.Cluster{clusterA, clusterB}, []*xdsapi.ClusterLoadAssignment{endpointA, endpointB})
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, []*route.RouteConfiguration{routeA, routeB}, []*cluster.Cluster{clusterA, clusterB}, []*endpoint.ClusterLoadAssignment{endpointA, endpointB})
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}
@@ -223,7 +227,7 @@ func Test_https_sni_frontend_inline(t *testing.T) {
 		t.Errorf("Updating /etc/hosts failed - %v", err)
 	}
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
@@ -237,7 +241,7 @@ func Test_https_sni_frontend_inline(t *testing.T) {
 	}
 	adsinfo := new(adsclient.AdsDetails)
 	nsinfo := new(adsclient.NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -260,7 +264,7 @@ func Test_https_sni_frontend_inline(t *testing.T) {
 		{ServerName: "svca.dummyrootcitrix1.com", RouteName: "ra", CertFile: "certs/certssvca/svca.dummyrootcitrix1.com.crt", KeyFile: "certs/certssvca/svca.dummyrootcitrix1.com.key", RootFile: "certs/certssvca/rootCA1.crt"},
 		{ServerName: "svcb.dummyrootcitrix2.com", RouteName: "rb", CertFile: "certs/certssvcb/svcb.dummyrootcitrix2.com.crt", KeyFile: "certs/certssvcb/svcb.dummyrootcitrix2.com.key", RootFile: "certs/certssvcb/rootCA2.crt"},
 	}
-	listener, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, false, true)
+	listenerL, errl := env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, true, true)
 	if errl != nil {
 		t.Errorf("MakeHttpsSniListener failed with %v", errl)
 	}
@@ -269,7 +273,7 @@ func Test_https_sni_frontend_inline(t *testing.T) {
 	clusterB := env.MakeCluster("cb")
 	endpointB := env.MakeEndpoint("cb", []env.ServiceEndpoint{{env.GetLocalIP(), 9042, 1}})
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeA, routeB}, []*xdsapi.Cluster{clusterA, clusterB}, []*xdsapi.ClusterLoadAssignment{endpointA, endpointB})
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, []*route.RouteConfiguration{routeA, routeB}, []*cluster.Cluster{clusterA, clusterB}, []*endpoint.ClusterLoadAssignment{endpointA, endpointB})
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}
@@ -321,11 +325,11 @@ func Test_https_sni_frontend_inline(t *testing.T) {
 		{ServerName: "new_svca.dummyrootcitrix1.com", RouteName: "ra", CertFile: "certs/certssvca/new_svca.dummyrootcitrix1.com.crt", KeyFile: "certs/certssvca/new_svca.dummyrootcitrix1.com.key", RootFile: "certs/certssvca/new_rootCA1.crt"},
 		{ServerName: "new_svcb.dummyrootcitrix2.com", RouteName: "rb", CertFile: "certs/certssvcb/new_svcb.dummyrootcitrix2.com.crt", KeyFile: "certs/certssvcb/new_svcb.dummyrootcitrix2.com.key", RootFile: "certs/certssvcb/new_rootCA2.crt"},
 	}
-	listener, errl = env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, false, true)
+	listenerL, errl = env.MakeHttpsSniListener("l1", "0.0.0.0", 8005, sniInfo, true, true)
 	if errl != nil {
 		t.Errorf("MakeHttpsSniListener failed with %v", errl)
 	}
-	err = grpcServer.UpdateSpanshotCacheMulti("3", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{routeA, routeB}, []*xdsapi.Cluster{clusterA, clusterB}, []*xdsapi.ClusterLoadAssignment{endpointA, endpointB})
+	err = grpcServer.UpdateSpanshotCacheMulti("3", discoveryClient.GetNodeID(), []*listener.Listener{listenerL}, []*route.RouteConfiguration{routeA, routeB}, []*cluster.Cluster{clusterA, clusterB}, []*endpoint.ClusterLoadAssignment{endpointA, endpointB})
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}

@@ -19,30 +19,31 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/chiradeep/go-nitro/config/dns"
 	"github.com/chiradeep/go-nitro/netscaler"
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	tcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/tcp_proxy/v2"
-	"github.com/envoyproxy/go-control-plane/pkg/conversion"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
+	auth "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	xdsutil "github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	ptypes "github.com/golang/protobuf/ptypes"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/txn2/txeh"
-	"istio.io/istio/pilot/pkg/features"
-	"istio.io/istio/pilot/pkg/networking/util"
-	authn_model "istio.io/istio/pilot/pkg/security/model"
 	proto "istio.io/istio/pkg/proto"
 )
 
-const EnvoyTLSSocketName = "envoy.transport_sockets.tls"
+const (
+	EnvoyTLSSocketName = "envoy.transport_sockets.tls"
+	SDSClusterName     = "sds-grpc"
+)
 
 func GetNetscalerIP() string {
 	return os.Getenv("NS_TEST_IP")
@@ -169,7 +170,7 @@ type ServiceEndpoint struct {
 	Weight uint32
 }
 
-func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsapi.ClusterLoadAssignment {
+func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *endpoint.ClusterLoadAssignment {
 	lbEndpoints := make([]*endpoint.LbEndpoint, 0)
 	for _, ep := range serviceEndpoints {
 		lbEndpoint := endpoint.LbEndpoint{
@@ -192,7 +193,7 @@ func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsap
 		}
 		lbEndpoints = append(lbEndpoints, &lbEndpoint)
 	}
-	return &xdsapi.ClusterLoadAssignment{
+	return &endpoint.ClusterLoadAssignment{
 		ClusterName: clusterName,
 		Endpoints: []*endpoint.LocalityLbEndpoints{
 			&endpoint.LocalityLbEndpoints{
@@ -202,28 +203,28 @@ func MakeEndpoint(clusterName string, serviceEndpoints []ServiceEndpoint) *xdsap
 	}
 }
 
-func MakeCluster(clusterName string) *xdsapi.Cluster {
+func MakeCluster(clusterName string) *cluster.Cluster {
 	var to duration.Duration = duration.Duration{Seconds: 1}
-	return &xdsapi.Cluster{
+	return &cluster.Cluster{
 		Name:           clusterName,
 		ConnectTimeout: &to,
-		ClusterDiscoveryType: &xdsapi.Cluster_Type{
-			Type: xdsapi.Cluster_EDS,
+		ClusterDiscoveryType: &cluster.Cluster_Type{
+			Type: cluster.Cluster_EDS,
 		},
-		LbPolicy: xdsapi.Cluster_ROUND_ROBIN,
-		EdsClusterConfig: &xdsapi.Cluster_EdsClusterConfig{
+		LbPolicy: cluster.Cluster_ROUND_ROBIN,
+		EdsClusterConfig: &cluster.Cluster_EdsClusterConfig{
 			ServiceName: clusterName,
 		},
 	}
 }
 
-func MakeClusterDNS(clusterName string, dns string, port int) *xdsapi.Cluster {
+func MakeClusterDNS(clusterName string, dns string, port int) *cluster.Cluster {
 	var to duration.Duration = duration.Duration{Seconds: 1}
-	return &xdsapi.Cluster{
+	return &cluster.Cluster{
 		Name:           clusterName,
 		ConnectTimeout: &to,
-		ClusterDiscoveryType: &xdsapi.Cluster_Type{
-			Type: xdsapi.Cluster_STRICT_DNS,
+		ClusterDiscoveryType: &cluster.Cluster_Type{
+			Type: cluster.Cluster_STRICT_DNS,
 		},
 		LoadAssignment: MakeEndpoint(clusterName, []ServiceEndpoint{{IP: dns, Port: port, Weight: 1}}),
 	}
@@ -234,7 +235,7 @@ type RouteInfo struct {
 	ClusterName string
 }
 
-func MakeRoute(routeName string, routes []RouteInfo) *xdsapi.RouteConfiguration {
+func MakeRoute(routeName string, routes []RouteInfo) *route.RouteConfiguration {
 	vHosts := make([]*route.VirtualHost, 0)
 	for index, inpRoute := range routes {
 		vroute := route.VirtualHost{
@@ -254,28 +255,30 @@ func MakeRoute(routeName string, routes []RouteInfo) *xdsapi.RouteConfiguration 
 		}
 		vHosts = append(vHosts, &vroute)
 	}
-	return &xdsapi.RouteConfiguration{
+	return &route.RouteConfiguration{
 		Name:         routeName,
 		VirtualHosts: vHosts,
 	}
 }
 
-func MakeListener(listenerName string, ip string, port uint16, filter *listener.Filter) (*xdsapi.Listener, error) {
-	return &xdsapi.Listener{
+func MakeListener(listenerName string, ip string, port uint16, direction string, filter *listener.Filter) (*listener.Listener, error) {
+	return &listener.Listener{
 		Name: listenerName,
 		Address: &core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
 			Address:       ip,
-			PortSpecifier: &core.SocketAddress_PortValue{PortValue: uint32(port)}}}},
+			PortSpecifier: &core.SocketAddress_PortValue{PortValue: uint32(port)}}},
+		},
 		FilterChains: []*listener.FilterChain{
 			&listener.FilterChain{
 				Filters: []*listener.Filter{filter},
 			},
 		},
+		TrafficDirection: core.TrafficDirection(core.TrafficDirection_value[strings.ToUpper(direction)]),
 	}, nil
 }
 
-func MakeListenerFilterChains(listenerName string, ip string, port uint16, filterChains []*listener.FilterChain) *xdsapi.Listener {
-	l, _ := MakeListener(listenerName, ip, port, nil)
+func MakeListenerFilterChains(listenerName string, ip string, port uint16, direction string, filterChains []*listener.FilterChain) *listener.Listener {
+	l, _ := MakeListener(listenerName, ip, port, direction, nil)
 	l.FilterChains = filterChains
 	return l
 }
@@ -287,32 +290,32 @@ func MakeTcpFilter(listenerName string, clusterName string) (*listener.Filter, e
 			Cluster: clusterName,
 		},
 	}
-	filterTCPListener, err := conversion.MessageToStruct(filterTCPListenerS)
+	filterTCPListener, err := ptypes.MarshalAny(filterTCPListenerS)
 	if err != nil {
 		return nil, err
 	}
 	return &listener.Filter{
 		Name: xdsutil.TCPProxy,
-		ConfigType: &listener.Filter_Config{
-			Config: filterTCPListener,
+		ConfigType: &listener.Filter_TypedConfig{
+			TypedConfig: filterTCPListener,
 		},
 	}, nil
 }
 
-func MakeTcpListener(listenerName string, ip string, port uint16, clusterName string) (*xdsapi.Listener, error) {
+func MakeTcpListener(listenerName string, ip string, port uint16, direction string, clusterName string) (*listener.Listener, error) {
 	filter, err := MakeTcpFilter(listenerName, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	return MakeListener(listenerName, ip, port, filter)
+	return MakeListener(listenerName, ip, port, direction, filter)
 }
 
-func MakeSniListener(listenerName string, ip string, port uint16) (*xdsapi.Listener, error) {
+func MakeSniListener(listenerName string, ip string, port uint16, direction string) (*listener.Listener, error) {
 	filter, err := MakeSniFilter(listenerName)
 	if err != nil {
 		return nil, err
 	}
-	return MakeListener(listenerName, ip, port, filter)
+	return MakeListener(listenerName, ip, port, direction, filter)
 }
 
 func MakeFilterChain(prefix string, prefixLen uint32, port uint32, serverName, filterChainName string, filter *listener.Filter) *listener.FilterChain {
@@ -330,7 +333,7 @@ func MakeFilterChain(prefix string, prefixLen uint32, port uint32, serverName, f
 	return fc
 }
 
-func MakeHttpFilter(listenerName string, routeName string, route *xdsapi.RouteConfiguration) (*listener.Filter, error) {
+func MakeHttpFilter(listenerName string, routeName string, route *route.RouteConfiguration) (*listener.Filter, error) {
 	filterHTTPConnS := &hcm.HttpConnectionManager{
 		StatPrefix:  listenerName,
 		HttpFilters: []*hcm.HttpFilter{{Name: xdsutil.Router}},
@@ -342,14 +345,14 @@ func MakeHttpFilter(listenerName string, routeName string, route *xdsapi.RouteCo
 		filterHTTPConnS.RouteSpecifier = &hcm.HttpConnectionManager_Rds{
 			Rds: &hcm.Rds{RouteConfigName: routeName}}
 	}
-	filterHTTPConn, err := conversion.MessageToStruct(filterHTTPConnS)
+	filterHTTPConn, err := ptypes.MarshalAny(filterHTTPConnS)
 	if err != nil {
 		return nil, err
 	}
 	filter := listener.Filter{
-		Name: "envoy.http_connection_manager",
-		ConfigType: &listener.Filter_Config{
-			Config: filterHTTPConn,
+		Name: xdsutil.HTTPConnectionManager,
+		ConfigType: &listener.Filter_TypedConfig{
+			TypedConfig: filterHTTPConn,
 		},
 	}
 	return &filter, nil
@@ -362,12 +365,12 @@ func MakeSniFilter(listenerName string) (*listener.Filter, error) {
 	return &filter, nil
 }
 
-func MakeHttpListener(listenerName string, ip string, port uint16, routeName string) (*xdsapi.Listener, error) {
+func MakeHttpListener(listenerName string, ip string, port uint16, direction string, routeName string) (*listener.Listener, error) {
 	filter, err := MakeHttpFilter(listenerName, routeName, nil)
 	if err != nil {
 		return nil, err
 	}
-	return MakeListener(listenerName, ip, port, filter)
+	return MakeListener(listenerName, ip, port, direction, filter)
 }
 
 func MakeTLSContext(certFile, keyFile, rootFile string, inline bool) *auth.CommonTlsContext {
@@ -413,14 +416,17 @@ func CreateSDSTlsStreamSDS() *auth.CommonTlsContext {
 			{
 				Name: "default",
 				SdsConfig: &core.ConfigSource{
-					InitialFetchTimeout: features.InitialFetchTimeout,
+					InitialFetchTimeout: ptypes.DurationProto(time.Second * 0),
+					ResourceApiVersion:  core.ApiVersion_V3,
 					ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
 						ApiConfigSource: &core.ApiConfigSource{
-							ApiType: core.ApiConfigSource_GRPC,
+							ApiType:                   core.ApiConfigSource_GRPC,
+							SetNodeOnFirstMessageOnly: true,
+							TransportApiVersion:       core.ApiVersion_V3,
 							GrpcServices: []*core.GrpcService{
 								{
 									TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
-										EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: authn_model.SDSClusterName},
+										EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: SDSClusterName},
 									},
 								},
 							},
@@ -431,18 +437,21 @@ func CreateSDSTlsStreamSDS() *auth.CommonTlsContext {
 		},
 		ValidationContextType: &auth.CommonTlsContext_CombinedValidationContext{
 			CombinedValidationContext: &auth.CommonTlsContext_CombinedCertificateValidationContext{
-				DefaultValidationContext: &auth.CertificateValidationContext{MatchSubjectAltNames: util.StringToExactMatch([]string{})},
+				DefaultValidationContext: &auth.CertificateValidationContext{},
 				ValidationContextSdsSecretConfig: &auth.SdsSecretConfig{
 					Name: "ROOTCA",
 					SdsConfig: &core.ConfigSource{
-						InitialFetchTimeout: features.InitialFetchTimeout,
+						InitialFetchTimeout: ptypes.DurationProto(time.Second * 0),
+						ResourceApiVersion:  core.ApiVersion_V3,
 						ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
 							ApiConfigSource: &core.ApiConfigSource{
-								ApiType: core.ApiConfigSource_GRPC,
+								ApiType:                   core.ApiConfigSource_GRPC,
+								SetNodeOnFirstMessageOnly: true,
+								TransportApiVersion:       core.ApiVersion_V3,
 								GrpcServices: []*core.GrpcService{
 									{
 										TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
-											EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: authn_model.SDSClusterName},
+											EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: SDSClusterName},
 										},
 									},
 								},
@@ -456,36 +465,44 @@ func CreateSDSTlsStreamSDS() *auth.CommonTlsContext {
 	}
 
 }
-func MakeHttpsListener(listenerName string, ip string, port uint16, routeName string, certFile, keyFile, rootFile string, clientAuth, useTransportSocket, inline, sds bool) (*xdsapi.Listener, error) {
-	lds, err := MakeHttpListener(listenerName, ip, port, routeName)
+
+func MakeHttpsListener(listenerName string, ip string, port uint16, direction string, routeName string, certFile, keyFile, rootFile string, clientAuth, useTransportSocket, inline, sds bool) (*listener.Listener, error) {
+	lds, err := MakeHttpListener(listenerName, ip, port, direction, routeName)
 	if err != nil {
 		return nil, err
 	}
 	commonTlsContext := MakeTLSContext(certFile, keyFile, rootFile, inline)
-	downStreamTlsContext := auth.DownstreamTlsContext{CommonTlsContext: commonTlsContext, RequireClientCertificate: &wrappers.BoolValue{Value: clientAuth}}
+	downStreamTlsContextM := &auth.DownstreamTlsContext{CommonTlsContext: commonTlsContext, RequireClientCertificate: &wrappers.BoolValue{Value: clientAuth}}
+	downStreamTlsContext, _ := ptypes.MarshalAny(downStreamTlsContextM)
 	if useTransportSocket == true {
 		if sds == true {
-			sdsTlsContext := &auth.DownstreamTlsContext{
+			sdsTlsContextM := &auth.DownstreamTlsContext{
 				CommonTlsContext:         CreateSDSTlsStreamSDS(),
 				RequireClientCertificate: proto.BoolTrue,
 			}
-			lds.FilterChains[0].TransportSocket = &core.TransportSocket{Name: util.EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: util.MessageToAny(sdsTlsContext)}}
+			sdsTlsContext, _ := ptypes.MarshalAny(sdsTlsContextM)
+			lds.FilterChains[0].TransportSocket = &core.TransportSocket{Name: EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: sdsTlsContext}}
 		} else {
-			lds.FilterChains[0].TransportSocket = &core.TransportSocket{Name: util.EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: util.MessageToAny(&downStreamTlsContext)}}
+			lds.FilterChains[0].TransportSocket = &core.TransportSocket{Name: EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: downStreamTlsContext}}
 		}
-	} else {
-		lds.FilterChains[0].TlsContext = &downStreamTlsContext
 	}
 	return lds, nil
 }
 
-func MakeTcpSslListener(listenerName string, ip string, port uint16, clusterName string, certFile, keyFile, rootFile string, clientAuth bool) (*xdsapi.Listener, error) {
-	lds, err := MakeTcpListener(listenerName, ip, port, clusterName)
+func MakeTcpSslListener(listenerName string, ip string, port uint16, direction string, clusterName string, certFile, keyFile, rootFile string, clientAuth bool) (*listener.Listener, error) {
+	lds, err := MakeTcpListener(listenerName, ip, port, direction, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	commonTlsContext := MakeTLSContext(certFile, keyFile, rootFile, false)
-	lds.FilterChains[0].TlsContext = &auth.DownstreamTlsContext{CommonTlsContext: commonTlsContext, RequireClientCertificate: &wrappers.BoolValue{Value: clientAuth}}
+	commonTLSContext := MakeTLSContext(certFile, keyFile, rootFile, false)
+	tlsc := &auth.DownstreamTlsContext{CommonTlsContext: commonTLSContext, RequireClientCertificate: &wrappers.BoolValue{Value: clientAuth}}
+	mt, _ := ptypes.MarshalAny(tlsc)
+	lds.FilterChains[0].TransportSocket = &core.TransportSocket{
+		Name: EnvoyTLSSocketName,
+		ConfigType: &core.TransportSocket_TypedConfig{
+			TypedConfig: mt,
+		},
+	}
 	return lds, nil
 }
 
@@ -498,32 +515,32 @@ type SniInfo struct {
 	ClusterName string
 }
 
-func MakeHttpsSniListener(listenerName string, ip string, port uint16, sniInfos []SniInfo, transportSocket, inline bool) (*xdsapi.Listener, error) {
+func MakeHttpsSniListener(listenerName string, ip string, port uint16, sniInfos []SniInfo, transportSocket, inline bool) (*listener.Listener, error) {
 	filterChains := make([]*listener.FilterChain, 0)
 	for _, sniInfo := range sniInfos {
 		filter, err := MakeHttpFilter(listenerName, sniInfo.RouteName, nil)
 		if err != nil {
 			return nil, err
 		}
-		tlsContext := &auth.DownstreamTlsContext{CommonTlsContext: MakeTLSContext(sniInfo.CertFile, sniInfo.KeyFile, sniInfo.RootFile, inline)}
+		tlsContextM := &auth.DownstreamTlsContext{CommonTlsContext: MakeTLSContext(sniInfo.CertFile, sniInfo.KeyFile, sniInfo.RootFile, inline)}
+		tlsContext, _ := ptypes.MarshalAny(tlsContextM)
+
 		var filterChain listener.FilterChain
 		if transportSocket == false {
 			filterChain = listener.FilterChain{
 				Filters:          []*listener.Filter{filter},
-				TlsContext:       tlsContext,
 				FilterChainMatch: &listener.FilterChainMatch{ServerNames: []string{sniInfo.ServerName}},
 			}
 		} else {
 			filterChain = listener.FilterChain{
 				Filters:          []*listener.Filter{filter},
-				TransportSocket:  &core.TransportSocket{Name: util.EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: util.MessageToAny(tlsContext)}},
+				TransportSocket:  &core.TransportSocket{Name: EnvoyTLSSocketName, ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: tlsContext}},
 				FilterChainMatch: &listener.FilterChainMatch{ServerNames: []string{sniInfo.ServerName}},
 			}
-
 		}
 		filterChains = append(filterChains, &filterChain)
 	}
-	return &xdsapi.Listener{
+	return &listener.Listener{
 		Name: listenerName,
 		Address: &core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
 			Address:       ip,
@@ -532,7 +549,7 @@ func MakeHttpsSniListener(listenerName string, ip string, port uint16, sniInfos 
 	}, nil
 }
 
-func MakeTcpSniListener(listenerName string, ip string, port uint16, sniInfos []SniInfo) (*xdsapi.Listener, error) {
+func MakeTcpSniListener(listenerName string, ip string, port uint16, sniInfos []SniInfo) (*listener.Listener, error) {
 	filterChains := make([]*listener.FilterChain, 0)
 	for _, sniInfo := range sniInfos {
 		filter, err := MakeTcpFilter(listenerName, sniInfo.ClusterName)
@@ -545,7 +562,7 @@ func MakeTcpSniListener(listenerName string, ip string, port uint16, sniInfos []
 		}
 		filterChains = append(filterChains, &filterChain)
 	}
-	return &xdsapi.Listener{
+	return &listener.Listener{
 		Name: listenerName,
 		Address: &core.Address{Address: &core.Address_SocketAddress{SocketAddress: &core.SocketAddress{
 			Address:       ip,

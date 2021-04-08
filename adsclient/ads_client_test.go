@@ -18,10 +18,14 @@ import (
 	"citrix-xds-adaptor/tests/env"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 )
 
 func setCertEnv(certpath string) error {
@@ -93,13 +97,13 @@ func Test_StartClient(t *testing.T) {
 func Test_http_clusters(t *testing.T) {
 	t.Log("http clusters test start")
 	env.ClearNetscalerConfig()
-	grpcServer, err := env.NewGrpcADSServer(1234)
+	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {
 		t.Errorf("GRPC server creation failed: %v", err)
 	}
 	adsinfo := new(AdsDetails)
 	nsinfo := new(NSDetails)
-	adsinfo.AdsServerURL = "localhost:1234"
+	adsinfo.AdsServerURL = "localhost:" + strconv.Itoa(grpcServer.Port)
 	adsinfo.AdsServerSpiffeID = ""
 	adsinfo.SecureConnect = false
 	adsinfo.NodeID = "ads_client_node_1"
@@ -116,18 +120,18 @@ func Test_http_clusters(t *testing.T) {
 		t.Errorf("newAdsClient failed with %v", err)
 	}
 	discoveryClient.StartClient()
-	route := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
-	listener, err := env.MakeHttpListener("l1", "0.0.0.0", 8000, "r1")
+	routeR1 := env.MakeRoute("r1", []env.RouteInfo{{Domain: "*", ClusterName: "c1"}})
+	listenerL1, err := env.MakeHttpListener("l1", "0.0.0.0", 8000, outboundDir, "r1")
 	if err != nil {
 		t.Errorf("makeListener failed with %v", err)
 	}
-	cluster := env.MakeCluster("c1")
-	endpoint := env.MakeEndpoint("c1", []env.ServiceEndpoint{{env.GetLocalIP(), 9000, 1}})
+	clusterC1 := env.MakeCluster("c1")
+	endpointE1 := env.MakeEndpoint("c1", []env.ServiceEndpoint{{env.GetLocalIP(), 9000, 1}})
 
 	clusterC2 := env.MakeCluster("c2")
 	clusterC3 := env.MakeCluster("c3")
 
-	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*xdsapi.Listener{listener}, []*xdsapi.RouteConfiguration{route}, []*xdsapi.Cluster{cluster, clusterC3, clusterC2}, []*xdsapi.ClusterLoadAssignment{endpoint})
+	err = grpcServer.UpdateSpanshotCacheMulti("1", discoveryClient.GetNodeID(), []*listener.Listener{listenerL1}, []*route.RouteConfiguration{routeR1}, []*cluster.Cluster{clusterC1, clusterC3, clusterC2}, []*endpoint.ClusterLoadAssignment{endpointE1})
 	if err != nil {
 		t.Errorf("updateSpanshotCacheMulti failed with %v", err)
 	}

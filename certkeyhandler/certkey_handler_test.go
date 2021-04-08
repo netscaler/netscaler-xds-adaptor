@@ -291,7 +291,7 @@ func Test_getCertKeyRotator(t *testing.T) {
 		"Successful Cert Key Rotator": {
 			input: EI{
 				certInfo: CertDetails{
-					RootCertFile:  "../tests/tls_conn_mgmt_certs/client-root-cert.pem",
+					RootCertFile:  "../tests/tls_conn_mgmt_certs/root-cert.pem",
 					CertChainFile: "../tests/tls_conn_mgmt_certs/cert-chain.pem",
 					CertFile:      "../tests/tls_conn_mgmt_certs/cert-chain.pem",
 					KeyFile:       "../tests/tls_conn_mgmt_certs/key.pem",

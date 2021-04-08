@@ -468,5 +468,9 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 }
 
 func (confAdaptor *configAdaptor) stopConfigAdaptor() {
+	log.Println("[DEBUG] Config adaptor is stopped")
+	if confAdaptor.watch != nil {
+		confAdaptor.watch.Stop()
+	}
 	confAdaptor.quit <- true
 }

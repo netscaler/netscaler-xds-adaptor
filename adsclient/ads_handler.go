@@ -22,17 +22,19 @@ import (
 	"strconv"
 	"strings"
 
-	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	xdsListener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	xdsRoute "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	envoyFault "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/fault/v2"
-	envoyJWT "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
-	envoyFilterHttp "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	envoyFilterTcp "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/tcp_proxy/v2"
-	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
-	"github.com/envoyproxy/go-control-plane/pkg/conversion"
+	xdsCluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	xdsEndpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	xdsListener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	xdsRoute "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+
+	envoyFault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/fault/v3"
+	envoyJWT "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
+	envoyFilterHttp "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	envoyFilterTcp "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
+	auth "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	envoyUtil "github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
@@ -81,7 +83,7 @@ func extractPortAndDomainName(input string) (ok bool, port int, domainName strin
 	return true, port, domainName
 }
 
-func getLbMethod(lbMethod xdsapi.Cluster_LbPolicy) string {
+func getLbMethod(lbMethod xdsCluster.Cluster_LbPolicy) string {
 	/*
 		xDS Simple LB Method   | CPX Configuration
 		------------------------------------------------------------------
@@ -90,7 +92,7 @@ func getLbMethod(lbMethod xdsapi.Cluster_LbPolicy) string {
 		RANDOM		         | Value 3 LEASTCONNECTION
 		PASSTHROUGH		 | value 4 not supported in CPX right now
 	*/
-	if lbMethod == xdsapi.Cluster_LEAST_REQUEST || lbMethod == xdsapi.Cluster_RANDOM {
+	if lbMethod == xdsCluster.Cluster_LEAST_REQUEST || lbMethod == xdsCluster.Cluster_RANDOM {
 		return "LEASTCONNECTION"
 	}
 	return "ROUNDROBIN"
@@ -138,21 +140,28 @@ func getTLSDetailsFromTransportSocket(nsConfig *configAdaptor, transportSocket *
 			}
 			// If certificates are provided as part of UpstreamTlsContext, then retrieve same
 			for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
-				certFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-				if rootCertFileName == "" {
-					_, _, rootCertFileName, _ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+				if tlsCertificate.GetCertificateChain().GetFilename() != "" {
+					certFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
+					if rootCertFileName == "" {
+						_, _, rootCertFileName, _ = addToWatch(nsConfig, tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
+					}
+					lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
+						CertFilename:       certFileName,
+						PrivateKeyFilename: keyFileName,
+						RootCertFilename:   rootCertFileName})
+				} else if tlsCertificate.GetCertificateChain().GetInlineString() != "" {
+					lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
+						Cert:       tlsCertificate.GetCertificateChain().GetInlineString(),
+						PrivateKey: tlsCertificate.GetPrivateKey().GetInlineString(),
+						RootCert:   tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetInlineString()})
 				}
-				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-					CertFilename:       certFileName,
-					PrivateKeyFilename: keyFileName,
-					RootCertFilename:   rootCertFileName})
 			}
 		}
 	}
 }
 
 //getBackendTLS will look for TransportSocket from which TLS details need to be obtained
-func getBackendTLS(nsConfig *configAdaptor, cluster *xdsapi.Cluster, lbObj *nsconfigengine.LBApi) {
+func getBackendTLS(nsConfig *configAdaptor, cluster *xdsCluster.Cluster, lbObj *nsconfigengine.LBApi) {
 	if cluster.GetTransportSocket() == nil { // Loop through transportSocketMatch
 		for _, transSocketMatch := range cluster.GetTransportSocketMatches() {
 			getTLSDetailsFromTransportSocket(nsConfig, transSocketMatch.GetTransportSocket(), lbObj)
@@ -165,8 +174,8 @@ func getBackendTLS(nsConfig *configAdaptor, cluster *xdsapi.Cluster, lbObj *nsco
 // isTLSContext func checks if the TLS info is present in cluster or not.
 // It can be present in any of 3 fields:
 // i) TlsContext ii) TransportSocketMatch or iii) TransportSocket (only if it is TLS transport socket)
-func isTLSContext(cluster *xdsapi.Cluster) bool {
-	if cluster.GetTlsContext() != nil || cluster.GetTransportSocketMatches() != nil {
+func isTLSContext(cluster *xdsCluster.Cluster) bool {
+	if cluster.GetTransportSocketMatches() != nil {
 		return true
 	}
 	if cluster.GetTransportSocket() != nil {
@@ -205,7 +214,7 @@ func getMultiClusterStringMapConfig(clusterName string) *nsconfigengine.StringMa
 	return stringMapBindingObj
 }
 
-func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface{}) string {
+func clusterAdd(nsConfig *configAdaptor, cluster *xdsCluster.Cluster, data interface{}) string {
 	log.Printf("[TRACE] clusterAdd : %s type %s", cluster.Name, data.(string))
 	log.Printf("[TRACE] clusterAdd :%v", nsconfigengine.GetLogString(cluster))
 	serviceType := data.(string)
@@ -236,23 +245,7 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 	}
 	lbObj.NetprofileName = nsConfig.netProfile
 	if serviceGroupType == "SSL" || serviceGroupType == "SSL_TCP" {
-		for _, tlsCertificate := range cluster.GetTlsContext().GetCommonTlsContext().GetTlsCertificates() {
-			if tlsCertificate.GetCertificateChain().GetFilename() != "" {
-				certFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, tlsCertificate.GetCertificateChain().GetFilename(), tlsCertificate.GetPrivateKey().GetFilename())
-				if rootCertFileName == "" {
-					_, _, rootCertFileName, _ = addToWatch(nsConfig, cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename(), "")
-				}
-				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-					CertFilename:       certFileName,
-					PrivateKeyFilename: keyFileName,
-					RootCertFilename:   rootCertFileName})
-			} else if tlsCertificate.GetCertificateChain().GetInlineString() != "" {
-				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-					Cert:       tlsCertificate.GetCertificateChain().GetInlineString(),
-					PrivateKey: tlsCertificate.GetPrivateKey().GetInlineString(),
-					RootCert:   cluster.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetInlineString()})
-			}
-		}
+		/* TLSContext is removed in go-control-plane:0.9.8	*/
 		getBackendTLS(nsConfig, cluster, lbObj)
 	}
 	/* Outlier Detection. */
@@ -279,7 +272,7 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 		}
 	}
 	// Below conditions checks if desired state API can be used for this cluster
-	if cluster.GetType() == xdsapi.Cluster_EDS || cluster.GetType() == xdsapi.Cluster_STATIC {
+	if cluster.GetType() == xdsCluster.Cluster_EDS || cluster.GetType() == xdsCluster.Cluster_STATIC {
 		lbObj.AutoScale = true
 	}
 	// Multi Cluster Gateway needs to know point to clusterwide services.
@@ -287,15 +280,13 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsapi.Cluster, data interface
 		lbObj.StringMapBindingObj = getMultiClusterStringMapConfig(cluster.GetName())
 	}
 	nsConfig.addConfig(&configBlock{configType: cdsAdd, resourceName: cluster.Name, resource: lbObj})
-	if (cluster.GetType() == xdsapi.Cluster_STATIC) || (cluster.GetType() == xdsapi.Cluster_STRICT_DNS) {
+	if (cluster.GetType() == xdsCluster.Cluster_STATIC) || (cluster.GetType() == xdsCluster.Cluster_STRICT_DNS) {
 		if cluster.GetLoadAssignment() != nil {
 			clusterEndpointUpdate(nsConfig, cluster.GetLoadAssignment(), nil)
-		} else if cluster.GetHosts() != nil {
-			staticAndDNSTypeClusterEndpointUpdate(nsConfig, cluster)
 		}
-	} else if cluster.GetType() == xdsapi.Cluster_ORIGINAL_DST { // Original Dst type has no load assignment or hosts! Extract info from name.
+	} else if cluster.GetType() == xdsCluster.Cluster_ORIGINAL_DST { // Original Dst type has no load assignment or hosts! Extract info from name.
 		staticAndDNSTypeClusterEndpointUpdate(nsConfig, cluster)
-	} else if cluster.GetType() == xdsapi.Cluster_EDS {
+	} else if cluster.GetType() == xdsCluster.Cluster_EDS {
 		if cluster.GetEdsClusterConfig().GetServiceName() != "" {
 			return cluster.GetEdsClusterConfig().GetServiceName()
 		}
@@ -346,13 +337,27 @@ func getAuthConfig(nsConfig *configAdaptor, listenerName string, httpFilters []*
 	return nil
 }
 
-func getListenerFilterChainMatchInfo(filterChain *xdsListener.FilterChain) (string, uint32, string) {
-	for _, prefixRange := range filterChain.GetFilterChainMatch().GetPrefixRanges() {
-		if prefixRange.GetPrefixLen().GetValue() == 32 {
-			return prefixRange.GetAddressPrefix(), filterChain.GetFilterChainMatch().GetDestinationPort().GetValue(), filterChain.GetName()
+// returns IP, port and filterChain name
+func getListenerFilterChainMatchInfo(nsConfig *configAdaptor, filterChain *xdsListener.FilterChain, listener *xdsListener.Listener) (string, uint32, string) {
+	var filterIP, fcName string
+	var filterPort uint32
+	trafficDirection := core.TrafficDirection_name[int32(listener.GetTrafficDirection())]
+	// Return filterChain name only when destinationPort is specified
+	if filterChain.GetFilterChainMatch().GetDestinationPort() != nil {
+		fcName = filterChain.GetName()
+		filterPort = filterChain.GetFilterChainMatch().GetDestinationPort().GetValue()
+		if trafficDirection == "INBOUND" { // In Istio v1.8 onwards (go-control-plane:0.9.8), prefixRanges are not set. Thus we need to check for Direction
+			filterIP = nsConfig.nsip
+		} else {
+			for _, prefixRange := range filterChain.GetFilterChainMatch().GetPrefixRanges() {
+				if prefixRange.GetPrefixLen().GetValue() == 32 {
+					filterIP = prefixRange.GetAddressPrefix()
+					break
+				}
+			}
 		}
 	}
-	return "", 0, ""
+	return filterIP, filterPort, fcName
 }
 
 //getTLSfromTransportSocket will get DownstreamTLSContext which will be associcated with SSL CS Vserver
@@ -382,8 +387,6 @@ func getFrontEndTLSConfig(nsConfig *configAdaptor, csObj *nsconfigengine.CSApi, 
 	var tlsContext *auth.DownstreamTlsContext
 	if filterChain.GetTransportSocket() != nil {
 		tlsContext = getTLSfromTransportSocket(nsConfig, csObj, filterChain, sniCertVal)
-	} else {
-		tlsContext = filterChain.GetTlsContext()
 	}
 	for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
 		if tlsCertificate.GetCertificateChain().GetFilename() != "" {
@@ -398,7 +401,7 @@ func getFrontEndTLSConfig(nsConfig *configAdaptor, csObj *nsconfigengine.CSApi, 
 				SNICert:    sniCertVal,
 				Cert:       tlsCertificate.GetCertificateChain().GetInlineString(),
 				PrivateKey: tlsCertificate.GetPrivateKey().GetInlineString(),
-				RootCert:   filterChain.GetTlsContext().GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetInlineString()})
+				RootCert:   tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetInlineString()})
 		}
 	}
 	if tlsContext.GetRequireClientCertificate().GetValue() == true {
@@ -406,12 +409,11 @@ func getFrontEndTLSConfig(nsConfig *configAdaptor, csObj *nsconfigengine.CSApi, 
 	}
 }
 
-func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]interface{}, listener *xdsapi.Listener, filterChain *xdsListener.FilterChain) (map[string]interface{}, error) {
+func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]interface{}, listener *xdsListener.Listener, filterChain *xdsListener.FilterChain) (map[string]interface{}, error) {
 	entityName := nsconfigengine.GetNSCompatibleName(listener.GetName())
 	vserverAddress := listener.GetAddress().GetSocketAddress().GetAddress()
 	vserverPort := listener.GetAddress().GetSocketAddress().GetPortValue()
-	filterIP, filterPort, filterChainName := getListenerFilterChainMatchInfo(filterChain)
-
+	filterIP, filterPort, filterChainName := getListenerFilterChainMatchInfo(nsConfig, filterChain, listener)
 	if filterPort != 0 {
 		vserverAddress = filterIP
 		vserverPort = filterPort
@@ -451,7 +453,11 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 			sniCertVal = true
 		}
 		//SSL Passthrough case
-		if filterChain.GetTlsContext().GetCommonTlsContext().GetTlsCertificates() == nil && vserverType == "SSL" && serviceType == "TCP" {
+		// TO CHECK: go-control-plane:0.9.8 doesn't have TlsContext.
+		// If it is SSL vserver, populate frontendTls with dummy first.
+		// If TlsTransportSocketMatch happens, it will be populated in getFrontEndTLSConfig() function and dummy info will be overwritten.
+		//if filterChain.GetTlsContext().GetCommonTlsContext().GetTlsCertificates() == nil && vserverType == "SSL" && serviceType == "TCP" {
+		if vserverType == "SSL" && serviceType == "TCP" {
 			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: "dummy_xds_cert", PrivateKeyFilename: "dummy_xds_key"})
 		}
 		getFrontEndTLSConfig(nsConfig, csObj, filterChain, sniCertVal)
@@ -491,12 +497,9 @@ func getLogProxyType(nsConfig *configAdaptor, filter *xdsListener.Filter, lPort 
 	return "", ""
 }
 
-func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.FilterChain, l *xdsapi.Listener) (string, string, error) {
+func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.FilterChain, l *xdsListener.Listener) (string, string, error) {
 	listenerAddress := l.GetAddress()
 	tlsContextExists := false
-	if filterChain.GetTlsContext() != nil {
-		tlsContextExists = true
-	}
 	if filterChain.GetTransportSocket() != nil {
 		tlsContextExists = true
 	}
@@ -530,10 +533,12 @@ func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.Fil
 
 func getListenerFilterConfig(filter *xdsListener.Filter, out proto.Message) error {
 	switch c := filter.ConfigType.(type) {
-	case *xdsListener.Filter_Config:
-		if err := conversion.StructToMessage(c.Config, out); err != nil {
-			return err
-		}
+	/*
+		case *xdsListener.Filter_Config:
+			if err := conversion.StructToMessage(c.Config, out); err != nil {
+				return err
+			}
+	*/
 	case *xdsListener.Filter_TypedConfig:
 		if err := ptypes.UnmarshalAny(c.TypedConfig, out); err != nil {
 			return err
@@ -544,10 +549,12 @@ func getListenerFilterConfig(filter *xdsListener.Filter, out proto.Message) erro
 
 func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) error {
 	switch c := filter.ConfigType.(type) {
-	case *envoyFilterHttp.HttpFilter_Config:
-		if err := conversion.StructToMessage(c.Config, out); err != nil {
-			return err
-		}
+	/*
+		case *envoyFilterHttp.HttpFilter_Config:
+			if err := conversion.StructToMessage(c.Config, out); err != nil {
+				return err
+			}
+	*/
 	case *envoyFilterHttp.HttpFilter_TypedConfig:
 		if err := ptypes.UnmarshalAny(c.TypedConfig, out); err != nil {
 			return err
@@ -559,7 +566,7 @@ func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) 
 // TODO: How do we identify if it is a special listener?
 // 1. Check for special port 15443 (take value from ENV var)
 // 2. Also check if tcp_cluster_rewrite filter is mentioned or not
-func isMultiClusterListener(listener *xdsapi.Listener) bool {
+func isMultiClusterListener(listener *xdsListener.Listener) bool {
 	port := listener.GetAddress().GetSocketAddress().GetPortValue()
 	if int(port) == multiClusterListenPort {
 		return true
@@ -577,7 +584,7 @@ func isMultiClusterListener(listener *xdsapi.Listener) bool {
 	bind cs vserver cs1 -policyName cs1 -priority 1
 
 */
-func multiClusterListenerConfig(nsConfig *configAdaptor, listener *xdsapi.Listener) {
+func multiClusterListenerConfig(nsConfig *configAdaptor, listener *xdsListener.Listener) {
 	// Step 1: ldsAdd confBlock. This will create CS vserver of type SSL
 	entityName := nsconfigengine.GetNSCompatibleName(listener.GetName())
 	vserverAddress := listener.GetAddress().GetSocketAddress().GetAddress()
@@ -626,7 +633,7 @@ func multiClusterListenerConfig(nsConfig *configAdaptor, listener *xdsapi.Listen
 
 }
 
-func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[string]interface{} {
+func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[string]interface{} {
 	log.Printf("[TRACE] listenerAdd : %s", listener.GetName())
 	log.Printf("[TRACE] listenerAdd : %v", nsconfigengine.GetLogString(listener))
 	/* Config block is created inside for loop.
@@ -677,7 +684,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsapi.Listener) []map[strin
 						nsConfig.addConfig(&confBl)
 					}
 					if routeConfig := httpCM.GetRouteConfig(); routeConfig != nil {
-						cdsMap := routeUpdate(nsConfig, []*xdsapi.RouteConfiguration{routeConfig}, map[string]interface{}{"listenerName": listener.GetName(), "filterChainName": filterChain.GetName(), "serviceType": csObjMap["serviceType"].(string)})
+						cdsMap := routeUpdate(nsConfig, []*xdsRoute.RouteConfiguration{routeConfig}, map[string]interface{}{"listenerName": listener.GetName(), "filterChainName": filterChain.GetName(), "serviceType": csObjMap["serviceType"].(string)})
 						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), cdsMap["cdsNames"].([]string)...)
 					}
 					if rds := httpCM.GetRds(); rds != nil {
@@ -748,7 +755,7 @@ func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
 	return ""
 }
 
-func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsapi.ClusterLoadAssignment, data interface{}) {
+func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEndpoint.ClusterLoadAssignment, data interface{}) {
 	var promEP string
 	log.Printf("[TRACE] clusterEndpointUpdate: %s", clusterLoadAssignment.ClusterName)
 	onlyIPs := true // Assume that all endpoints are IP addresses initially
@@ -796,7 +803,7 @@ func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsap
 
 // staticAndDNSTypeClusterEndpointUpdate() is to populate Citrix ADC config based on Hosts[] field in cluster
 // NOTE: Hosts field is deprecated. But it is possible that this info is still sent by xDS server.
-func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xdsapi.Cluster) {
+func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xdsCluster.Cluster) {
 	var promIPorName string
 	log.Printf("[TRACE] staticAndDNSTypeClusterEndpointUpdate : %s", cluster.GetName())
 	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(cluster.GetName()))
@@ -807,24 +814,10 @@ func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xds
 		resourceName: cluster.GetName(),
 		resource:     svcGpObj,
 	}
-	if cluster.GetType() == xdsapi.Cluster_STATIC {
-		for _, host := range cluster.GetHosts() {
-			address := host.GetSocketAddress().GetAddress()
-			if address == localHostIP {
-				address = nsLoopbackIP
-			}
-			svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{IP: address, Port: int(host.GetSocketAddress().GetPortValue())})
-			promIPorName = address
-		}
-		svcGpObj.IsIPOnlySvcGroup = true
-	} else if cluster.GetType() == xdsapi.Cluster_STRICT_DNS {
-		for _, host := range cluster.GetHosts() {
-			svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{Domain: host.GetSocketAddress().GetAddress(), Port: int(host.GetSocketAddress().GetPortValue())})
-			promIPorName = host.GetSocketAddress().GetAddress()
-		}
-		svcGpObj.IsIPOnlySvcGroup = false
-
-	} else if cluster.GetType() == xdsapi.Cluster_ORIGINAL_DST {
+	/* Hosts field is removed in go-control-plane:0.9.8.
+	 * So, no ned to check for STATIC and STRICT_DNS type clusters
+	 */
+	if cluster.GetType() == xdsCluster.Cluster_ORIGINAL_DST {
 		ok, port, domain := extractPortAndDomainName(cluster.GetName())
 		if !ok {
 			return
@@ -892,7 +885,7 @@ func getFault(typedPerFilterConfig map[string]*any.Any) nsconfigengine.Fault {
 	return fault
 }
 
-func routeUpdate(nsConfig *configAdaptor, routes []*xdsapi.RouteConfiguration, data interface{}) map[string]interface{} {
+func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration, data interface{}) map[string]interface{} {
 	inputMap := data.(map[string]interface{})
 	log.Printf("[TRACE] routeUpdate: %v", routes)
 	clusterNames := make([]string, 0)
@@ -916,16 +909,17 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsapi.RouteConfiguration, d
 			for _, vroute := range virtualHost.GetRoutes() {
 				binding := nsconfigengine.CSBinding{}
 				routeMatch := vroute.GetMatch()
-				rule := nsconfigengine.RouteMatch{Domains: virtualHost.GetDomains(), Prefix: routeMatch.GetPrefix(), Path: routeMatch.GetPath(), Regex: routeMatch.GetRegex()}
+				rule := nsconfigengine.RouteMatch{Domains: virtualHost.GetDomains(), Prefix: routeMatch.GetPrefix(), Path: routeMatch.GetPath(), Regex: routeMatch.GetSafeRegex().GetRegex()}
 				for _, headers := range routeMatch.GetHeaders() {
-					rule.Headers = append(rule.Headers, nsconfigengine.MatchHeader{Name: headers.GetName(), Exact: headers.GetExactMatch(), Prefix: headers.GetRegexMatch(), Regex: headers.GetPrefixMatch()})
+					rule.Headers = append(rule.Headers, nsconfigengine.MatchHeader{Name: headers.GetName(), Exact: headers.GetExactMatch(), Prefix: headers.GetSafeRegexMatch().GetRegex(), Regex: headers.GetPrefixMatch()})
 				}
 				binding.Rule = rule
 				if vroute.GetTypedPerFilterConfig() != nil {
 					binding.Fault = getFault(vroute.GetTypedPerFilterConfig())
 				}
+				log.Printf("[DEBUG] vroute.GetRoute()=%+v", vroute.GetRoute())
 				binding.RwPolicy.PrefixRewrite = vroute.GetRoute().GetPrefixRewrite()
-				binding.RwPolicy.HostRewrite = vroute.GetRoute().GetHostRewrite()
+				binding.RwPolicy.HostRewrite = vroute.GetRoute().GetHostRewriteLiteral() //TODO: confirm GetHostRewriteHeader()
 				//for _, reqAddHeader := range vroute.GetRoute().GetRequestHeadersToAdd()  OLD - 1.1.2
 				for _, reqAddHeader := range vroute.GetRequestHeadersToAdd() {
 					binding.RwPolicy.AddHeaders = append(binding.RwPolicy.AddHeaders, nsconfigengine.RwHeader{Key: reqAddHeader.GetHeader().GetKey(), Value: reqAddHeader.GetHeader().GetValue()})
@@ -935,10 +929,12 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsapi.RouteConfiguration, d
 					persistency = getPersistencyPolicy(vroute.GetRoute().GetHashPolicy())
 				}
 				/* HTTP Mirroing */
-				if vroute.GetRoute().GetRequestMirrorPolicy() != nil {
+				// TODO: Array of Mirror policies. Make MirrorPolicy also as an array.
+				if vroute.GetRoute().GetRequestMirrorPolicies() != nil {
+					rmp := vroute.GetRoute().GetRequestMirrorPolicies()[0] // Choosing first policy
 					mirror := new(nsconfigengine.HTTPMirror)
 					fullReqHdr := "http.req.full_header + http.req.body(10000000)"
-					mirrorClusterName := vroute.GetRoute().GetRequestMirrorPolicy().GetCluster()
+					mirrorClusterName := rmp.GetCluster()
 					mirror.Callout = nsconfigengine.NewHTTPCalloutPolicy(nsconfigengine.GetNSCompatibleName(mirrorClusterName), "Bool", fullReqHdr, "", "", "true")
 					/* TODO: Support mirror Weight */
 					mirror.Weight = defaultMirrorWeight

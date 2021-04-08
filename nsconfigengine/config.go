@@ -16,13 +16,14 @@ package nsconfigengine
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/chiradeep/go-nitro/netscaler"
 	"log"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/chiradeep/go-nitro/netscaler"
 )
 
 type nitroError struct {
@@ -237,6 +238,8 @@ func GetLogString(data interface{}) string {
 	s := fmt.Sprintf("%v", data)
 	s = strings.Replace(s, "\n", "", -1)
 	m1 := regexp.MustCompile("BEGIN CERTIFICATE(.*)END CERTIFICATE")
+	s = m1.ReplaceAllString(s, " XXX ")
+	m1 = regexp.MustCompile("BEGIN RSA PRIVATE KEY(.*)END RSA PRIVATE KEY")
 	s = m1.ReplaceAllString(s, " XXX ")
 	m1 = regexp.MustCompile("BEGIN EC PRIVATE KEY(.*)END EC PRIVATE KEY")
 	return m1.ReplaceAllString(s, " XXX ")
