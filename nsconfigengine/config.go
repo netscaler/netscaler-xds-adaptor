@@ -132,6 +132,13 @@ func doNitro(client *netscaler.NitroClient, nsConfig nitroConfig, ignoreErrors [
 	return err
 }
 
+// GetPrefixForGateway returns prefix based on Vserver IP
+func GetPrefixForGateway(ipaddress string) string {
+	var re = regexp.MustCompile("[.]")
+	name := re.ReplaceAllString(ipaddress, "_")
+	return "cxa_" + name + "_"
+}
+
 // GetNSCompatibleName returns a name which is accepted by the config module on the Citrix-ADC
 func GetNSCompatibleName(entityName string) string {
 	var re = regexp.MustCompile("[-.|!*/]")

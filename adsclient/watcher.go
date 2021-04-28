@@ -145,24 +145,14 @@ func (w *Watcher) addDir(certPath, keyPath string) (string, string, string, erro
 					}
 				}
 				nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsCertFileName, keyData, nsKeyFileName)
-				//nsconfigengine.AddCertKey(w.nsConfig.client, nsCertFileName, nsKeyFileName)
 				log.Println("[DEBUG] Added Key FIle", keyFile)
 				w.dirNames[dirName]["certFile"] = certFile
 				w.dirNames[dirName]["keyFile"] = keyFile
 				w.dirNames[dirName]["nsCertFileName"] = nsCertFileName
 				w.dirNames[dirName]["nsKeyFileName"] = nsKeyFileName
 				w.dirNames[dirName]["nsRootCertFile"] = ""
-				if totalCerts > 1 {
+				if multiClusterIngress && totalCerts > 1 {
 					w.dirNames[dirName]["nsRootCertFile"] = nsCertFileName + "_ic" + strconv.Itoa(totalCerts-1)
-					/*certChain, err := nsconfigengine.GetCertChain(w.nsConfig.client, nsCertFileName)
-					if err != nil {
-						log.Println("[ERROR] Failed getting CertChain", nsCertFileName, err)
-						return w.dirNames[dirName]["nsCertFileName"], w.dirNames[dirName]["nsKeyFileName"], w.dirNames[dirName]["nsRootCertFile"], err
-					}
-					if len(certChain) >= 1 {
-						log.Println("[DEBUG] rootCertFile", certChain[len(certChain)-1])
-						w.dirNames[dirName]["nsRootCertFile"] = certChain[len(certChain)-1]
-					}*/
 				}
 			}
 		} else {
@@ -183,7 +173,6 @@ func (w *Watcher) addDir(certPath, keyPath string) (string, string, string, erro
 			w.dirNames[dirName]["nsRootCertFile"] = nsRootFileName
 			log.Println("[DEBUG] nsRootfileName", nsRootFileName)
 			nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsRootFileName, keyData, "")
-			//nsconfigengine.AddCertKey(w.nsConfig.client, nsRootFileName, "")
 			if err != nil {
 				log.Println("[ERROR] RootCertKey addition Failed ", nsRootFileName, err)
 				return "", "", "", err
@@ -212,8 +201,7 @@ func (w *Watcher) Run() {
 			if (event.Op&fsnotify.Remove == fsnotify.Remove) || (event.Op&fsnotify.Write == fsnotify.Write) {
 				log.Println("[DEBUG] Folder got Updated", event.Name)
 				// strings.Contains(event.Name, "..") this is for mounted certificates
-				//strings.Contains(event.Name, ClientCertFile)  for CSR generated
-				//if !strings.Contains(event.Name, "..") && !strings.Contains(event.Name, ClientCertFile) {
+				//strings.Contains(event.Name, ClientCertChainFile)  for CSR generated
 				if !strings.Contains(event.Name, "..") && !strings.Contains(event.Name, ClientCertChainFile) {
 					log.Println("[DEBUG] File not considered for update", event.Name)
 				} else {
@@ -233,7 +221,7 @@ func (w *Watcher) Run() {
 								if nsconfigengine.IsCertKeyPresent(w.nsConfig.client, nsCertFileName, nsKeyFileName) == false {
 									log.Println("[DEBUG] nsfileName", nsCertFileName, nsKeyFileName)
 									nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsCertFileName, keyData, nsKeyFileName)
-									rootFileName, err := nsconfigengine.UpdateBindings(w.nsConfig.client, w.dirNames[uploadFilePath]["nsCertFileName"], w.dirNames[uploadFilePath]["nsCertFileName"], nsCertFileName, nsKeyFileName)
+									rootFileName, err := nsconfigengine.UpdateBindings(w.nsConfig.client, w.dirNames[uploadFilePath]["nsCertFileName"], w.dirNames[uploadFilePath]["nsCertFileName"], nsCertFileName, nsKeyFileName, multiClusterIngress)
 									if err == nil {
 										w.dirNames[uploadFilePath]["nsCertFileName"] = nsCertFileName
 										w.dirNames[uploadFilePath]["nsKeyFileName"] = nsKeyFileName
@@ -249,11 +237,11 @@ func (w *Watcher) Run() {
 							certData, _, err := getCertKeyData(certFile, "")
 							if err == nil {
 								nsRootFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
-								log.Println("[DEBUG] nsRootiFileName", nsRootFileName)
+								log.Println("[DEBUG] nsRootFileName", nsRootFileName)
 								log.Println("[DEBUG] upload certFile Path", certFile)
 								var keyData []byte
 								nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsRootFileName, keyData, "")
-								nsconfigengine.AddCertKey(w.nsConfig.client, nsRootFileName, "")
+								nsconfigengine.AddCertKey(w.nsConfig.client, nsRootFileName, "", false)
 								nsconfigengine.UpdateRootCABindings(w.nsConfig.client, w.dirNames[uploadFilePath]["nsRootFileName"], nsRootFileName)
 								nsconfigengine.DeleteCertKey(w.nsConfig.client, w.dirNames[uploadFilePath]["nsRootFileName"])
 								w.dirNames[uploadFilePath]["nsRootFileName"] = nsRootFileName

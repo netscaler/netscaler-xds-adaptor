@@ -94,8 +94,10 @@ func Test_certOperations(t *testing.T) {
 func Test_UpdateBindings(t *testing.T) {
 	oldCertFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
 	oldKeyFile := "../tests/tls_conn_mgmt_certs/key.pem"
+	oldRootCertFile := "../tests/tls_conn_mgmt_certs/root-cert.pem"
 	newCertFile := "../tests/certkey_handler_certs/sleep_cert_chain.pem"
 	newKeyFile := "../tests/certkey_handler_certs/sleep_key.pem"
+	newRootCertFile := "../tests/certkey_handler_certs/sleep_root_cert.pem"
 	client := env.GetNitroClient()
 	certData, keyData, err := env.GetCertKeyData(oldCertFile, oldKeyFile)
 	if err != nil {
@@ -104,6 +106,7 @@ func Test_UpdateBindings(t *testing.T) {
 	nsOldCertFile := GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	nsOldKeyFile := GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	UploadCertData(client, certData, nsOldCertFile, keyData, nsOldKeyFile)
+	UploadCert(client, oldRootCertFile, nsOldCertFile+"_ic1", "", "")
 	certData, keyData, err = env.GetCertKeyData(newCertFile, newKeyFile)
 	if err != nil {
 		t.Errorf("Failed reading Cert/Key- %v", err)
@@ -111,6 +114,8 @@ func Test_UpdateBindings(t *testing.T) {
 	nsNewCertFile := GetNSCompatibleNameHash(string([]byte(certData)), 55)
 	nsNewKeyFile := GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 	UploadCertData(client, certData, nsNewCertFile, keyData, nsNewKeyFile)
+	UploadCert(client, newRootCertFile, nsNewCertFile+"_ic1", "", "")
+
 	lbObj := NewLBApi("lbent1s", "HTTP", "SSL", "ROUNDROBIN")
 	lbObj.MaxConnections = 200
 	lbObj.MaxHTTP2ConcurrentStreams = 300
@@ -134,7 +139,7 @@ func Test_UpdateBindings(t *testing.T) {
 		t.Errorf("CSApi add failed with %v", err)
 	}
 	t.Logf("Test UpdateBindings")
-	rootFile, err := UpdateBindings(client, nsOldCertFile, nsOldKeyFile, nsNewCertFile, nsNewKeyFile)
+	rootFile, err := UpdateBindings(client, nsOldCertFile, nsOldKeyFile, nsNewCertFile, nsNewKeyFile, true)
 	if err != nil && rootFile != nsNewCertFile+"_ic1" {
 		t.Errorf("UpdateBindings Failed as rootCertFile got =%v expected=%v", rootFile, nsNewCertFile+"_ic1")
 	}
@@ -189,7 +194,7 @@ func Test_UpdateRootCABindings(t *testing.T) {
 	if err != nil {
 		t.Errorf("CSApi add failed with %v", err)
 	}
-	AddCertKey(client, nsNewRootCertFile, "")
+	AddCertKey(client, nsNewRootCertFile, "", false)
 	t.Logf("Test UpdateRootCABindings")
 	UpdateRootCABindings(client, nsOldRootCertFile, nsNewRootCertFile)
 	DeleteCertKey(client, nsOldRootCertFile)

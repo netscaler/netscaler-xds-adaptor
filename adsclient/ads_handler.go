@@ -310,6 +310,7 @@ func clusterDel(nsConfig *configAdaptor, clusterName string) {
 	}
 	nsConfig.delConfig(&confBl)
 }
+
 func getAuthConfig(nsConfig *configAdaptor, listenerName string, httpFilters []*envoyFilterHttp.HttpFilter) *nsconfigengine.AuthSpec {
 	for _, httpFilter := range httpFilters {
 		switch httpFilter.GetName() {
@@ -409,7 +410,8 @@ func getFrontEndTLSConfig(nsConfig *configAdaptor, csObj *nsconfigengine.CSApi, 
 	}
 }
 
-func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]interface{}, listener *xdsListener.Listener, filterChain *xdsListener.FilterChain) (map[string]interface{}, error) {
+// constructVserverInfoFromListenerFC returns vserverName, vserverIP, vserverPort and filterChainName
+func constructVserverInfoFromListenerFC(nsConfig *configAdaptor, filterChain *xdsListener.FilterChain, listener *xdsListener.Listener) (string, string, uint32, string) {
 	entityName := nsconfigengine.GetNSCompatibleName(listener.GetName())
 	vserverAddress := listener.GetAddress().GetSocketAddress().GetAddress()
 	vserverPort := listener.GetAddress().GetSocketAddress().GetPortValue()
@@ -421,12 +423,18 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 	}
 	if vserverAddress == "0.0.0.0" {
 		vserverAddress = "*"
-		if nsConfig.vserverIP != "" {
+		if nsConfig.vserverIP != "" { // Gateway mode. Never a case in sidecar deployment
 			vserverAddress = nsConfig.vserverIP
+			entityName = nsconfigengine.GetPrefixForGateway(vserverAddress) + entityName
 		}
 	} else if vserverAddress == localHostIP {
 		vserverAddress = nsConfig.localHostVIP
 	}
+	return entityName, vserverAddress, vserverPort, filterChainName
+}
+
+func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]interface{}, listener *xdsListener.Listener, filterChain *xdsListener.FilterChain) (map[string]interface{}, error) {
+	entityName, vserverAddress, vserverPort, _ := constructVserverInfoFromListenerFC(nsConfig, filterChain, listener)
 	vserverType, serviceType, err := getListenerFilterType(nsConfig, filterChain, listener)
 	if err != nil {
 		log.Printf("[TRACE] Listener's filter type not supported. %s", err.Error())
@@ -442,7 +450,7 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 			csObj.AllowACL = true
 			csObj.AnalyticsProfileNames = nsConfig.analyticsProfiles
 		}
-		csObjMap[csObjMapKey] = map[string]interface{}{"csObj": csObj, "rdsNames": nil, "cdsNames": nil, "serviceType": serviceType, "filterChainName": filterChainName, "listenerName": listener.GetName()}
+		csObjMap[csObjMapKey] = map[string]interface{}{"csObj": csObj, "rdsNames": nil, "cdsNames": nil, "serviceType": serviceType, "csVsName": entityName, "listenerName": listener.GetName()}
 		csObjMap[csObjMapKey].(map[string]interface{})["cdsNames"] = make([]string, 0)
 		csObjMap[csObjMapKey].(map[string]interface{})["rdsNames"] = make([]string, 0)
 	}
@@ -684,7 +692,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 						nsConfig.addConfig(&confBl)
 					}
 					if routeConfig := httpCM.GetRouteConfig(); routeConfig != nil {
-						cdsMap := routeUpdate(nsConfig, []*xdsRoute.RouteConfiguration{routeConfig}, map[string]interface{}{"listenerName": listener.GetName(), "filterChainName": filterChain.GetName(), "serviceType": csObjMap["serviceType"].(string)})
+						cdsMap := routeUpdate(nsConfig, []*xdsRoute.RouteConfiguration{routeConfig}, map[string]interface{}{"csVsName": csObj.Name, "listenerName": listener.GetName(), "filterChainName": filterChain.GetName(), "serviceType": csObjMap["serviceType"].(string)})
 						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), cdsMap["cdsNames"].([]string)...)
 					}
 					if rds := httpCM.GetRds(); rds != nil {
@@ -721,12 +729,11 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	return csObjList
 }
 
-func listenerDel(nsConfig *configAdaptor, listenerName string, filterChainNames []string) {
-	log.Printf("[TRACE] listenerDel: %s filterChains(%v)", listenerName, filterChainNames)
+func listenerDel(nsConfig *configAdaptor, listenerName string, csVsNames []string) {
+	log.Printf("[TRACE] listenerDel: %s csVsNames(%v)", listenerName, csVsNames)
 	csObjs := make([]*nsconfigengine.CSApi, 0)
-	csObjs = append(csObjs, &nsconfigengine.CSApi{Name: nsconfigengine.GetNSCompatibleName(listenerName)})
-	for _, filterChainName := range filterChainNames {
-		csObjs = append(csObjs, &nsconfigengine.CSApi{Name: nsconfigengine.GetNSCompatibleName(listenerName) + "_" + nsconfigengine.GetNSCompatibleName(filterChainName)})
+	for _, csVsName := range csVsNames {
+		csObjs = append(csObjs, &nsconfigengine.CSApi{Name: csVsName})
 	}
 	confBl := configBlock{
 		configType:   ldsDel,
@@ -888,15 +895,10 @@ func getFault(typedPerFilterConfig map[string]*any.Any) nsconfigengine.Fault {
 func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration, data interface{}) map[string]interface{} {
 	inputMap := data.(map[string]interface{})
 	log.Printf("[TRACE] routeUpdate: %v", routes)
+	log.Printf("[TRACE] In routeUpdate: inputMap=%v", inputMap)
 	clusterNames := make([]string, 0)
 	serviceType := inputMap["serviceType"].(string)
-	listenerName := inputMap["listenerName"].(string)
-	filterChainName := inputMap["filterChainName"].(string)
-	entityName := nsconfigengine.GetNSCompatibleName(listenerName)
-	if filterChainName != "" {
-		entityName = entityName + "_" + nsconfigengine.GetNSCompatibleName(filterChainName)
-	}
-
+	entityName := inputMap["csVsName"].(string)
 	csBindings := nsconfigengine.NewCSBindingsAPI(entityName)
 	confBl := configBlock{
 		configType:   rdsAdd,
@@ -920,7 +922,6 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration,
 				log.Printf("[DEBUG] vroute.GetRoute()=%+v", vroute.GetRoute())
 				binding.RwPolicy.PrefixRewrite = vroute.GetRoute().GetPrefixRewrite()
 				binding.RwPolicy.HostRewrite = vroute.GetRoute().GetHostRewriteLiteral() //TODO: confirm GetHostRewriteHeader()
-				//for _, reqAddHeader := range vroute.GetRoute().GetRequestHeadersToAdd()  OLD - 1.1.2
 				for _, reqAddHeader := range vroute.GetRequestHeadersToAdd() {
 					binding.RwPolicy.AddHeaders = append(binding.RwPolicy.AddHeaders, nsconfigengine.RwHeader{Key: reqAddHeader.GetHeader().GetKey(), Value: reqAddHeader.GetHeader().GetValue()})
 				}

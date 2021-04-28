@@ -113,7 +113,7 @@ func verifyObject(nsConfAdaptor *configAdaptor, configType discoveryType, resour
 	if configType == ldsAdd && len(receivedResponse.([]map[string]interface{})) > 1 {
 		listenerAddRet := receivedResponse.([]map[string]interface{})
 		sort.Slice(listenerAddRet[:], func(i, j int) bool {
-			return listenerAddRet[i]["filterChainName"].(string) < listenerAddRet[j]["filterChainName"].(string)
+			return listenerAddRet[i]["csVsName"].(string) < listenerAddRet[j]["csVsName"].(string)
 		})
 		receivedResponse = listenerAddRet
 	}
@@ -294,7 +294,7 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("MakeHttpListener failed with %v", err)
 	}
 	csObj := []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l1", IP: "10.0.0.0", Port: 80, VserverType: "HTTP", AllowACL: false}}
-	err = verifyObject(nsConfAdaptor, ldsAdd, "l1", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l1", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
+	err = verifyObject(nsConfAdaptor, ldsAdd, "l1", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l1", "csVsName": "l1", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -305,7 +305,7 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("MakeTcpListener failed with %v", err)
 	}
 	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l2", IP: "20.0.0.0", Port: 25, VserverType: "TCP", AllowACL: false, DefaultLbVserverName: "cl1"}}
-	err = verifyObject(nsConfAdaptor, ldsAdd, "l2", csObj, []map[string]interface{}{{"rdsNames": []string{}, "cdsNames": []string{"cl1"}, "listenerName": "l2", "filterChainName": "", "serviceType": "TCP"}}, listenerAdd(nsConfAdaptor, lds))
+	err = verifyObject(nsConfAdaptor, ldsAdd, "l2", csObj, []map[string]interface{}{{"rdsNames": []string{}, "cdsNames": []string{"cl1"}, "listenerName": "l2", "csVsName": "l2", "serviceType": "TCP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -315,7 +315,7 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
 	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l3s", IP: "30.2.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertName, PrivateKeyFilename: nsKeyName, RootCertFilename: nsCertName + "_ic1"}}}}
-	err = verifyObject(nsConfAdaptor, ldsAdd, "l3s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l3s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
+	err = verifyObject(nsConfAdaptor, ldsAdd, "l3s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l3s", "csVsName": "l3s", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -326,7 +326,7 @@ func Test_listenerAdd(t *testing.T) {
 		t.Errorf("MakeHttpsListener failed with %v", err)
 	}
 	csObj = []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l2s", IP: "30.0.0.1", Port: 443, VserverType: "SSL", AllowACL: false, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: nsCertFileName, PrivateKeyFilename: nsKeyFileName}}}}
-	err = verifyObject(nsConfAdaptor, ldsAdd, "l2s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l2s", "filterChainName": "", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
+	err = verifyObject(nsConfAdaptor, ldsAdd, "l2s", csObj, []map[string]interface{}{{"rdsNames": []string{"r1"}, "cdsNames": []string{}, "listenerName": "l2s", "csVsName": "l2s", "serviceType": "HTTP"}}, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
@@ -358,9 +358,9 @@ func Test_listenerAdd(t *testing.T) {
 		{Name: "lm1_f3", IP: "1.1.1.1", Port: 1010, VserverType: "TCP", AllowACL: false, DefaultLbVserverName: "c3"},
 	}
 	listenerAddRetMapExp := []map[string]interface{}{
-		{"rdsNames": []string{}, "cdsNames": []string{"c1"}, "listenerName": "lm1", "filterChainName": "f1", "serviceType": "HTTP"},
-		{"rdsNames": []string{"r2"}, "cdsNames": []string{}, "listenerName": "lm1", "filterChainName": "f2", "serviceType": "HTTP"},
-		{"rdsNames": []string{}, "cdsNames": []string{"c3"}, "listenerName": "lm1", "filterChainName": "f3", "serviceType": "TCP"},
+		{"rdsNames": []string{}, "cdsNames": []string{"c1"}, "listenerName": "lm1", "csVsName": "lm1_f1", "serviceType": "HTTP"},
+		{"rdsNames": []string{"r2"}, "cdsNames": []string{}, "listenerName": "lm1", "csVsName": "lm1_f2", "serviceType": "HTTP"},
+		{"rdsNames": []string{}, "cdsNames": []string{"c3"}, "listenerName": "lm1", "csVsName": "lm1_f3", "serviceType": "TCP"},
 	}
 	err = verifyObject(nsConfAdaptor, ldsAdd, "lm1_f1", csObjExpLm1F1, listenerAddRetMapExp, listenerAdd(nsConfAdaptor, lds))
 	if err != nil {
@@ -383,14 +383,14 @@ func Test_listenerDel(t *testing.T) {
 	nsConfAdaptor := getNsConfAdaptor()
 	t.Logf("HTTP listener delete")
 	csObj := []*nsconfigengine.CSApi{&nsconfigengine.CSApi{Name: "l3"}}
-	listenerDel(nsConfAdaptor, "l3", []string{})
+	listenerDel(nsConfAdaptor, "l3", []string{"l3"})
 	err := verifyObject(nsConfAdaptor, ldsDel, "l3", csObj, nil, nil)
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
 	t.Logf("HTTP listener filterchains delete")
 	csObj = []*nsconfigengine.CSApi{{Name: "lm3"}, {Name: "lm3_fc1"}, {Name: "lm3_fc2"}}
-	listenerDel(nsConfAdaptor, "lm3", []string{"fc1", "fc2"})
+	listenerDel(nsConfAdaptor, "lm3", []string{"lm3", "lm3_fc1", "lm3_fc2"})
 	err = verifyObject(nsConfAdaptor, ldsDel, "lm3", csObj, nil, nil)
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
@@ -403,7 +403,7 @@ func Test_routeUpdate(t *testing.T) {
 	csBindings := nsconfigengine.NewCSBindingsAPI("cs1")
 	csBindings.Bindings = []nsconfigengine.CSBinding{{Rule: nsconfigengine.RouteMatch{Domains: []string{"*"}, Prefix: "/"}, CsPolicy: nsconfigengine.CsPolicy{Canary: []nsconfigengine.Canary{{LbVserverName: "cl1", LbVserverType: "HTTP", Weight: 100}}}}}
 	rds := env.MakeRoute("rt1", []env.RouteInfo{{Domain: "*", ClusterName: "cl1"}})
-	err := verifyObject(nsConfAdaptor, rdsAdd, "cs1", csBindings, map[string]interface{}{"cdsNames": []string{"cl1"}, "serviceType": "HTTP"}, routeUpdate(nsConfAdaptor, []*route.RouteConfiguration{rds}, map[string]interface{}{"listenerName": "cs1", "filterChainName": "", "serviceType": "HTTP"}))
+	err := verifyObject(nsConfAdaptor, rdsAdd, "cs1", csBindings, map[string]interface{}{"cdsNames": []string{"cl1"}, "serviceType": "HTTP"}, routeUpdate(nsConfAdaptor, []*route.RouteConfiguration{rds}, map[string]interface{}{"listenerName": "cs1", "csVsName": "cs1", "serviceType": "HTTP"}))
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
