@@ -96,6 +96,9 @@ func Test_StartClient(t *testing.T) {
 
 func Test_http_clusters(t *testing.T) {
 	t.Log("http clusters test start")
+	multiClusterIngress = true // To get all clusters from xds-server
+	multiClusterPolExprStr = ".global"
+	multiClusterListenPort = 15443
 	env.ClearNetscalerConfig()
 	grpcServer, err := env.NewGrpcADSServer(0)
 	if err != nil {

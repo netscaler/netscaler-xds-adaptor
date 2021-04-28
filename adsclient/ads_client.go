@@ -84,8 +84,8 @@ type apiRequest struct {
 	nonce       string
 	resources   map[string]interface{}
 	/*
-		ldsURL -> [filterChaninName]
-		rdsURL -> lds Name, filterChainName, serviceType
+		ldsURL -> [csVsName]
+		rdsURL -> lds Name, CsVsName, serviceType
 		cdsURL -> serviceType
 		edsURL -> cds Name
 	*/
@@ -181,7 +181,7 @@ func cdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 		edsName := ""
 		if _, ok := client.apiRequests[cdsURL].resources[cdsResource.Name]; ok {
 			edsName = client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, client.apiRequests[cdsURL].resources[cdsResource.Name])
-		} else {
+		} else if multiClusterIngress {
 			edsName = client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, "HTTP")
 		}
 		if edsName != "" {
@@ -229,8 +229,8 @@ func ldsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 					client.apiRequests[cdsURL].resources[cdsConfigName] = dependentResources["serviceType"]
 				}
 			}
-			if dependentResources["filterChainName"].(string) != "" {
-				ldsResources[ldsResource.Name] = append(ldsResources[ldsResource.Name].([]string), dependentResources["filterChainName"].(string))
+			if dependentResources["csVsName"].(string) != "" {
+				ldsResources[ldsResource.Name] = append(ldsResources[ldsResource.Name].([]string), dependentResources["csVsName"].(string))
 			}
 		}
 	}
@@ -461,7 +461,9 @@ func (client *AdsClient) StartClient() {
 					rdsURL: &apiRequest{typeURL: rdsURL, handler: rdsHandler, resources: make(map[string]interface{})},
 				}
 				client.writeADSRequest(client.apiRequests[ldsURL])
-				client.writeADSRequest(client.apiRequests[cdsURL])
+				if multiClusterIngress {
+					client.writeADSRequest(client.apiRequests[cdsURL])
+				}
 				client.readADSResponse()
 				client.stopClientConnection(true)
 			}
