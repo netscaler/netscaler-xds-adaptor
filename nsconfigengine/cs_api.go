@@ -15,17 +15,16 @@ package nsconfigengine
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
-	"github.com/chiradeep/go-nitro/config/cs"
-	"github.com/chiradeep/go-nitro/config/lb"
-	"github.com/chiradeep/go-nitro/config/ns"
-	"github.com/chiradeep/go-nitro/config/policy"
-	"github.com/chiradeep/go-nitro/config/responder"
-	"github.com/chiradeep/go-nitro/config/rewrite"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/cs"
+	"github.com/citrix/adc-nitro-go/resource/config/lb"
+	"github.com/citrix/adc-nitro-go/resource/config/ns"
+	"github.com/citrix/adc-nitro-go/resource/config/policy"
+	"github.com/citrix/adc-nitro-go/resource/config/responder"
+	"github.com/citrix/adc-nitro-go/resource/config/rewrite"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 const (
@@ -81,7 +80,7 @@ func NewCSApi(name string, vserverType string, ip string, port int) *CSApi {
 
 // Add method creates/updates a CS vserver object on the Citrix-ADC
 func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSApi add: %s", GetLogString(csObj))
+	nsconfLogger.Trace("CSApi add", "csObj", GetLogString(csObj))
 	confErr := newNitroError()
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}, nil, []nitroConfig{{netscaler.Csvserver.Type(), csObj.Name, nil, "delete"}, {netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}}))
 	if csObj.AllowACL == true {
@@ -111,7 +110,7 @@ func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
 
 // Delete method deletes a CS vserver
 func (csObj *CSApi) Delete(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSApi delete: %v", csObj)
+	nsconfLogger.Trace("CSApi delete", "csObj", csObj)
 	confErr := newNitroError()
 	addSSLForwardSpec(client, csObj.Name, []SSLForwardSpec{}, confErr)
 	updateVserverAuthSpec(client, csObj.Name, csObj.AuthSpec, confErr)
@@ -415,7 +414,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 
 // Add method binds/updates policies to a CS vserver
 func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] CSBindingsAPI add: %+v", csBindings)
+	nsconfLogger.Trace("CSBindingsAPI add", "csBindings", csBindings)
 	confErr := newNitroError()
 	rewritepolinfo := new(RewriteAction)
 	for _, csBinding := range csBindings.Bindings {
@@ -496,7 +495,7 @@ func (csBindings *CSBindingsAPI) deleteState(client *netscaler.NitroClient, conf
 	var bPolicyName string
 	var priority int
 
-	log.Printf("[TRACE] CSBindingsAPI delete stale: %v", csBindings)
+	nsconfLogger.Trace("CSBindingsAPI delete stale", "csBindings", csBindings)
 	csvserverRewritePolicyBindings, err := client.FindResourceArray(netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name)
 	if err == nil {
 		for _, csvserverRewritepolicyBinding := range csvserverRewritePolicyBindings {

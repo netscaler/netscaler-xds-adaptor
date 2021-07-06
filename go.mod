@@ -3,11 +3,12 @@ module citrix-xds-adaptor
 go 1.13
 
 require (
-	github.com/chiradeep/go-nitro v0.0.0-20200522165541-e35ec60a1d1b
+	github.com/citrix/adc-nitro-go v0.0.0-20210701174421-a3bd5f0e580a
 	github.com/envoyproxy/go-control-plane v0.9.9-0.20210115003313-31f9241a16e6
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.4.3
+	github.com/hashicorp/go-hclog v0.16.1
 	github.com/kr/pretty v0.2.1
 	github.com/openshift/api v3.9.1-0.20191008181517-e4fd21196097+incompatible
 	github.com/sirupsen/logrus v1.7.0

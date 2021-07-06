@@ -14,10 +14,9 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"log"
 	"strconv"
 
-	"github.com/chiradeep/go-nitro/netscaler"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 // NsConfigEntity respresents a NITRO config to be committed to the Citrix-ADC
@@ -47,10 +46,9 @@ func GetNsUptime(client *netscaler.NitroClient) (int, error) {
 	var currentUptime int
 	uptime, err := client.FindStatWithArgs("nsglobalcntr", "", []string{"counters:sys_cur_duration_sincestart"})
 	if err != nil {
-		log.Println("[ERROR] Unable to get Uptime beginningStat. ", err)
+		nsconfLogger.Error("GetNsUptime: Unable to get Uptime beginningStat", "error", err)
 		return 0, err
 	}
-	//log.Printf("[TRACE] Duration since start : %v, %s", uptime, uptime["sys_cur_duration_sincestart"].(string))
 	currentUptime, err = strconv.Atoi(uptime["sys_cur_duration_sincestart"].(string))
 	if err != nil {
 		return 0, err

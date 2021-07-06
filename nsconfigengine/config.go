@@ -17,18 +17,45 @@ import (
 	"crypto/md5"
 	"fmt"
 	"log"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
 
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/hashicorp/go-hclog"
+
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 type nitroError struct {
 	errorCount int
 	errors     []string
+}
+
+var nsconfLogger hclog.Logger
+
+func init() {
+	level := hclog.LevelFromString("DEBUG") // Default level
+	logLevel, ok := os.LookupEnv("LOGLEVEL")
+	if ok {
+		lvl := hclog.LevelFromString(logLevel)
+		if lvl != hclog.NoLevel {
+			level = lvl
+		} else {
+			log.Printf("LOGLEVEL not set to a valid log level (%s), defaulting to %d", logLevel, level)
+		}
+	}
+	_, jsonLog := os.LookupEnv("JSONLOG")
+	nsconfLogger = hclog.New(&hclog.LoggerOptions{
+		Name:            "xDS-Adaptor",
+		Level:           level,
+		Color:           hclog.AutoColor,
+		JSONFormat:      jsonLog,
+		IncludeLocation: true,
+	})
+	log.Printf("[INFO] nsconfigengine logger created with loglevel = %s and jsonLog = %v", logLevel, jsonLog)
 }
 
 func newNitroError() *nitroError {
@@ -149,8 +176,11 @@ func GetNSCompatibleName(entityName string) string {
 	return "ns_" + re.ReplaceAllString(entityName, "_")
 }
 
-// GetNSCompatibleNameHash returns a md5 Hash value
+// GetNSCompatibleNameHash returns md5 hash for non-empty input
 func GetNSCompatibleNameHash(input string, length int) string {
+	if input == "" {
+		return ""
+	}
 	md5 := md5.Sum([]byte(input))
 	output := GetNSCompatibleName(fmt.Sprintf("%x", md5[:]))
 	if !unicode.IsLetter(rune(output[0])) {
@@ -215,7 +245,7 @@ func getNsReleaseBuild() (float64, float64) {
 func SetNsReleaseBuild(build map[string]interface{}) error {
 	var err error
 	curBuild.release, curBuild.buildNo, err = getBuildInfo(build)
-	log.Printf("NsBuild %v %v", build, curBuild)
+	nsconfLogger.Info("ADC build info", "build", build, "version", curBuild)
 	return err
 }
 
@@ -223,17 +253,17 @@ func getBuildInfo(nsVersion map[string]interface{}) (float64, float64, error) {
 	re := regexp.MustCompile(`[0-9]+[.]*[[0-9]+]*`) //NS12.1: Build 53.3.nc or NS12.1: Build 53.nc
 	submatchall := re.FindAllString(nsVersion["version"].(string), -1)
 	if submatchall == nil {
-		log.Printf("[ERROR]: Couldn't Extract Release and Build No")
-		return 0, 0, fmt.Errorf("[ERROR]: Couldn't Extract Release and Build No")
+		nsconfLogger.Error("getBuildInfo: Couldn't extract release and build no")
+		return 0, 0, fmt.Errorf("[ERROR]: Couldn't extract release and build no")
 	}
 	release, errR := strconv.ParseFloat(submatchall[0], 64)
 	if errR != nil {
-		log.Printf("[ERROR]: Failed converting Citrix ADC Release")
+		nsconfLogger.Error("getBuildInfo: Failed converting Citrix ADC Release")
 		return 0, 0, errR
 	}
 	buildNo, errB := strconv.ParseFloat(submatchall[1], 64)
 	if errB != nil {
-		log.Printf("[ERROR]: Failed converting Citrix ADC BuildNo")
+		nsconfLogger.Error("getBuildInfo: Failed converting Citrix ADC build no")
 		return 0, 0, errB
 	}
 	return release, buildNo, nil

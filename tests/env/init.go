@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chiradeep/go-nitro/config/dns"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/dns"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -69,7 +69,14 @@ func GetNetscalerPassword() string {
 }
 
 func GetNitroClient() *netscaler.NitroClient {
-	return netscaler.NewNitroClient(GetNetscalerURL(), GetNetscalerUser(), GetNetscalerPassword())
+	var params netscaler.NitroParams
+	params.Url = GetNetscalerURL()
+	params.Username = GetNetscalerUser()
+	params.Password = GetNetscalerPassword()
+	params.LogLevel = "DEBUG"
+	params.JSONLogFormat = true
+	client, _ := netscaler.NewNitroClientFromParams(params)
+	return client
 }
 
 func ClearNetscalerConfig() {

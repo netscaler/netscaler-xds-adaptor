@@ -66,10 +66,10 @@ func Test_doNitro(t *testing.T) {
 	}{
 		{nitroConfig{"lbvserver", "t1", map[string]interface{}{"name": "t1", "servicetype": "http"}, "add"}, nil, nil, nil},
 		{nitroConfig{"lbvserver", "t1", nil, "delete"}, nil, nil, nil},
-		{nitroConfig{"lbvserver_service_binding", "t3", map[string]interface{}{"name": "t3", "servicename": "s1"}, "add"}, nil, nil, fmt.Errorf("[ERROR] go-nitro: Failed to create resource of type lbvserver_service_binding, name=t3, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t3]\", \"severity\": \"ERROR\" })")},
+		{nitroConfig{"lbvserver_service_binding", "t3", map[string]interface{}{"name": "t3", "servicename": "s1"}, "add"}, nil, nil, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t3, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t3]\", \"severity\": \"ERROR\" })")},
 		{nitroConfig{"lbvserver_service_binding", "t4", map[string]interface{}{"name": "t4", "servicename": "s1"}, "add"}, []string{"No such resource", "xxx"}, nil, nil},
 		{nitroConfig{"lbvserver_service_binding", "t5", map[string]interface{}{"name": "t5", "servicename": "s1"}, "add"}, []string{"xxx"}, []nitroConfig{{"lbvserver", "t3", nil, "delete"}}, nil},
-		{nitroConfig{"lbvserver_service_binding", "t6", map[string]interface{}{"name": "t6", "servicename": "s1"}, "add"}, []string{"xxx"}, []nitroConfig{{"lbvserver_service_binding", "t2", map[string]interface{}{"name": "t2", "servicename": "s1"}, "add"}}, fmt.Errorf("[ERROR] go-nitro: Failed to create resource of type lbvserver_service_binding, name=t6, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t6]\", \"severity\": \"ERROR\" }) ; [ERROR] go-nitro: Failed to create resource of type lbvserver_service_binding, name=t2, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t2]\", \"severity\": \"ERROR\" })")},
+		{nitroConfig{"lbvserver_service_binding", "t6", map[string]interface{}{"name": "t6", "servicename": "s1"}, "add"}, []string{"xxx"}, []nitroConfig{{"lbvserver_service_binding", "t2", map[string]interface{}{"name": "t2", "servicename": "s1"}, "add"}}, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t6, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t6]\", \"severity\": \"ERROR\" }) ; [ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t2, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t2]\", \"severity\": \"ERROR\" })")},
 	}
 	client := env.GetNitroClient()
 	for _, c := range cases {
@@ -188,7 +188,7 @@ func Test_getBuildInfo(t *testing.T) {
 	for _, c := range cases {
 		release, build, err := getBuildInfo(c.input)
 		if build == 0 {
-			er := errors.New("[ERROR]: Couldn't Extract Release and Build No")
+			er := errors.New("[ERROR]: Couldn't extract release and build no")
 			if er.Error() != err.Error() {
 				t.Errorf("Incorrect Error: Got %v, Expected %v", err, er)
 			}

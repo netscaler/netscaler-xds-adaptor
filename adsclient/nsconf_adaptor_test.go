@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chiradeep/go-nitro/netscaler"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 func init() {
@@ -84,6 +84,7 @@ func Test_bootstrapConfig(t *testing.T) {
 	nsinfo.LicenseServerIP = licenseserverip
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
 	nsinfo.adsServerPort = "15010"
+	nsinfo.bootStrapConfReqd = true
 	multiClusterIngress = true
 	multiClusterPolExprStr = ".global"
 	multiClusterListenPort = 15443
@@ -115,6 +116,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		nsinfo.AnalyticsServerIP = ""
 		nsinfo.LicenseServerIP = licenseserverip
 		nsinfo.caServerPort = "15012"
+		nsinfo.bootStrapConfReqd = true
 		configAd, err := newConfigAdaptor(nsinfo)
 		if err != nil {
 			t.Errorf("%s %v", configAdaptorerrorlog, err)
@@ -131,6 +133,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		nsinfo.AnalyticsServerIP = analyticserverip
 		nsinfo.LicenseServerIP = ""
 		nsinfo.caServerPort = ""
+		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
 		if err != nil {
 			t.Errorf("%s %v", configAdaptorerrorlog, err)
@@ -145,6 +148,7 @@ func Test_bootstrapConfig(t *testing.T) {
 			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
 		nsinfo.LicenseServerIP = analyticserverip
+		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
 		if err != nil {
 			t.Errorf("%s %v", configAdaptorerrorlog, err)
@@ -155,6 +159,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		}
 		nsinfo.AnalyticsServerIP = ""
 		nsinfo.LicenseServerIP = ""
+		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
 		if err != nil {
 			t.Errorf("%s %v", configAdaptorerrorlog, err)

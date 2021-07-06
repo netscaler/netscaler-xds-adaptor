@@ -17,7 +17,6 @@ import (
 	"citrix-xds-adaptor/delayserver"
 	"citrix-xds-adaptor/nsconfigengine"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -67,17 +66,17 @@ var valueNameToNum = map[string]int{
 func extractPortAndDomainName(input string) (ok bool, port int, domainName string) {
 	s := strings.Split(input, "|")
 	if len(s) < 4 {
-		log.Printf("[DEBUG] Invalid input to extractPortAndDomainName: %s", input)
+		xDSLogger.Debug("extractPortAndDomainName: Invalid input", "input", input)
 		return false, 0, ""
 	}
 	port, err := strconv.Atoi(s[1])
 	if err != nil {
-		log.Printf("[DEBUG] Port value %s is invalid in input %s.", s[1], input)
+		xDSLogger.Debug("extractPortAndDomainName: Port value is invalid in input", "port", s[1], "input", input)
 		return false, 0, ""
 	}
 	domainName = s[3]
 	if len(domainName) == 0 {
-		log.Printf("[DEBUG]Domain Name is empty in %s!", input)
+		xDSLogger.Debug("extractPortAndDomainName: Domain Name is empty", "input", input)
 		return false, 0, ""
 	}
 	return true, port, domainName
@@ -116,14 +115,14 @@ func addToWatch(nsConfig *configAdaptor, certPath, keyPath string) (string, stri
 // getTLSDetailsFromTransportSocket will get UpStreamTLSContext which will be bound to SSL ServiceGroup
 func getTLSDetailsFromTransportSocket(nsConfig *configAdaptor, transportSocket *core.TransportSocket, lbObj *nsconfigengine.LBApi) {
 	if transportSocket == nil || nsConfig == nil || lbObj == nil {
-		log.Printf("[DEBUG] Either transportSocket or nsConfig adaptor or lb object is nil")
+		xDSLogger.Debug("getTLSDetailsFromTransportSocket: Either transportSocket or nsConfig adaptor or lb object is nil")
 		return
 	}
 	tlsContext := &auth.UpstreamTlsContext{}
 	switch c := transportSocket.ConfigType.(type) {
 	case *core.TransportSocket_TypedConfig:
 		if err := ptypes.UnmarshalAny(c.TypedConfig, tlsContext); err != nil {
-			log.Printf("[ERROR] Could not unmarshal while retrieving (upstream) TLS context %v", err)
+			xDSLogger.Error("getTLSDetailsFromTransportSocket: Could not unmarshal while retrieving (upstream) TLS context", "error", err)
 		} else {
 			for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
 				var certFileName, keyFileName, rootCertFileName string
@@ -180,7 +179,7 @@ func isTLSContext(cluster *xdsCluster.Cluster) bool {
 	}
 	if cluster.GetTransportSocket() != nil {
 		//check if it is TLS transport socket or not
-		log.Printf("[TRACE] Transport socket name: %s\n", cluster.GetTransportSocket().GetName())
+		xDSLogger.Trace("isTLSContext: Transport socket present.", "socketName", cluster.GetTransportSocket().GetName())
 		if strings.EqualFold(cluster.GetTransportSocket().GetName(), envoyUtil.TransportSocketTls) {
 			return true
 		}
@@ -198,12 +197,12 @@ func isEgressGateway(name string) bool {
 func getMultiClusterStringMapConfig(clusterName string) *nsconfigengine.StringMapBinding {
 	ok, _, domain := extractPortAndDomainName(clusterName)
 	if !ok {
-		log.Printf("[DEBUG] %s resource does not seem to be having FQDN info", clusterName)
+		xDSLogger.Debug("getMultiClusterStringMapConfig: Cluster resource does not seem to have FQDN info", "clusterName", clusterName)
 		return nil
 	}
 	// Check if domain is of servicename.namespace.svc.cluster.local format
 	if !strings.HasSuffix(domain, K8sServiceSuffix) {
-		log.Printf("[DEBUG] %s resource does not seem to be a service deployed in the cluster", clusterName)
+		xDSLogger.Debug("getMultiClusterStringMapConfig: Cluster resource does not seem to be a service deployed in the cluster", "clusterName", clusterName)
 		return nil
 	}
 	sn := domain[0 : len(domain)-len(K8sServiceSuffix)-1] // Get servicename.namespace
@@ -215,8 +214,8 @@ func getMultiClusterStringMapConfig(clusterName string) *nsconfigengine.StringMa
 }
 
 func clusterAdd(nsConfig *configAdaptor, cluster *xdsCluster.Cluster, data interface{}) string {
-	log.Printf("[TRACE] clusterAdd : %s type %s", cluster.Name, data.(string))
-	log.Printf("[TRACE] clusterAdd :%v", nsconfigengine.GetLogString(cluster))
+	xDSLogger.Debug("clusterAdd: Cluster resource info", "clusterName", cluster.Name, "serviceType", data.(string))
+	xDSLogger.Trace("clusterAdd: Cluster resource dump", "cluster", nsconfigengine.GetLogString(cluster))
 	serviceType := data.(string)
 	serviceGroupType := serviceType
 
@@ -298,7 +297,7 @@ func clusterAdd(nsConfig *configAdaptor, cluster *xdsCluster.Cluster, data inter
 }
 
 func clusterDel(nsConfig *configAdaptor, clusterName string) {
-	log.Printf("[TRACE] clusterDel : %s", clusterName)
+	xDSLogger.Trace("clusterDel: Cluster resource to be deleted", "clusterName", clusterName)
 	lbObj := &nsconfigengine.LBApi{Name: nsconfigengine.GetNSCompatibleName(clusterName)}
 	if multiClusterIngress {
 		lbObj.StringMapBindingObj = getMultiClusterStringMapConfig(clusterName)
@@ -330,7 +329,7 @@ func getAuthConfig(nsConfig *configAdaptor, listenerName string, httpFilters []*
 					return authSpec
 				}
 			} else {
-				log.Printf("[TRACE] getHTTPFilterConfig returned error!")
+				xDSLogger.Trace("getAuthConfig: getHTTPFilterConfig returned error!", "error", err)
 			}
 			break
 		}
@@ -367,7 +366,7 @@ func getTLSfromTransportSocket(nsConfig *configAdaptor, csObj *nsconfigengine.CS
 	switch c := filterChain.GetTransportSocket().ConfigType.(type) {
 	case *core.TransportSocket_TypedConfig:
 		if err := ptypes.UnmarshalAny(c.TypedConfig, tlsContext); err != nil {
-			log.Printf("[ERROR] Could not unmarshal while retrieving (downstream) TLS context %v", err)
+			xDSLogger.Error("getTLSfromTransportSocket: Could not unmarshal while retrieving (downstream) TLS context", "error", err)
 			return nil
 		}
 	}
@@ -437,14 +436,11 @@ func getListenerFilterChainConfig(nsConfig *configAdaptor, csObjMap map[string]i
 	entityName, vserverAddress, vserverPort, _ := constructVserverInfoFromListenerFC(nsConfig, filterChain, listener)
 	vserverType, serviceType, err := getListenerFilterType(nsConfig, filterChain, listener)
 	if err != nil {
-		log.Printf("[TRACE] Listener's filter type not supported. %s", err.Error())
+		xDSLogger.Debug("getListenerFilterChainConfig: Listener's filter type not supported.", "entityName", entityName, "error", err.Error())
 		return nil, err
 	}
 	csObjMapKey := vserverAddress + ":" + fmt.Sprint(vserverPort)
 	if _, ok := csObjMap[csObjMapKey]; !ok {
-		if serviceType == "LOGSTREAM" {
-			return nil, fmt.Errorf("Skipping LOGSTREAM service")
-		}
 		csObj := nsconfigengine.NewCSApi(entityName, vserverType, vserverAddress, int(vserverPort))
 		if vserverAddress == nsConfig.nsip {
 			csObj.AllowACL = true
@@ -483,14 +479,14 @@ func getLogProxyType(nsConfig *configAdaptor, filter *xdsListener.Filter, lPort 
 	case envoyUtil.TCPProxy:
 		tcpProxy := &envoyFilterTcp.TcpProxy{}
 		if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
-			log.Printf("[DEBUG] Could not identify COE service type from TCP proxy filter")
+			xDSLogger.Debug("getLogProxyType: Could not identify COE service type from TCP proxy filter")
 			return "", ""
 		}
 		resourceName = tcpProxy.GetCluster()
 	case envoyUtil.HTTPConnectionManager:
 		httpCM := &envoyFilterHttp.HttpConnectionManager{}
 		if err := getListenerFilterConfig(filter, httpCM); err != nil {
-			log.Printf("[DEBUG] Could not identify COE service type from HTTP connection manager filter")
+			xDSLogger.Debug("getLogProxyType: Could not identify COE service type from HTTP connection manager filter")
 			return "", ""
 		}
 		resourceName = httpCM.GetRds().GetRouteConfigName()
@@ -571,6 +567,38 @@ func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) 
 	return nil
 }
 
+// isxDSServerListener checks if given listener represents xDS Server or not
+func isxDSServerListener(listener *xdsListener.Listener) bool {
+	// Check xDSServerURL after checking the if resolvedIP is matching listener IP
+	// If xDSServerURL could not be resolved successfully, then parse every listener resource.
+	if (xDSServerResolvedIP == "") || (listener.GetAddress().GetSocketAddress().GetAddress() == xDSServerResolvedIP) {
+		for _, filterChain := range listener.GetFilterChains() {
+			for _, filter := range filterChain.GetFilters() {
+				switch filterName := filter.GetName(); filterName {
+				case envoyUtil.TCPProxy:
+					tcpProxy := &envoyFilterTcp.TcpProxy{}
+					if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
+						xDSLogger.Error("isxDSServerListener: Could not load tcp proxy filter for listener", "listenerName", listener.GetName(), "error", err)
+						continue
+					}
+					ok, _, domain := extractPortAndDomainName(tcpProxy.GetCluster())
+					if !ok {
+						xDSLogger.Debug("isxDSServerListener: Can not ascertain if listener and cluster represents xDS Server", "listenerName", listener.GetName(), "cluster", tcpProxy.GetCluster())
+						return false
+					}
+					// Port check is not introduced because xDS server can run multiple services on different ports apart from xDSServerPort
+					// And we want to skip ADC config for all such services related to xDS Server
+					if strings.Contains(domain, xDSServerURL) {
+						xDSLogger.Trace("isxDSServerListener: Listener resource represents xDS Server", "listenerName", listener.GetName())
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 // TODO: How do we identify if it is a special listener?
 // 1. Check for special port 15443 (take value from ENV var)
 // 2. Also check if tcp_cluster_rewrite filter is mentioned or not
@@ -642,8 +670,8 @@ func multiClusterListenerConfig(nsConfig *configAdaptor, listener *xdsListener.L
 }
 
 func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[string]interface{} {
-	log.Printf("[TRACE] listenerAdd : %s", listener.GetName())
-	log.Printf("[TRACE] listenerAdd : %v", nsconfigengine.GetLogString(listener))
+	xDSLogger.Debug("listenerAdd: Listener resource received", "listenerName", listener.GetName())
+	xDSLogger.Trace("listenerAdd: Listener dump", "listener", nsconfigengine.GetLogString(listener))
 	/* Config block is created inside for loop.
 	 * This is to ensure that configBlock for csObj gets added to list
 	 * before calling routeUpdate function.
@@ -651,6 +679,13 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	 * Thus the order of adding configBlocks matter
 	 */
 	csObjList := make([]map[string]interface{}, 0)
+	// If it is a xDS Server's listener, then skip the ADC config creation for the same.
+	// Connection to xDSServer is already established using RNAT session, and subsequent
+	// gRPC connection attempts face TLS-handshake issue due to presence of SSL_TCP servicegroup
+	if isxDSServerListener(listener) == true {
+		xDSLogger.Trace("listenerAdd: Skipping xDSServer listener", "listenerName", listener.GetName())
+		return csObjList
+	}
 	// If it is multiCluster gateway, then special config needs to be done for special port (mostly 15443)
 	// This type of listener does not provide HTTP CM filter or TCP proxy filter, and it does not have routes/cluster details
 	if multiClusterIngress == true && isMultiClusterListener(listener) {
@@ -662,7 +697,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	for _, filterChain := range listener.GetFilterChains() {
 		csObjMap, err := getListenerFilterChainConfig(nsConfig, csObjMaps, listener, filterChain)
 		if err != nil {
-			log.Printf("[DEBUG] %s", err.Error())
+			xDSLogger.Debug("listenerAdd: filter chain could not be processed", "listenerName", listener.GetName(), "error", err.Error())
 			continue
 		}
 		csObj := csObjMap["csObj"].(*nsconfigengine.CSApi)
@@ -681,7 +716,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 			case envoyUtil.HTTPConnectionManager:
 				httpCM := &envoyFilterHttp.HttpConnectionManager{}
 				if err := getListenerFilterConfig(filter, httpCM); err != nil {
-					log.Printf("[ERROR] listenerAdd: Error loading http connection manager: %v", err)
+					xDSLogger.Error("listenerAdd: Error loading http connection manager", "listenerName", listener.GetName(), "error", err)
 				} else {
 					csObj.AuthSpec = getAuthConfig(nsConfig, csObj.Name, httpCM.GetHttpFilters())
 					confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
@@ -702,7 +737,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 			case envoyUtil.TCPProxy:
 				tcpProxy := &envoyFilterTcp.TcpProxy{}
 				if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
-					log.Printf("[ERROR] listenerAdd: Error loading tcp proxy filter: %v", err)
+					xDSLogger.Error("listenerAdd: Error loading tcp proxy filter", "listenerName", listener.GetName(), "error", err)
 				} else {
 					if tcpProxy.GetCluster() != "" {
 						if filterChain.GetFilterChainMatch().GetServerNames() == nil {
@@ -725,12 +760,12 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 		csObjList = append(csObjList, csObjMap.(map[string]interface{}))
 	}
 	//nsConfig.addConfig(&confBl)
-	log.Printf("[TRACE] listenerAdd : %v", csObjList)
+	xDSLogger.Trace("listenerAdd: Listener processed successfully", "listenerName", listener.GetName(), "csObjList", csObjList)
 	return csObjList
 }
 
 func listenerDel(nsConfig *configAdaptor, listenerName string, csVsNames []string) {
-	log.Printf("[TRACE] listenerDel: %s csVsNames(%v)", listenerName, csVsNames)
+	xDSLogger.Trace("listenerDel: Deleting resources", "listenerName", listenerName, "csVsNames", csVsNames)
 	csObjs := make([]*nsconfigengine.CSApi, 0)
 	for _, csVsName := range csVsNames {
 		csObjs = append(csObjs, &nsconfigengine.CSApi{Name: csVsName})
@@ -749,7 +784,7 @@ func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
 	}
 	ok, port, domain := extractPortAndDomainName(clusterName)
 	if !ok {
-		log.Printf("[DEBUG] Can not ascertain if %s is a logproxy service", clusterName)
+		xDSLogger.Debug("isLogProxyEndpoint: Can not ascertain as logproxy service", "clusterName", clusterName)
 		return ""
 	}
 	if strings.Contains(domain, nsConfig.logProxyURL) {
@@ -764,12 +799,13 @@ func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
 
 func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEndpoint.ClusterLoadAssignment, data interface{}) {
 	var promEP string
-	log.Printf("[TRACE] clusterEndpointUpdate: %s", clusterLoadAssignment.ClusterName)
+	xDSLogger.Trace("clusterEndpointUpdate: Endpoint info received for cluster", "clusterName", clusterLoadAssignment.ClusterName)
+	entityName := nsconfigengine.GetNSCompatibleName(clusterLoadAssignment.ClusterName)
 	onlyIPs := true // Assume that all endpoints are IP addresses initially
-	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(clusterLoadAssignment.ClusterName))
+	svcGpObj := nsconfigengine.NewServiceGroupAPI(entityName)
 	confBl := configBlock{
 		configType:   edsAdd,
-		resourceName: clusterLoadAssignment.ClusterName,
+		resourceName: entityName,
 		resource:     svcGpObj,
 	}
 	if clusterLoadAssignment.Endpoints != nil {
@@ -798,7 +834,7 @@ func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEn
 	}
 	switch lep := isLogProxyEndpoint(nsConfig, clusterLoadAssignment.ClusterName); lep {
 	case "LOGSTREAM":
-		svcGpObj.IsLogProxySvcGrp = true
+		svcGpObj.IsLogProxySvcGrp = coeTracingEnabled
 	case "ULFDREST":
 		svcGpObj.PromEP = promEP
 	}
@@ -812,13 +848,14 @@ func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEn
 // NOTE: Hosts field is deprecated. But it is possible that this info is still sent by xDS server.
 func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xdsCluster.Cluster) {
 	var promIPorName string
-	log.Printf("[TRACE] staticAndDNSTypeClusterEndpointUpdate : %s", cluster.GetName())
-	svcGpObj := nsconfigengine.NewServiceGroupAPI(nsconfigengine.GetNSCompatibleName(cluster.GetName()))
+	xDSLogger.Trace("staticAndDNSTypeClusterEndpointUpdate: ", "clusterName", cluster.GetName())
+	entityName := nsconfigengine.GetNSCompatibleName(cluster.GetName())
+	svcGpObj := nsconfigengine.NewServiceGroupAPI(entityName)
 	svcGpObj.IsIPOnlySvcGroup = false
 
 	confBl := configBlock{
 		configType:   edsAdd,
-		resourceName: cluster.GetName(),
+		resourceName: entityName,
 		resource:     svcGpObj,
 	}
 	/* Hosts field is removed in go-control-plane:0.9.8.
@@ -835,7 +872,7 @@ func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xds
 	}
 	switch lep := isLogProxyEndpoint(nsConfig, cluster.GetName()); lep {
 	case "LOGSTREAM":
-		svcGpObj.IsLogProxySvcGrp = true
+		svcGpObj.IsLogProxySvcGrp = coeTracingEnabled
 	case "ULFDREST":
 		svcGpObj.PromEP = promIPorName
 	}
@@ -867,11 +904,11 @@ func getFault(typedPerFilterConfig map[string]*any.Any) nsconfigengine.Fault {
 				numerator := percent.GetNumerator()
 				den := envoyType.FractionalPercent_DenominatorType_name[int32(percent.GetDenominator())]
 				if _, ok := valueNameToNum[den]; ok {
-					log.Printf("[TRACE]: Abort Percent: numerator: %v, den: %v, denominator: %v", numerator, den, valueNameToNum[den])
+					xDSLogger.Debug("getFault: Abort Percent", "numerator", numerator, "den", den, "denominator", valueNameToNum[den])
 					fault.AbortPercent = int((numerator * 100) / uint32(valueNameToNum[den]))
 					fault.AbortHTTPStatus = int(envoyFaultConfig.GetAbort().GetHttpStatus())
 				} else {
-					log.Printf("[ERROR]: Incorrect value of denominator (%s) in percentage! Skipping processing this Abort rule", den)
+					xDSLogger.Error("getFault: Skipping this Abort rule due to incorrect value of denominator in percentage", "denominator", den)
 				}
 			}
 			if envoyFaultConfig.GetDelay() != nil {
@@ -880,11 +917,11 @@ func getFault(typedPerFilterConfig map[string]*any.Any) nsconfigengine.Fault {
 				numerator := percent.GetNumerator()
 				den := envoyType.FractionalPercent_DenominatorType_name[int32(percent.GetDenominator())]
 				if _, ok := valueNameToNum[den]; ok {
-					log.Printf("[TRACE]: Delay Percent: numerator: %v, den: %v, denominator: %v", numerator, den, valueNameToNum[den])
+					xDSLogger.Debug("getFault: Delay Percent", numerator, "den", den, "denominator", valueNameToNum[den])
 					fault.DelayPercent = int((numerator * 100) / uint32(valueNameToNum[den]))
 					fault.DelaySeconds = int(envoyFaultConfig.GetDelay().GetFixedDelay().GetSeconds())
 				} else {
-					log.Printf("[ERROR]: Incorrect value of denominator (%s) in percentage! Skipping processing this Delay rule", den)
+					xDSLogger.Error("getFault: Skipping this Delay rule due to incorrect value of denominator in percentage", "denominator", den)
 				}
 			}
 		}
@@ -894,8 +931,8 @@ func getFault(typedPerFilterConfig map[string]*any.Any) nsconfigengine.Fault {
 
 func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration, data interface{}) map[string]interface{} {
 	inputMap := data.(map[string]interface{})
-	log.Printf("[TRACE] routeUpdate: %v", routes)
-	log.Printf("[TRACE] In routeUpdate: inputMap=%v", inputMap)
+	xDSLogger.Trace("routeUpdate: Route resources received", "routes", routes)
+	xDSLogger.Trace("routeUpdate: inputMap details", "serviceType", inputMap["serviceType"].(string), "entityName", inputMap["csVsName"].(string))
 	clusterNames := make([]string, 0)
 	serviceType := inputMap["serviceType"].(string)
 	entityName := inputMap["csVsName"].(string)
@@ -906,7 +943,7 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration,
 		resource:     csBindings,
 	}
 	for _, route := range routes {
-		log.Printf("[TRACE] routeUpdate: %s - %s", route.Name, entityName)
+		xDSLogger.Debug("routeUpdate: Route and entity", "routeName", route.Name, "entityName", entityName)
 		for _, virtualHost := range route.GetVirtualHosts() {
 			for _, vroute := range virtualHost.GetRoutes() {
 				binding := nsconfigengine.CSBinding{}
@@ -919,7 +956,7 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration,
 				if vroute.GetTypedPerFilterConfig() != nil {
 					binding.Fault = getFault(vroute.GetTypedPerFilterConfig())
 				}
-				log.Printf("[DEBUG] vroute.GetRoute()=%+v", vroute.GetRoute())
+				xDSLogger.Trace("routeUpdate: virtual host's route details", "vroute", vroute.GetRoute())
 				binding.RwPolicy.PrefixRewrite = vroute.GetRoute().GetPrefixRewrite()
 				binding.RwPolicy.HostRewrite = vroute.GetRoute().GetHostRewriteLiteral() //TODO: confirm GetHostRewriteHeader()
 				for _, reqAddHeader := range vroute.GetRequestHeadersToAdd() {
@@ -957,9 +994,10 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration,
 				csBindings.Bindings = append(csBindings.Bindings, binding)
 			}
 		}
-		log.Printf("[TRACE] routeUpdate: %s - request clusters: %v", route.Name, clusterNames)
+		xDSLogger.Trace("routeUpdate: Request clusters", "routeName", route.Name, "clusterNames", clusterNames)
 	}
-	nsConfig.addConfig(&confBl)
-
+	if serviceType != "LOGSTREAM" { // CS vserver of Logstream type not allowed. Hence no CS policy/action are created
+		nsConfig.addConfig(&confBl)
+	}
 	return map[string]interface{}{"cdsNames": clusterNames, "serviceType": inputMap["serviceType"]}
 }

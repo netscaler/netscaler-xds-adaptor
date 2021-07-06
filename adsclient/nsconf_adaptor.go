@@ -18,7 +18,7 @@ import (
 	"container/list"
 	"fmt"
 	"io/ioutil"
-	"log"
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -26,17 +26,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chiradeep/go-nitro/config/analytics"
-	"github.com/chiradeep/go-nitro/config/basic"
-	"github.com/chiradeep/go-nitro/config/dns"
-	"github.com/chiradeep/go-nitro/config/lb"
-	"github.com/chiradeep/go-nitro/config/network"
-	"github.com/chiradeep/go-nitro/config/ns"
-	"github.com/chiradeep/go-nitro/config/policy"
-	"github.com/chiradeep/go-nitro/config/responder"
-	"github.com/chiradeep/go-nitro/config/ssl"
-	"github.com/chiradeep/go-nitro/config/tm"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/analytics"
+	"github.com/citrix/adc-nitro-go/resource/config/basic"
+	"github.com/citrix/adc-nitro-go/resource/config/dns"
+	"github.com/citrix/adc-nitro-go/resource/config/lb"
+	"github.com/citrix/adc-nitro-go/resource/config/network"
+	"github.com/citrix/adc-nitro-go/resource/config/ns"
+	"github.com/citrix/adc-nitro-go/resource/config/policy"
+	"github.com/citrix/adc-nitro-go/resource/config/responder"
+	"github.com/citrix/adc-nitro-go/resource/config/ssl"
+	"github.com/citrix/adc-nitro-go/resource/config/tm"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 type discoveryType int
@@ -86,6 +86,7 @@ var (
 	multiClusterExpression = "multiClusterExpression"
 	multiClusterPolExprStr = os.Getenv("MULTICLUSTER_SVC_DOMAIN") //".global"
 	multiClusterListenPort = getIntEnv("MULTICLUSTER_LISTENER_PORT")
+	coeTracingEnabled      = getBoolEnv("COE_TRACING") // Either COE or ADM can be endpoint for collecting tracing data
 )
 
 func getBoolEnv(key string) bool {
@@ -95,7 +96,7 @@ func getBoolEnv(key string) bool {
 	}
 	ret, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		xDSLogger.Error("getBoolEnv: Could not parse bool env var", "envvar", key)
 		return false
 	}
 	return ret
@@ -108,7 +109,7 @@ func getIntEnv(key string) int {
 	}
 	ret, err := strconv.Atoi(value)
 	if err != nil {
-		log.Printf("[ERROR] Could not parse %s env var's value", key)
+		xDSLogger.Error("getIntEnv: Could not parse int env var", "envvar", key)
 		return -1
 	}
 	return ret
@@ -139,7 +140,12 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 	configAdaptor.localHostVIP = nsinfo.LocalHostVIP
 	configAdaptor.caServerPort = nsinfo.caServerPort
 	var err error
-	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, SslVerify: nsinfo.SslVerify, RootCAPath: nsinfo.RootCAPath, ServerName: nsinfo.ServerName})
+	logLevel, _ := os.LookupEnv("LOGLEVEL")
+	if logLevel == "" {
+		logLevel = "DEBUG"
+	}
+	jsonLogFormat := getBoolEnv("JSONLOG")
+	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, SslVerify: nsinfo.SslVerify, RootCAPath: nsinfo.RootCAPath, ServerName: nsinfo.ServerName, LogLevel: logLevel, JSONLogFormat: jsonLogFormat})
 	if err != nil {
 		return nil, err
 	}
@@ -149,24 +155,28 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 			configAdaptor.nsip = nsip["ipaddress"].(string)
 			break
 		}
-		log.Println("[TRACE] Error connecting to the ADC ", err)
+		xDSLogger.Trace("newConfigAdaptor: Error connecting to the ADC", "error", err)
 		time.Sleep(1 * time.Second)
 	}
-	if isCPX(nsinfo.NetscalerURL) {
-		err = configAdaptor.sidecarBootstrapConfig()
+	if nsinfo.bootStrapConfReqd {
+		if isCPX(nsinfo.NetscalerURL) {
+			err = configAdaptor.sidecarBootstrapConfig()
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = configAdaptor.bootstrapConfig()
 		if err != nil {
+			xDSLogger.Error("newConfigAdaptor: BootstrapConfig failed", "error", err)
 			return nil, err
 		}
+		err = configAdaptor.dologProxyConfig()
+		if err != nil {
+			xDSLogger.Warn("newConfigAdaptor: Logproxy related config is not successful", "error", err)
+		}
+		nsinfo.bootStrapConfReqd = false
 	}
-	err = configAdaptor.bootstrapConfig()
-	if err != nil {
-		log.Printf("[ERROR] bootstrapConfig failed with error: %v", err)
-		return nil, err
-	}
-	err = configAdaptor.dologProxyConfig()
-	if err != nil {
-		log.Println("[WARN] Logproxy related config is not successful. Err = ", err)
-	}
+
 	if nsinfo.NetscalerVIP == "nsip" {
 		configAdaptor.vserverIP = configAdaptor.nsip
 	}
@@ -191,22 +201,29 @@ func getNameServer() (string, error) {
 	return match, nil
 }
 
+func findXDSServerIP() {
+	ips, err := net.LookupIP(xDSServerURL)
+	if err != nil {
+		xDSLogger.Debug("findXDSServerIP: Could not resolve xdsserverURL", "xDSServerURL", xDSServerURL)
+		return
+	}
+	xDSServerResolvedIP = ips[0].String() // Mostly it is a single IP
+	xDSLogger.Debug("findXDSServerIP: xDS Server IP resolved", "xDSServerURL", xDSServerURL, "xDSServerResolvedIP", xDSServerResolvedIP)
+}
+
 func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 	var err error
 	var nameServer string
-	err = confAdaptor.client.ClearConfig()
-	if err != nil {
-		return err
-	}
 	nameServer, err = getNameServer()
 	if err != nil {
 		return err
 	}
+	findXDSServerIP()
 	configs := []nsconfigengine.NsConfigEntity{
 		{ResourceType: netscaler.Service.Type(), ResourceName: "dns_service", Resource: basic.Service{Name: "dns_service", Ip: nameServer, Port: 53, Servicetype: "DNS", Healthmonitor: "no"}},
 		{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserver{Name: "dns_vserver", Servicetype: "DNS"}},
-		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserverservicebinding{Name: "dns_vserver", Servicename: "dns_service"}},
-		{ResourceType: netscaler.Dnsnameserver.Type(), ResourceName: "dns_vserver", Resource: &dns.Dnsnameserver{Dnsvservername: "dns_vserver"}},
+		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserverservicebinding{Name: "dns_vserver", Servicename: "dns_service"}, IgnoreErrors: []string{"Resource already exists"}},
+		{ResourceType: netscaler.Dnsnameserver.Type(), ResourceName: "dns_vserver", Resource: dns.Dnsnameserver{Dnsvservername: "dns_vserver"}, IgnoreErrors: []string{"Name servers already configured.", "Invalid value [dnsVserverName, value differs from existing entity and it cant be updated.]"}},
 		{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowpromexp", Resource: ns.Nsacl{Aclname: "allowpromexp", Aclaction: "ALLOW", Protocol: "TCP", Destport: true, Destportval: "8888", Priority: 65536}},
 	}
 	listenPolicy := "CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ")"
@@ -253,7 +270,7 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 	}
 	err = confAdaptor.client.EnableFeatures([]string{"aaa"})
 	if err != nil {
-		log.Println("[WARN] aaa feature is not enabled and JWT authentication will not work")
+		xDSLogger.Warn("bootstrapConfig: AAA feature is not enabled and JWT authentication will not work")
 	} else {
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Tmsessionparameter.Type(), ResourceName: "", Resource: tm.Tmsessionparameter{Defaultauthorizationaction: "ALLOW"}, Operation: "set"})
 	}
@@ -292,11 +309,11 @@ func (confAdaptor *configAdaptor) dologProxyConfig() error {
 	if len(confAdaptor.logProxyURL) > 0 {
 		err = confAdaptor.client.EnableFeatures([]string{"appflow"})
 		if err != nil {
-			log.Println("[WARN] appflow feature could not be enabled.")
+			xDSLogger.Warn("dologProxyConfig: AppFlow feature could not be enabled")
 		}
 		err = confAdaptor.client.EnableModes([]string{"ulfd"})
 		if err != nil {
-			log.Println("[WARN] ULFD mode could not be enabled.")
+			xDSLogger.Warn("dologProxyConfig: ULFD mode could not be enabled")
 		}
 		// Below config is for Transaction data (used for tracing, logstream) on default port 5557
 		appflowResource := map[string]interface{}{"templaterefresh": 60, "securityinsightrecordinterval": 60, "httpurl": "ENABLED", "httpcookie": "ENABLED", "httpreferer": "ENABLED", "httpmethod": "ENABLED", "httphost": "ENABLED", "httpuseragent": "ENABLED", "httpcontenttype": "ENABLED", "securityinsighttraffic": "ENABLED", "httpquerywithurl": "ENABLED", "urlcategory": "ENABLED", "distributedtracing": "ENABLED", "disttracingsamplingrate": 100}
@@ -308,11 +325,11 @@ func (confAdaptor *configAdaptor) dologProxyConfig() error {
 		}
 		err = nsconfigengine.NsConfigCommit(confAdaptor.client, configs)
 		if err != nil {
-			log.Println("[WARN] Tracing config (transaction data) failed")
+			xDSLogger.Warn("dologProxyConfig: Tracing config (transaction data) failed")
 		} else {
 			confAdaptor.analyticsProfiles = []string{"ns_analytics_default_tcp_profile", "ns_analytics_default_http_profile"}
 		}
-		log.Println("[TRACE] confAdaptor.analyticsProfiles: ", confAdaptor.analyticsProfiles)
+		xDSLogger.Trace("dologProxyConfig: Config adaptor's analyticsProfiles", "analyticsProfiles", confAdaptor.analyticsProfiles)
 	}
 	return err
 }
@@ -394,14 +411,14 @@ func (confAdaptor *configAdaptor) delConfig(config *configBlock) {
 
 func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 	go func() {
-		log.Println("[TRACE] Starting Config adaptor")
+		xDSLogger.Trace("startConfigAdaptor: Starting Config adaptor")
 		previousUptime := -1
 		lastQueryTime := int64(0)
 		for {
 			select {
 			case <-confAdaptor.quit:
 				confAdaptor.client.Logout()
-				log.Println("[TRACE] Stopping Config adaptor")
+				xDSLogger.Trace("startConfigAdaptor: Stopping Config adaptor")
 				return
 			default:
 				confAdaptor.mux.Lock()
@@ -434,7 +451,7 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 								errCs = csResource.Delete(confAdaptor.client)
 							}
 							if errCs != nil {
-								log.Printf("xDS application (%v) failed with error %v", config.configType, errCs)
+								xDSLogger.Error("startConfigAdaptor: xDS application failed", "configType", config.configType, "error", errCs)
 							}
 						}
 					case edsAdd:
@@ -443,7 +460,7 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 						err = config.resource.(*nsconfigengine.CSBindingsAPI).Add(confAdaptor.client)
 					}
 					if err != nil {
-						log.Printf("xDS application failed with error %v", err)
+						xDSLogger.Error("startConfigAdaptor: xDS application failed", "error", err)
 					}
 				} else {
 					time.Sleep(1 * time.Second)
@@ -456,8 +473,9 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 					continue
 				}
 				if currentUptime < previousUptime {
-					log.Println("[ERROR] ADC crash/reboot detected.")
+					xDSLogger.Error("startConfigAdaptor: ADC crash/reboot detected.")
 					adsClient.stopClientConnection(false)
+					adsClient.nsInfo.bootStrapConfReqd = true
 					return
 				}
 				previousUptime = currentUptime
@@ -468,7 +486,7 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 }
 
 func (confAdaptor *configAdaptor) stopConfigAdaptor() {
-	log.Println("[DEBUG] Config adaptor is stopped")
+	xDSLogger.Trace("stopConfigAdaptor: Config adaptor is stopped")
 	if confAdaptor.watch != nil {
 		confAdaptor.watch.Stop()
 	}

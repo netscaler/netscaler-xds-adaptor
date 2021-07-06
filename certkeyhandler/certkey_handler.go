@@ -15,15 +15,16 @@ package certkeyhandler
 
 import (
 	"bufio"
+	"log"
 	"strings"
 
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	caclient "istio.io/istio/security/pkg/caclient"
 	citadel "istio.io/istio/security/pkg/nodeagent/caclient/providers/citadel"
 	pkiutil "istio.io/istio/security/pkg/pki/util"
@@ -38,6 +39,7 @@ var (
 	csrMaxRetries       = 3
 	csrRetrialInterval  = 5 * time.Second
 	rootCertFilePath    = "/etc/certs/root-cert.pem"
+	ckLogger            hclog.Logger
 )
 
 // CADetails store info about CA endpoint as well as workload (CA client)
@@ -126,6 +128,29 @@ type citadelClientInfo struct {
 	tls               bool
 }
 
+func init() {
+	/* Create a logger */
+	level := hclog.LevelFromString("DEBUG") // Default level
+	logLevel, ok := os.LookupEnv("LOGLEVEL")
+	if ok {
+		lvl := hclog.LevelFromString(logLevel)
+		if lvl != hclog.NoLevel {
+			level = lvl
+		} else {
+			log.Printf("CertKey handler: LOGLEVEL not set to a valid log level (%s), defaulting to %d", logLevel, level)
+		}
+	}
+	_, jsonLog := os.LookupEnv("JSONLOG")
+	ckLogger = hclog.New(&hclog.LoggerOptions{
+		Name:            "xDS-Adaptor",
+		Level:           level,
+		Color:           hclog.AutoColor,
+		JSONFormat:      jsonLog,
+		IncludeLocation: true,
+	})
+	log.Printf("[INFO] CertKey handler logger created with loglevel = %sand jsonLog = %v", level, jsonLog)
+}
+
 // NewCertKeyHandler function creates a certificate and key handler for xds-adaptor
 func NewCertKeyHandler(cainfo *CADetails, certinfo *CertDetails) (*CertKeyHandler, error) {
 	ckh := new(CertKeyHandler)
@@ -149,16 +174,21 @@ func NewCertKeyHandler(cainfo *CADetails, certinfo *CertDetails) (*CertKeyHandle
 	ckh.TokenFile = tokenFile
 	if strings.EqualFold(os.Getenv("JWT_POLICY"), "third-party-jwt") {
 		ckh.TokenFile = thirdPartyTokenFile
-		log.Printf("[TRACE] Third party token file.")
+		ckLogger.Trace("NewCertKeyHandler: Third party token file.")
 	}
 	return ckh, nil
+}
+
+// SetLogLevel function sets the log level of certkey handler package
+func SetLogLevel(level string) {
+	ckLogger.SetLevel(hclog.LevelFromString(level))
 }
 
 // Write a string slice to file
 func writeStringArrToFile(strarr []string, fileName string) error {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create file: %s", err.Error())
+		ckLogger.Error("Failed to create file", "fileName", fileName, "error", err.Error())
 		return err
 	}
 	datawriter := bufio.NewWriter(file)
@@ -190,13 +220,13 @@ func getCertFromCitadel(clientInfo citadelClientInfo) ([]string, error) {
 	rootCertBytes, err := ioutil.ReadFile(clientInfo.rootCertFile)
 	cli, err := citadel.NewCitadelClient(clientInfo.CAAddress, clientInfo.tls, rootCertBytes, clientInfo.clusterID)
 	if err != nil {
-		log.Printf("[ERROR] Could not create Citadel client. Error: %s\n", err.Error())
+		ckLogger.Error("getCertFromCitadel: Could not create Citadel client", "CAAddress", clientInfo.CAAddress, "error", err.Error())
 		return nil, err
 	}
-	log.Printf("[TRACE] Citadel Client created successfully. CAAddress: %s, Cluster-ID: %s ", clientInfo.CAAddress, clientInfo.clusterID)
+	ckLogger.Debug("getCertFromCitadel: Citadel Client created successfully", "CAAddress", clientInfo.CAAddress, "Cluster-ID", clientInfo.clusterID)
 	certChain, err := cli.CSRSign(context.Background(), "citrix-reqid", clientInfo.csrPEM, token, clientInfo.certValidityInSec)
 	if err != nil {
-		log.Printf("[ERROR] Could not get CSR signed by CA. Error: %s\n", err.Error())
+		ckLogger.Error("getCertFromCitadel: Could not get CSR signed by CA", "CAAddress", clientInfo.CAAddress, "error", err.Error())
 		return nil, err
 	}
 	return certChain, nil
@@ -234,14 +264,14 @@ func (ckh *CertKeyHandler) getCertKeyRotator() error {
 	// initially cert file would be same as certChain file
 	keyCertBundle, err := pkiutil.NewVerifiedKeyCertBundleFromFile(ckh.CertFile, ckh.KeyFile, ckh.CertChainFile, ckh.RootCertFile)
 	if err != nil {
-		log.Printf("[ERROR] Could not create keyCertBundle. Error: %s", err.Error())
+		ckLogger.Error("getCertKeyRotator: Could not create keyCertBundle", "error", err.Error())
 		return err
 	}
 
 	// Create keyCertBundle Rotator
 	rotator, err := caclient.NewKeyCertBundleRotator(cfg, keyCertBundle)
 	if err != nil {
-		log.Printf("[ERROR] Could not create keyCertBundler Rotator. Err: %s", err.Error())
+		ckLogger.Error("getCertKeyRotator: Could not create keyCertBundler Rotator", "error", err.Error())
 		return err
 	}
 	ckh.keyCertBundle = keyCertBundle
@@ -265,7 +295,7 @@ func (ckh *CertKeyHandler) updateCertsAndKey() {
 	 * Append certBytes and rootCertBytes to create certChain
 	 */
 	if len(certChainBytes) == 0 {
-		log.Println("[TRACE] Empty certificate chain. Create certificate chain from cert file and rootcert file")
+		ckLogger.Trace("updateCertsAndKey: Empty certificate chain. Create certificate chain from cert file and rootcert file")
 		certChainBytes = append(certBytes, rcBytes...)
 	}
 	// Update key and certificate files
@@ -280,7 +310,7 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 		errCh <- fmt.Errorf("Certificate Key Handler already running")
 		return
 	}
-	log.Println("[TRACE] Certificate key handler started.", ckh)
+	ckLogger.Trace("Certificate key handler started", "ckh", ckh)
 	ckh.stopped = false
 
 	defer func() {
@@ -307,14 +337,14 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 	// Generate CSR for the workload
 	csrPem, privPem, err := pkiutil.GenCSR(certOptions)
 	if err != nil {
-		log.Printf("[ERROR] Could not create Certificate Signing Request (CSR). Error: %s", err.Error())
+		ckLogger.Error("StartHandler: Could not create Certificate Signing Request (CSR)", "error", err.Error())
 		errCh <- fmt.Errorf("CSR generation failed")
 		return
 	}
 	// Write privPem to keyFile
 	err = ioutil.WriteFile(ckh.KeyFile, privPem, 0644)
 	if err != nil {
-		log.Printf("[ERROR] Could not write Private Key to file. Error: %s", err.Error())
+		ckLogger.Error("StartHandler: Could not write Private Key to file", "error", err.Error())
 		errCh <- fmt.Errorf("Private Key creation failed")
 		return
 	}
@@ -324,7 +354,7 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 		cltinfo := citadelClientInfo{CAAddress: ckh.CAAddress, rootCertFile: ckh.RootCertFile, clusterID: ckh.ClusterID, tokenFile: ckh.TokenFile, csrPEM: csrPem, certValidityInSec: int64(ckh.CertTTL / time.Second), tls: ckh.tls}
 		certChain, err = getCertFromCitadel(cltinfo)
 		if err != nil {
-			log.Printf("Could not retrieve certificate from Citadel. Error:%s\n", err.Error())
+			ckLogger.Error("StartHandler: Could not retrieve certificate from Citadel", "CAAddress", ckh.CAAddress, "error", err.Error())
 			errCh <- fmt.Errorf("Citadel Client Error")
 			return
 		}
@@ -332,7 +362,7 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 		rootCertBytes, _ := ioutil.ReadFile(ckh.RootCertFile)
 		_ = writeToFile(rootCertFilePath, rootCertBytes)
 	default:
-		errCh <- fmt.Errorf("CA provider %q isn't supported. Currently xDS-Adaptor supports Istiod/Citadel", ckh.CAProvider)
+		errCh <- fmt.Errorf("StartHandler: CA provider %q isn't supported. Currently xDS-Adaptor supports Istiod/Citadel", ckh.CAProvider)
 		return
 	}
 
@@ -342,7 +372,7 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 	_ = writeStringArrToFile(certChain, ckh.CertChainFile)
 
 	if err := ckh.getCertKeyRotator(); err != nil {
-		log.Printf("[ERROR] Could not create keyCertBundler Rotator")
+		ckLogger.Error("StartHandler: Could not create keyCertBundler Rotator")
 		errCh <- fmt.Errorf("Could not create keyCertBundler Rotator")
 		return
 	}
@@ -357,22 +387,21 @@ func (ckh *CertKeyHandler) StartHandler(errCh chan<- error) {
 		timer := time.NewTimer(waitTime)
 		select {
 		case <-ckh.stopCh:
-			log.Printf("[INFO] Certificate Key Handler stopped")
+			ckLogger.Info("StartHandler: Certificate Key Handler stopped")
 			return
 		case err := <-rotatoErrCh:
 			timer.Stop()
 			if err.Error() != "" {
-				log.Printf("[ERROR] From StartHandler with error %s", err.Error())
+				ckLogger.Error("StartHandler: Certificate key handler error", "error", err.Error())
 				errCh <- fmt.Errorf("KeyCertBundler Rotator stopped")
 				return
 			}
 		case <-timer.C:
 			time.Sleep(1 * time.Second) // Certificate can expire at any microsecond in this one second duration
-			log.Printf("[TRACE] Cert-expiry time passed. Check new certificate contents.")
+			ckLogger.Trace("StartHandler: Cert-expiry time passed. Check new certificate contents.")
 			ckh.updateCertsAndKey()
 		}
 	}
-
 }
 
 // StopHandler will stop the certificate key handler
@@ -382,5 +411,5 @@ func (ckh *CertKeyHandler) StopHandler() {
 		ckh.rotator.Stop()
 	}
 	ckh.stopCh <- true // When StartHandler() returns, it will set ckh.stopped = true
-	log.Printf("[TRACE]: Stopped Certificate key handler")
+	ckLogger.Trace("Stopped Certificate key handler")
 }

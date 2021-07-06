@@ -163,7 +163,7 @@ func Test_secureConnectToServer(t *testing.T) {
 		expectedOutput EO
 	}{
 		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
-			EO{nil, errors.New("connection error: desc = \"transport: error while dialing: dial tcp 127.0.0.1:15011: connect: connection refused\"")}},
+			EO{nil, errors.New("context deadline exceeded")}},
 		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
 			EO{nil, errors.New("tls: failed to find any PEM data in key input")}},
 	}
