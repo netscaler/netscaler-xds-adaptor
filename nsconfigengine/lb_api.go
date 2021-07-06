@@ -15,16 +15,15 @@ package nsconfigengine
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
-	"github.com/chiradeep/go-nitro/config/analytics"
-	"github.com/chiradeep/go-nitro/config/basic"
-	"github.com/chiradeep/go-nitro/config/lb"
-	"github.com/chiradeep/go-nitro/config/ns"
-	"github.com/chiradeep/go-nitro/config/policy"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/analytics"
+	"github.com/citrix/adc-nitro-go/resource/config/basic"
+	"github.com/citrix/adc-nitro-go/resource/config/lb"
+	"github.com/citrix/adc-nitro-go/resource/config/ns"
+	"github.com/citrix/adc-nitro-go/resource/config/policy"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 // LBMonitor specifies attributes associated with Outlier Detection feature
@@ -143,7 +142,7 @@ func isBuildDesiredStateAPICompatible() bool {
 // Add method adds/updates an LB vserver and associated servicegroup on Citrix-ADC.
 // It also adds httpprofile and http-inline monitor if needed.
 func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] LBApi add: %s", GetLogString(lbObj))
+	nsconfLogger.Trace("LBApi add", "lbObj", GetLogString(lbObj))
 	var sg map[string]interface{}
 	confErr := newNitroError()
 	lbInst := lb.Lbvserver{Name: lbObj.Name, Servicetype: lbObj.FrontendServiceType, Lbmethod: lbObj.LbMethod}
@@ -184,7 +183,7 @@ func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 		// Convert the time to next level of unit in case time-value is more than max-allowed value.
 		lbObj.LbMonitorObj.Interval, lbObj.LbMonitorObj.IntervalUnits = convertTimeUnits(lbObj.LbMonitorObj.Interval, lbObj.LbMonitorObj.IntervalUnits, maxInterval, defaultInterval)
 		lbObj.LbMonitorObj.DownTime, lbObj.LbMonitorObj.DownTimeUnits = convertTimeUnits(lbObj.LbMonitorObj.DownTime, lbObj.LbMonitorObj.DownTimeUnits, maxDownTime, defaultDownTime)
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, lb.Lbmonitor{Monitorname: lbMonName, Type: "HTTP-INLINE", Action: "DOWN", Respcode: []int{200}, Httprequest: "HEAD /", Retries: lbObj.LbMonitorObj.Retries, Interval: lbObj.LbMonitorObj.Interval, Units2: lbObj.LbMonitorObj.IntervalUnits, Downtime: lbObj.LbMonitorObj.DownTime, Units3: lbObj.LbMonitorObj.DownTimeUnits}, "add"}, []string{"Resource already exists"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbmonitor.Type(), lbMonName, lb.Lbmonitor{Monitorname: lbMonName, Type: "HTTP-INLINE", Action: "DOWN", Respcode: []string{"200"}, Httprequest: "HEAD /", Retries: lbObj.LbMonitorObj.Retries, Interval: lbObj.LbMonitorObj.Interval, Units2: lbObj.LbMonitorObj.IntervalUnits, Downtime: lbObj.LbMonitorObj.DownTime, Units3: lbObj.LbMonitorObj.DownTimeUnits}, "add"}, []string{"Resource already exists"}, nil))
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup_lbmonitor_binding.Type(), lbObj.Name, basic.Servicegrouplbmonitorbinding{Servicegroupname: lbObj.Name, Monitorname: lbMonName}, "add"}, []string{"The monitor is already bound to the service"}, nil))
 	}
 	// Add stringmap binding
@@ -196,7 +195,7 @@ func (lbObj *LBApi) Add(client *netscaler.NitroClient) error {
 
 // Delete method deletes an LB vserver and associated servicegroup
 func (lbObj *LBApi) Delete(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] LBApi delete: %v", lbObj)
+	nsconfLogger.Trace("LBApi delete", "lbObj", lbObj)
 	confErr := newNitroError()
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), lbObj.Name, nil, "delete"}, nil,
 		[]nitroConfig{{netscaler.Lbvserver.Type(), lbObj.Name, lb.Lbvserver{Name: lbObj.Name, Newname: lbObj.Name + "_stale"}, "rename"},
@@ -269,13 +268,13 @@ func (svcGpObj *ServiceGroupAPI) bindAnalyticsProfile(client *netscaler.NitroCli
 	}
 	/* Add HTTP and TCP analyticsprofile with collector */
 	if svcGpObj.IsLogProxySvcGrp {
-		log.Printf("[TRACE] binding %s as collector to analyticsprofile", svcGpObj.Name)
+		nsconfLogger.Trace("bindAnalyticsProfile: Binding svcGroup as collector to analyticsprofile", "svcGroupName", svcGpObj.Name)
 		confErr.updateError(doNitro(client, nitroConfig{"analyticsprofile", "ns_analytics_default_http_profile", analytics.Analyticsprofile{Name: "ns_analytics_default_http_profile", Type: "webinsight", Httpurl: "ENABLED", Httphost: "ENABLED", Httpmethod: "ENABLED", Httpuseragent: "ENABLED", Urlcategory: "ENABLED", Httpcontenttype: "ENABLED", Httpvia: "ENABLED", Httpdomainname: "ENABLED", Httpurlquery: "ENABLED", Collectors: svcGpObj.Name}, "add"}, nil, nil))
 		confErr.updateError(doNitro(client, nitroConfig{"analyticsprofile", "ns_analytics_default_tcp_profile", analytics.Analyticsprofile{Name: "ns_analytics_default_tcp_profile", Type: "tcpinsight", Collectors: svcGpObj.Name}, "add"}, nil, nil))
 	}
 	/* Add Prometheus service and bind to timeseries analytics profile */
 	if len(svcGpObj.PromEP) > 0 {
-		log.Printf("[TRACE] Add prometheus service (%s) as a collector to ns_analytics_time_series_profile", svcGpObj.PromEP)
+		nsconfLogger.Trace("bindAnalyticsProfile: Add prometheus service as a collector to ns_analytics_time_series_profile", "serviceName", svcGpObj.PromEP)
 		if net.ParseIP(svcGpObj.PromEP) != nil { // Prometheus IP
 			confErr.updateError(doNitro(client, nitroConfig{netscaler.Service.Type(), "ns_logproxy_prometheus_service", basic.Service{Name: "ns_logproxy_prometheus_service", Servicetype: "HTTP", Ipaddress: svcGpObj.PromEP, Port: 5563, Servername: svcGpObj.PromEP}, "add"}, nil, nil))
 		} else { // Prometheus server name
@@ -288,7 +287,7 @@ func (svcGpObj *ServiceGroupAPI) bindAnalyticsProfile(client *netscaler.NitroCli
 
 // Add method add/updates the servicegroup members
 func (svcGpObj *ServiceGroupAPI) Add(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] ServiceGroupAPI add: %v", svcGpObj)
+	nsconfLogger.Trace("ServiceGroupAPI add", "svcGpObj", svcGpObj)
 	var err error
 	// Check the type of Service Group. whether autoscale
 	if isBuildDesiredStateAPICompatible() && svcGpObj.IsIPOnlySvcGroup == true {
@@ -300,7 +299,7 @@ func (svcGpObj *ServiceGroupAPI) Add(client *netscaler.NitroClient) error {
 }
 
 func (svcGpObj *ServiceGroupAPI) useDesiredStateAPI(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] Using Desired State API for ServiceGroupAPI add: %v", svcGpObj)
+	nsconfLogger.Trace(" Using Desired State API for ServiceGroupAPI add", "svcGpObj", svcGpObj)
 	confErr := newNitroError()
 	// Retrieve existing Servicegroup details
 	rsrc, err := client.FindResource("servicegroup", svcGpObj.Name)
@@ -312,13 +311,13 @@ func (svcGpObj *ServiceGroupAPI) useDesiredStateAPI(client *netscaler.NitroClien
 	// sslServicegroup bindings (such as certs), lb monitor bindings etc. Use Classic API as fallback mechanism.
 	// TODO: Once ADC supports setting classic API to Autoscale API, make appropriate changes here.
 	if rsrc["autoscale"] != "API" {
-		log.Printf("[TRACE] %s servicegroup is created using Classic API. Falling back to using ClassicAPI for member bindings.", svcGpObj.Name)
+		nsconfLogger.Trace("useDesiredStateAPI: Servicegroup is created using Classic API. Falling back to using ClassicAPI for member bindings", "svcGroupName", svcGpObj.Name)
 		return svcGpObj.useClassicAPI(client)
 	}
-	var ipmembers []basic.Member
+	var ipmembers []basic.Members
 	// Make an array of members
 	for _, member := range svcGpObj.Members {
-		ipmembers = append(ipmembers, basic.Member{Ip: member.IP, Port: member.Port, Weight: member.Weight})
+		ipmembers = append(ipmembers, basic.Members{Ip: member.IP, Port: member.Port, Weight: member.Weight})
 	}
 	sgmembers := basic.Servicegroupservicegroupmemberlistbinding{Servicegroupname: svcGpObj.Name, Members: ipmembers}
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Servicegroup_servicegroupmemberlist_binding.Type(), svcGpObj.Name, sgmembers, "add"}, []string{"Resource already exists"}, nil))
@@ -327,7 +326,7 @@ func (svcGpObj *ServiceGroupAPI) useDesiredStateAPI(client *netscaler.NitroClien
 }
 
 func (svcGpObj *ServiceGroupAPI) useClassicAPI(client *netscaler.NitroClient) error {
-	log.Printf("[TRACE] Using Classic API for ServiceGroupAPI add: %v", svcGpObj)
+	nsconfLogger.Trace(" Using Classic API for ServiceGroupAPI add", "svcGpObj", svcGpObj)
 	var serverName string
 	confErr := newNitroError()
 	for _, member := range svcGpObj.Members {

@@ -70,7 +70,7 @@ func IsFileCreated(fileName string, expiryTimeinSec time.Duration) (bool, error)
 	err = watcher.Add(dirName)
 	if err != nil {
 		// If this is failing then mostly /var/deviceinfo is not mounted to xDS-adaptor container
-		log.Printf("[DEBUG] Error: %s\n", err.Error())
+		xDSLogger.Error("IsFileCreated: Directory not mounted", "dirName", dirName, "error", err.Error())
 		return false, fmt.Errorf("Directory %s does not seem to be mounted", dirName)
 	}
 
@@ -78,24 +78,24 @@ func IsFileCreated(fileName string, expiryTimeinSec time.Duration) (bool, error)
 		select {
 		case event, ok := <-watcher.Events:
 			if !ok {
-				log.Printf("[DEBUG] Watcher could not capture event")
+				xDSLogger.Debug("IsFileCreated: Watcher could not capture event")
 				return false, nil
 			}
-			log.Println("[DEBUG] event:", event)
+			xDSLogger.Trace("IsFileCreated: Event received", "event", event)
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				if event.Name == fileName {
-					log.Println("[DEBUG] File written: ", event.Name)
+					xDSLogger.Debug("IsFileCreated: File written", "fileName", fileName)
 					return true, nil
 				}
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
-				log.Printf("[DEBUG] Watcher could not capture event")
+				xDSLogger.Debug("IsFileCreated: Watcher could not capture event")
 				return false, nil
 			}
-			log.Printf("[DEBUG] IsFileCreated error: %s\n", err.Error())
+			xDSLogger.Error("IsFileCreated: Watcher error", "error", err)
 		case <-time.After(expiryTimeinSec * time.Second):
-			log.Printf("[DEBUG] %s file not created within %v seconds\n", fileName, expiryTimeinSec)
+			xDSLogger.Error("IsFileCreated: File not created within time limit", "fileName", fileName, "expiryTimeinSec", expiryTimeinSec*time.Second)
 			return false, nil
 		}
 	}
@@ -109,10 +109,9 @@ func (t *TLSPeer) verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x
 	for _, rawCert := range rawCerts {
 		cert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
-			log.Printf("[ERROR]: Err: %v, Could not parse certificate %v.", err, cert)
+			xDSLogger.Error("verifyPeerCertificate: Could not parse certificate", "cert", cert, "err", err)
 			return err
 		}
-
 		certs = append(certs, cert)
 	}
 	// Perform path validation
@@ -124,18 +123,17 @@ func (t *TLSPeer) verifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x
 	}
 	err = spiffe.VerifyCertificate(certs[0], intermediates, t.TrustRoots)
 	if err != nil {
-		log.Printf("[ERROR]: Certificate Verification failed! %v", err)
+		xDSLogger.Error("verifyPeerCertificate: Certificate Verification failed!", "err", err)
 		return err
 	}
 
 	// Look for a known SPIFFE ID in the leaf
 	err = spiffe.MatchID(t.SpiffeIDs, certs[0])
 	if err != nil {
-		log.Printf("[ERROR]: %v", err)
+		xDSLogger.Error("verifyPeerCertificate: SVID match failed", "err", err)
 		return err
 	}
-	log.Printf("[TRACE]: SVID match successful!")
-
+	xDSLogger.Trace("verifyPeerCertificate: SVID match successful!")
 	// If we are here, then all is well
 	return nil
 }
@@ -147,10 +145,9 @@ func (t *TLSPeer) getTLSCredentials(clientCertFile, clientKeyFile string) (crede
 		// Load the client certificates from disk
 		cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
 		if err != nil {
-			log.Printf("[ERROR]: Could not load client key pair: %v", err)
+			xDSLogger.Error("getTLSCredentials: Could not load client key pair", "error", err)
 			return nil, err
 		}
-
 		tlsConf.Certificates = []tls.Certificate{cert}
 	}
 	// Setting this to true to avoid server certificate verification.
@@ -179,28 +176,27 @@ func (t *TLSPeer) getTLSCredentials(clientCertFile, clientKeyFile string) (crede
 	// If RootCAs is nil, TLS uses the host's root CA set.
 	// Server (in this case ads-server) uses the field ClientCAs.
 	tlsConf.RootCAs = t.TrustRoots
-
 	return credentials.NewTLS(&tlsConf), nil
 }
 
 func getRootCAs(cacertFile string) (*x509.CertPool, error) {
 
 	if cacertFile == "" {
-		log.Printf("[TRACE]: No CA Certificate!")
+		xDSLogger.Trace("getRootCAs: No CA Certificate!")
 		return nil, nil
 	}
 
 	// Create a certificate pool from the certificate authority
 	caCert, err := ioutil.ReadFile(cacertFile)
 	if err != nil {
-		log.Printf("[ERROR]: Could not read Root CA certificate. Err=%s", err)
+		xDSLogger.Error("getRootCAs: Could not read Root CA certificate", "err", err)
 		return nil, err
 	}
 	caCertPool := x509.NewCertPool()
 
 	// Append the certificates from the CA
 	if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
-		log.Printf("[ERROR]: Could not Append CA certificate. ")
+		xDSLogger.Error("getRootCAs: Could not Append CA certificate")
 		return nil, errors.New("failed to append ca certs")
 	}
 	return caCertPool, nil
@@ -221,11 +217,11 @@ func insecureConnectToServer(address string, waitForCerts bool) (*grpc.ClientCon
 	// Wait for certificate generation
 	if waitForCerts == true {
 		if err := checkCertfileCreation(ClientCertFile, certGenWaittime); err != nil {
-			log.Printf("[ERROR] Client's certificate not created. %s", err)
+			xDSLogger.Error("insecureConnectToServer: Client's certificate not created", "error", err)
 			return nil, err
 		}
 	}
-	log.Printf("[INFO] grpc Insecure dialling to %s.", address)
+	xDSLogger.Info("grpc Insecure dialling to xDS server", "address", address)
 
 	dialer := func(address string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("tcp", address, time.Duration(60)*time.Second)
@@ -240,7 +236,7 @@ func insecureConnectToServer(address string, waitForCerts bool) (*grpc.ClientCon
 		grpc.WithInsecure())
 
 	if err != nil {
-		log.Printf("[ERROR] grpc Connect failed with : %v", err)
+		xDSLogger.Error("insecureConnectToServer: gRPC Connect failed ", "address", address, "error", err)
 		return nil, err
 	}
 
@@ -248,14 +244,14 @@ func insecureConnectToServer(address string, waitForCerts bool) (*grpc.ClientCon
 }
 
 func secureConnectToServer(address, spiffeID string, waitForCerts bool) (*grpc.ClientConn, error) {
-	log.Printf("[INFO] grpc Secure Dialling to %s.", address)
+	xDSLogger.Info("secureConnectToServer: grpc Secure Dialling to xDS server", "address", address)
 	if len(spiffeID) > 0 {
-		log.Printf("[INFO] SPIFFE ID %s must be matched", spiffeID)
+		xDSLogger.Info("secureConnectToServer: SPIFFE ID to be matched", "spiffeID", spiffeID)
 	}
 
 	RootCAs, err := getRootCAs(CAcertFile)
 	if err != nil {
-		log.Printf("[ERROR]: Problem in retrieving Root certificate from path %s. Err: %v", CAcertFile, err)
+		xDSLogger.Error("secureConnectToServer: Problem in retrieving Root certificate", "CAcertFile", CAcertFile, "error", err)
 		return nil, err
 	}
 
@@ -272,31 +268,24 @@ func secureConnectToServer(address, spiffeID string, waitForCerts bool) (*grpc.C
 	// Check if files ClientCertFile and ClientKeyFile are created or not
 	if waitForCerts == true {
 		if err := checkCertfileCreation(ClientCertFile, certGenWaittime); err != nil {
-			log.Printf("[ERROR] Client's certificate not created. %s", err)
+			xDSLogger.Error("secureConnectToServer: Client's certificate not created", "error", err)
 			return nil, err
 		}
 	}
 
 	creds, err := adsServer.getTLSCredentials(ClientCertFile, ClientKeyFile)
 	if err != nil {
-		log.Printf("[ERROR]: Could not construct Client transport credentials. Err=%s", err)
+		xDSLogger.Error("secureConnectToServer: Could not construct client transport credentials", "error", err)
 		return nil, err
 	}
 
-	dialer := func(address string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("tcp", address, time.Duration(60)*time.Second)
-	}
-
-	conn, err := grpc.DialContext(context.Background(),
-		address,
-		grpc.WithDialer(dialer),
-		grpc.FailOnNonTempDialError(true),
+	conn, err := grpc.DialContext(context.Background(), address,
 		grpc.WithBlock(),
-		grpc.WithTimeout(60*time.Second),
+		grpc.WithTimeout(10*time.Second),
 		grpc.WithTransportCredentials(creds))
 
 	if err != nil {
-		log.Printf("[ERROR] grpc Connect failed with : %v. Ensure ADS Server's secure grpc port is mentioned", err)
+		xDSLogger.Error("secureConnectToServer: Ensure ADS Server's secure grpc port is mentioned. gRPC connection failed.", "error", err)
 		return nil, err
 	}
 	return conn, nil

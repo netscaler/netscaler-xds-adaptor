@@ -17,7 +17,6 @@ import (
 	"citrix-xds-adaptor/nsconfigengine"
 	"encoding/pem"
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -43,7 +42,7 @@ func newWatcher(nsConfig *configAdaptor) (*Watcher, error) {
 	watch.stopCh = make(chan bool, 1)
 	watch.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
-		log.Println("[ERROR] Failed to create fsnotify.Watcher:", err)
+		xDSLogger.Error("newWatcher: Failed to create Watcher", "error", err)
 		return nil, err
 	}
 	watch.nsConfig = nsConfig
@@ -65,7 +64,7 @@ func getDirFileName(fileName string) (string, string) {
 func getFileContent(fileName string) ([]byte, error) {
 	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		log.Println("[ERROR] Reading File", data, err)
+		xDSLogger.Error("Could not read file", "fileName", fileName, "error", err)
 	}
 	return data, err
 }
@@ -96,13 +95,13 @@ func getCertKeyData(certPath, keyPath string) ([]byte, []byte, error) {
 	var err error
 	certData, err = getFileContent(certPath)
 	if err != nil {
-		log.Println("[ERROR] Reading File:", certPath, err)
+		xDSLogger.Error("getCertKeyData: Could not read certificate", "certPath", certPath, "error", err)
 		return certData, keyData, err
 	}
 	if keyPath != "" {
 		keyData, err = getFileContent(keyPath)
 		if err != nil {
-			log.Println("[ERROR] Reading File:", keyPath, err)
+			xDSLogger.Error("getCertKeyData: Could not read key", "keyPath", keyPath, "error", err)
 			return certData, keyData, err
 		}
 	}
@@ -119,69 +118,63 @@ func (w *Watcher) addDir(certPath, keyPath string) (string, string, string, erro
 	if _, ok = w.dirNames[dirName]; !ok {
 		err := w.watcher.Add(dirName)
 		if err != nil {
-			log.Println("[ERROR] Failed to add Directory Name to fsnotify.Watcher:", dirName, err)
+			xDSLogger.Error("addDir: Failed to add directory to watcher", "dirName", dirName, "err", err)
 			return "", "", "", err
 		}
-		log.Println("[DEBUG] Directory added for monitoring", dirName)
+		xDSLogger.Debug("addDir: Directory added for monitoring", "dirName", dirName)
 		w.dirNames[dirName] = make(map[string]string)
 	}
-	if keyPath != "" {
-		if w.dirNames[dirName]["certFile"] == "" {
-			log.Println("[DEBUG] Added Certificate File", certFile)
-			_, keyFile = getDirFileName(keyPath)
-			if fileExists(certPath) {
-				certData, keyData, err := getCertKeyData(certPath, keyPath)
-				if err != nil {
-					return "", "", "", err
-				}
-				nsCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
-				nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
-				log.Println("[DEBUG] nsfileName", nsCertFileName, nsKeyFileName)
+	if fileExists(certPath) {
+		certData, keyData, err := getCertKeyData(certPath, keyPath)
+		if err != nil {
+			return "", "", "", err
+		}
+		nsCertOrRootCertFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
+		nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
+		xDSLogger.Trace("addDir: Adding CertFile and keyFile on ADC", "nsCertFile", nsCertOrRootCertFileName, "nsKeyFile", nsKeyFileName)
+		if nsconfigengine.IsCertKeyPresent(w.nsConfig.client, nsCertOrRootCertFileName, nsKeyFileName) == false {
+			xDSLogger.Trace("addDir: Added certificate File", "certFile", certFile)
+			if keyPath != "" {
+				_, keyFile = getDirFileName(keyPath)
 				totalCerts, err := findCertChainLength(certPath)
 				//Delete Intermediate Certificate Files
 				if err == nil && totalCerts > 1 {
 					for i := 1; i < totalCerts; i++ {
-						nsconfigengine.DeleteCert(w.nsConfig.client, nsCertFileName+"_ic"+strconv.Itoa(i))
+						nsconfigengine.DeleteCert(w.nsConfig.client, nsCertOrRootCertFileName+"_ic"+strconv.Itoa(i))
 					}
 				}
-				nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsCertFileName, keyData, nsKeyFileName)
-				log.Println("[DEBUG] Added Key FIle", keyFile)
+				// Updating fields before UploadCertData
+				xDSLogger.Trace("addDir: Added Key File", "keyFile", keyFile)
 				w.dirNames[dirName]["certFile"] = certFile
 				w.dirNames[dirName]["keyFile"] = keyFile
-				w.dirNames[dirName]["nsCertFileName"] = nsCertFileName
+				w.dirNames[dirName]["nsCertFileName"] = nsCertOrRootCertFileName
 				w.dirNames[dirName]["nsKeyFileName"] = nsKeyFileName
 				w.dirNames[dirName]["nsRootCertFile"] = ""
 				if multiClusterIngress && totalCerts > 1 {
-					w.dirNames[dirName]["nsRootCertFile"] = nsCertFileName + "_ic" + strconv.Itoa(totalCerts-1)
+					w.dirNames[dirName]["nsRootCertFile"] = nsCertOrRootCertFileName + "_ic" + strconv.Itoa(totalCerts-1)
 				}
+			} else { //root certificate
+				xDSLogger.Trace("addDir: Added rootCert file", "certFile", certFile)
+				w.dirNames[dirName]["rootCertFile"] = certFile
+				w.dirNames[dirName]["nsRootCertFile"] = nsCertOrRootCertFileName
+			}
+
+			err := nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsCertOrRootCertFileName, keyData, nsKeyFileName)
+			if err != nil {
+				// reset fields of dirName
+				w.dirNames[dirName]["certFile"] = ""
+				w.dirNames[dirName]["keyFile"] = ""
+				w.dirNames[dirName]["nsCertFileName"] = ""
+				w.dirNames[dirName]["nsKeyFileName"] = ""
+				w.dirNames[dirName]["nsRootCertFile"] = ""
+				xDSLogger.Error("addDir: Certificate/key upload to ADC failed.", "nsCertFileName", nsCertOrRootCertFileName, "error", err)
+				return "", "", "", err
 			}
 		} else {
-			log.Println("[DEBUG] CertKey and KeyFile already added", certFile, keyFile)
+			xDSLogger.Trace("addDir: Cert/Key File already present", "certFile", certFile)
 		}
-		return w.dirNames[dirName]["nsCertFileName"], w.dirNames[dirName]["nsKeyFileName"], w.dirNames[dirName]["nsRootCertFile"], nil
 	}
-	if w.dirNames[dirName]["rootCertFile"] == "" {
-		w.dirNames[dirName]["rootCertFile"] = certFile
-		log.Println("[DEBUG] Added rootCertFile FIle", certFile)
-		var keyData []byte
-		if fileExists(certPath) {
-			certData, _, err := getCertKeyData(certPath, "")
-			if err != nil {
-				return "", "", "", err
-			}
-			nsRootFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
-			w.dirNames[dirName]["nsRootCertFile"] = nsRootFileName
-			log.Println("[DEBUG] nsRootfileName", nsRootFileName)
-			nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsRootFileName, keyData, "")
-			if err != nil {
-				log.Println("[ERROR] RootCertKey addition Failed ", nsRootFileName, err)
-				return "", "", "", err
-			}
-		}
-	} else {
-		log.Println("[DEBUG] rootCertFile File already added", certFile)
-	}
-	return "", "", w.dirNames[dirName]["nsRootCertFile"], nil
+	return w.dirNames[dirName]["nsCertFileName"], w.dirNames[dirName]["nsKeyFileName"], w.dirNames[dirName]["nsRootCertFile"], nil
 }
 
 // Run is a thread which will alert whenever files in the directory added for watch gets updated.
@@ -189,29 +182,29 @@ func (w *Watcher) Run() {
 	for {
 		select {
 		case <-w.stopCh:
-			log.Printf("[INFO] xDS-adaptor's Watcher thread stopped")
+			xDSLogger.Info("xDS-adaptor's Watcher thread stopped")
 			return
 		case event, ok := <-w.watcher.Events:
 			if !ok {
-				log.Println("[ERROR] Error Watching Events")
+				xDSLogger.Error("Error watching events")
 				return
 			}
 			w.watcherMux.Lock()
-			log.Println("[DEBUG] event:", event)
+			xDSLogger.Trace("Watcher captured event", "event", event)
 			if (event.Op&fsnotify.Remove == fsnotify.Remove) || (event.Op&fsnotify.Write == fsnotify.Write) {
-				log.Println("[DEBUG] Folder got Updated", event.Name)
+				xDSLogger.Debug("Watcher folder got updated", "eventName", event.Name)
 				// strings.Contains(event.Name, "..") this is for mounted certificates
 				//strings.Contains(event.Name, ClientCertChainFile)  for CSR generated
 				if !strings.Contains(event.Name, "..") && !strings.Contains(event.Name, ClientCertChainFile) {
-					log.Println("[DEBUG] File not considered for update", event.Name)
+					xDSLogger.Debug("File not considered for update", "fileName", event.Name)
 				} else {
 					uploadFilePath, _ := getDirFileName(event.Name)
-					log.Println("UploadFilePath", uploadFilePath)
+					xDSLogger.Trace("Uploading files from directory", "dirName", uploadFilePath)
 					if w.dirNames[uploadFilePath]["certFile"] != "" {
 						certFile := uploadFilePath + "/" + w.dirNames[uploadFilePath]["certFile"]
 						keyFile := uploadFilePath + "/" + w.dirNames[uploadFilePath]["keyFile"]
-						log.Println("[DEBUG] upload certFile Path", certFile)
-						log.Println("[DEBUG] upload File Path", keyFile)
+						xDSLogger.Trace("Uploading certFile to ADC", "certFile", certFile)
+						xDSLogger.Trace("Uploading keyfile to ADC", "keyFile", keyFile)
 						if fileExists(certFile) {
 							certData, keyData, err := getCertKeyData(certFile, keyFile)
 							if err == nil {
@@ -219,7 +212,7 @@ func (w *Watcher) Run() {
 								nsKeyFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(keyData)), 55)
 								/* if CertKey and KeyFile did not change then do not update */
 								if nsconfigengine.IsCertKeyPresent(w.nsConfig.client, nsCertFileName, nsKeyFileName) == false {
-									log.Println("[DEBUG] nsfileName", nsCertFileName, nsKeyFileName)
+									xDSLogger.Debug("Uploading and updating bindings on ADC for cert/key", "certFile", certFile, "nsCertName", nsCertFileName, "nsKeyName", nsKeyFileName)
 									nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsCertFileName, keyData, nsKeyFileName)
 									rootFileName, err := nsconfigengine.UpdateBindings(w.nsConfig.client, w.dirNames[uploadFilePath]["nsCertFileName"], w.dirNames[uploadFilePath]["nsCertFileName"], nsCertFileName, nsKeyFileName, multiClusterIngress)
 									if err == nil {
@@ -237,8 +230,7 @@ func (w *Watcher) Run() {
 							certData, _, err := getCertKeyData(certFile, "")
 							if err == nil {
 								nsRootFileName := nsconfigengine.GetNSCompatibleNameHash(string([]byte(certData)), 55)
-								log.Println("[DEBUG] nsRootFileName", nsRootFileName)
-								log.Println("[DEBUG] upload certFile Path", certFile)
+								xDSLogger.Debug("Uploading and updating bindings of rootCert", "certFile", certFile, "nsRootFileName", nsRootFileName)
 								var keyData []byte
 								nsconfigengine.UploadCertData(w.nsConfig.client, certData, nsRootFileName, keyData, "")
 								nsconfigengine.AddCertKey(w.nsConfig.client, nsRootFileName, "", false)
@@ -255,7 +247,7 @@ func (w *Watcher) Run() {
 			if !ok {
 				return
 			}
-			log.Println("[ERROR] Watcher error:", err)
+			xDSLogger.Error("Watcher error", "error", err)
 		}
 	}
 }
@@ -264,9 +256,9 @@ func (w *Watcher) Run() {
 func (w *Watcher) Stop() {
 	if w.watcher != nil {
 		w.watcher.Close()
-		log.Printf("[DEBUG] fsnotify.watcher is closed for directory %+v", w.dirNames)
+		xDSLogger.Trace("Watcher is closed for directory", "dirName", w.dirNames)
 	}
 	w.nsConfig = nil
 	w.stopCh <- true
-	log.Println("[DEBUG] Watcher is stopped")
+	xDSLogger.Debug("Watcher is stopped for directory", "dirName", w.dirNames)
 }

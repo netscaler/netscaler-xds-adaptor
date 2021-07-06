@@ -17,8 +17,8 @@ import (
 	"citrix-xds-adaptor/tests/env"
 	"testing"
 
-	"github.com/chiradeep/go-nitro/config/ssl"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/ssl"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 func Test_GetSslCertkeyName(t *testing.T) {

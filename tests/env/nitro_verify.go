@@ -15,7 +15,7 @@ package env
 
 import (
 	"fmt"
-	"github.com/chiradeep/go-nitro/netscaler"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 	"log"
 	"reflect"
 )

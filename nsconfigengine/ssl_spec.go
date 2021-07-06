@@ -17,15 +17,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/chiradeep/go-nitro/config/lb"
-	"github.com/chiradeep/go-nitro/config/ssl"
-	"github.com/chiradeep/go-nitro/config/system"
-	"github.com/chiradeep/go-nitro/netscaler"
+	"github.com/citrix/adc-nitro-go/resource/config/lb"
+	"github.com/citrix/adc-nitro-go/resource/config/ssl"
+	"github.com/citrix/adc-nitro-go/resource/config/system"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 const (
@@ -228,6 +227,9 @@ func isCertBindingPresent(client *netscaler.NitroClient, entityName, entityCertN
 func IsCertKeyPresent(client *netscaler.NitroClient, certKeyName, keyFileName string) bool {
 	cert, err := client.FindResource(netscaler.Sslcertkey.Type(), certKeyName)
 	if err == nil {
+		if keyFileName == "" {
+			return true
+		}
 		if keyName, err := getValueString(cert, "key"); err == nil {
 			name := keyName[strings.LastIndex(keyName, "/")+1:]
 			if keyFileName == name {
@@ -263,7 +265,7 @@ func GetCertChain(client *netscaler.NitroClient, certKeyName string) ([]string, 
 	chains, err := client.FindResource("sslcertificatechain", certKeyName)
 	var certChain []string
 	if err != nil {
-		log.Printf("[ERROR] %v getting sslcertificatechain for %v", err, certKeyName)
+		nsconfLogger.Error("GetCertChain: Error in getting sslcertificatechain", "certKeyName", certKeyName, "error", err)
 		return certChain, err
 	}
 	if chains != nil {
@@ -403,7 +405,7 @@ func addSSLVserver(client *netscaler.NitroClient, vserverName string, sslObjs []
 }
 
 func sslFileTransfer(client *netscaler.NitroClient, fileName, fileContents string) error {
-	log.Printf("[DEBUG] NetScaler SSL file transfer %s", fileName)
+	nsconfLogger.Trace(" NetScaler SSL file transfer", "fileName", fileName)
 	return doNitro(client, nitroConfig{netscaler.Systemfile.Type(), fileName, system.Systemfile{Fileencoding: "BASE64", Filelocation: sslCertPath, Filecontent: fileContents, Filename: fileName}, "add"}, nil, nil)
 }
 
@@ -411,14 +413,14 @@ func sslFileTransfer(client *netscaler.NitroClient, fileName, fileContents strin
 func UploadCert(client *netscaler.NitroClient, certPath, certNsFileName, keyPath, keyNsFileName string) error {
 	certData, err := ioutil.ReadFile(certPath)
 	if err != nil {
-		log.Println("[ERROR] Reading File", certPath, err)
+		nsconfLogger.Error("UploadCert: Reading File", "certPath", certPath, "nsCertName", certNsFileName, "error", err)
 		return err
 	}
 	var keyData []byte
 	if keyPath != "" {
 		keyData, err = ioutil.ReadFile(keyPath)
 		if err != nil {
-			log.Println("[ERROR] Reading File:", keyPath, err)
+			nsconfLogger.Error("UploadCert: Reading File", "keyPath", keyPath, "nsKeyName", keyNsFileName, "error", err)
 			return err
 		}
 	}
@@ -474,7 +476,7 @@ func getPolicyRuleForSNINames(serverNames []string) string {
 }
 
 func addSSLForwardSpec(client *netscaler.NitroClient, vserverName string, forwardObjs []SSLForwardSpec, confErr *nitroError) {
-	log.Printf("[TRACE] SSLForwardSpec add: %v", forwardObjs)
+	nsconfLogger.Trace(" SSLForwardSpec add", "forwardObjs", forwardObjs)
 	var bPolicyName string
 	var priority int
 

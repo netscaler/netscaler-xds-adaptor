@@ -16,12 +16,12 @@ package nsconfigengine
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/chiradeep/go-nitro/config/authentication"
-	"github.com/chiradeep/go-nitro/config/cs"
-	"github.com/chiradeep/go-nitro/config/policy"
-	"github.com/chiradeep/go-nitro/netscaler"
-	"log"
 	"strings"
+
+	"github.com/citrix/adc-nitro-go/resource/config/authentication"
+	"github.com/citrix/adc-nitro-go/resource/config/cs"
+	"github.com/citrix/adc-nitro-go/resource/config/policy"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 const (
@@ -107,7 +107,7 @@ func getAuthAudience(jwtAudiences []string, nsReleaseNo float64, nsBuildNo float
 			}
 			maxLength = maxLength - 1
 		} else {
-			log.Printf("[ERROR] AudienceAdd : adding '%s' audience failed due to 127 char limit", audience)
+			nsconfLogger.Error(" AudienceAdd : adding '%s' audience failed due to 127 char limit", audience)
 			maxLength = temp
 		}
 	}
@@ -129,7 +129,7 @@ func isJwksFilePresent(client *netscaler.NitroClient, jwksFileName string) bool 
 }
 
 func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroError) {
-	log.Printf("[TRACE] AuthSpec add: %v", authSpec)
+	nsconfLogger.Trace("authAdd: AuthSpec addition", "authSpec", authSpec)
 	nsReleaseNo, nsBuildNo := getNsReleaseBuild()
 	var audiences string
 	/* Check if CertFile is already uploaded, if not Upload the CertFile again */
@@ -220,7 +220,7 @@ func (authSpec *AuthSpec) deletePatSet(client *netscaler.NitroClient, confErr *n
 }
 
 func (authSpec *AuthSpec) deleteStale(client *netscaler.NitroClient, confErr *nitroError) {
-	log.Printf("[TRACE] AuthSpec deleteStale: %v", authSpec)
+	nsconfLogger.Trace("Deleting stale AuthSpec", "authSpec", authSpec)
 	var bvserverName, bPolicyName string
 	var priority int
 	authPolicyBindings, err := client.FindResourceArray(netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name)
@@ -278,13 +278,13 @@ func deleteStaleJwksFile(client *netscaler.NitroClient, confErr *nitroError, aut
 	}
 }
 func (authSpec *AuthSpec) authDelete(client *netscaler.NitroClient, confErr *nitroError) {
-	log.Printf("[TRACE] AuthSpec delete: %v", authSpec)
+	nsconfLogger.Trace("Deleting AuthSpec", "authSpec", authSpec)
 	authSpec.deleteStale(client, confErr)
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver.Type(), authSpec.Name, nil, "delete"}, []string{"No such resource"}, nil))
 }
 
 func updateVserverAuthSpec(client *netscaler.NitroClient, csVserverName string, authSpec *AuthSpec, confErr *nitroError) {
-	log.Printf("[TRACE] updateVserverAuthSpec: %v for csVserver %s", authSpec, csVserverName)
+	nsconfLogger.Trace("updateVserverAuthSpec", "authSpec", authSpec, "csVserver", csVserverName)
 	authVserverName := csVserverName + "authn"
 	if authSpec == nil {
 		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csVserverName, map[string]interface{}{"name": csVserverName, "authn401": true, "authnvsname": true}, "unset"}, nil, nil))

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ import (
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/golang/protobuf/ptypes"
 	_struct "github.com/golang/protobuf/ptypes/struct"
+	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 )
 
@@ -42,6 +44,13 @@ const (
 	ldsURL = resource.ListenerType //"type.googleapis.com/envoy.config.listener.v3.Listener"
 	edsURL = resource.EndpointType //"type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment"
 	rdsURL = resource.RouteType    //"type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+)
+
+var (
+	xDSServerPort       int
+	xDSServerURL        string
+	xDSServerResolvedIP string
+	xDSLogger           hclog.Logger
 )
 
 type cdsAddHandlerType func(*configAdaptor, *cluster.Cluster, interface{}) string
@@ -73,9 +82,11 @@ type NSDetails struct {
 	SslVerify         bool
 	RootCAPath        string
 	ServerName        string
+	adsServerURL      string
 	adsServerPort     string
 	LocalHostVIP      string
 	caServerPort      string
+	bootStrapConfReqd bool //Very first time when xDS-adaptor comes up or every time ADC restarts, some init config is needed on ADC
 }
 
 type apiRequest struct {
@@ -117,6 +128,29 @@ type AdsClient struct {
 	ckHandlerMux       sync.Mutex
 }
 
+func init() {
+	/* Create a logger */
+	level := hclog.LevelFromString("DEBUG") // Default value
+	logLevel, ok := os.LookupEnv("LOGLEVEL")
+	if ok {
+		lvl := hclog.LevelFromString(logLevel)
+		if lvl != hclog.NoLevel {
+			level = lvl
+		} else {
+			log.Printf("xDS-adaptor: LOGLEVEL not set to a valid log level (%s), defaulting to %d", logLevel, level)
+		}
+	}
+	_, jsonLog := os.LookupEnv("JSONLOG")
+	xDSLogger = hclog.New(&hclog.LoggerOptions{
+		Name:            "xDS-Adaptor",
+		Level:           level,
+		Color:           hclog.AutoColor,
+		JSONFormat:      jsonLog,
+		IncludeLocation: true,
+	})
+	log.Printf("[INFO] adsclient logger created with loglevel = %s and jsonLog = %v", level, jsonLog)
+}
+
 func (client *AdsClient) writeADSRequest(req *apiRequest) {
 	var resourceNames []string
 	if req.typeURL == edsURL || req.typeURL == rdsURL {
@@ -129,9 +163,9 @@ func (client *AdsClient) writeADSRequest(req *apiRequest) {
 	}
 	msg := &discovery.DiscoveryRequest{TypeUrl: req.typeURL, Node: client.nodeID, VersionInfo: req.versionInfo, ResponseNonce: req.nonce, ResourceNames: resourceNames}
 	if err := client.stream.SendMsg(msg); err != nil {
-		log.Printf("[ERROR] Failed to send a message: %v", err)
+		xDSLogger.Error("writeADSRequest: Failed to send a message", "err", err)
 	} else {
-		log.Printf("[TRACE] Wrote req message : version-%s  nonce-%s  type-%s", msg.VersionInfo, msg.ResponseNonce, msg.TypeUrl)
+		xDSLogger.Trace("writeADSRequest: Wrote req message", "version", msg.VersionInfo, "nonce", msg.ResponseNonce, "type", msg.TypeUrl)
 	}
 }
 
@@ -152,13 +186,13 @@ func (client *AdsClient) readADSResponse() {
 	for {
 		m := new(discovery.DiscoveryResponse)
 		if err := client.stream.RecvMsg(m); err != nil {
-			log.Printf("[ERROR] Failed to recv a message: %v", err)
+			xDSLogger.Error("readADSResponse: Failed to recv a message", "error", err)
 			time.Sleep(2 * time.Second)
 			return
 		}
-		log.Printf("[TRACE] Received a message at version: %s  for type: %s resourceCount: %d", m.VersionInfo, m.TypeUrl, len(m.Resources))
+		xDSLogger.Trace("readADSResponse: Received a message", "version", m.VersionInfo, "type", m.TypeUrl, "resourceCount", len(m.Resources))
 		if err := client.callRequestHandler(m); err != nil {
-			log.Printf("[ERROR] Request handler returned error: %v", err)
+			xDSLogger.Error("readADSResponse: Request handler returned error", "error", err)
 			return
 		}
 		client.apiRequests[m.TypeUrl].versionInfo = m.VersionInfo
@@ -174,7 +208,7 @@ func cdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	cdsResource := &cluster.Cluster{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, cdsResource); err != nil {
-			log.Printf("[TRACE]:Could not find Unmarshal resources in CDS Handler")
+			xDSLogger.Trace("cdsHandler: Could not find Unmarshal resources in CDS Handler")
 			continue
 		}
 		clusterNames[cdsResource.Name] = true
@@ -211,7 +245,7 @@ func ldsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	ldsResource := &listener.Listener{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, ldsResource); err != nil {
-			log.Printf("[TRACE]:Could not find Unmarshal resources in LDS handler")
+			xDSLogger.Trace("ldsHandler: Could not find Unmarshal resources in LDS handler")
 			continue
 		}
 		ldsResources[ldsResource.Name] = make([]string, 0)
@@ -255,11 +289,11 @@ func edsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	edsResource := &endpoint.ClusterLoadAssignment{}
 	for _, resource := range m.Resources {
 		if err := ptypes.UnmarshalAny(resource, edsResource); err != nil {
-			log.Printf("[TRACE]:Could not find Unmarshal resources in EDS handler")
+			xDSLogger.Trace("edsHandler: Could not find Unmarshal resources in EDS handler")
 			continue
 		}
 		if _, ok := client.apiRequests[edsURL].resources[edsResource.GetClusterName()]; !ok {
-			log.Printf("[ERROR]: received an EDS resource that we haven't yet subscribed for %s ... ignoring", edsResource.GetClusterName())
+			xDSLogger.Error("edsHandler: Received unsubscribed EDS resource. Ignoring", "edsName", edsResource.GetClusterName())
 			continue
 		}
 		client.edsAddHandler(client.nsConfigAdaptor, edsResource, client.apiRequests[edsURL].resources[edsResource.GetClusterName()])
@@ -275,7 +309,7 @@ func rdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 			continue
 		}
 		if _, ok := client.apiRequests[rdsURL].resources[rdsResource.GetName()]; !ok {
-			log.Printf("[ERROR]: received an RDS resource that we haven't yet subscribed for %s ... ignoring", rdsResource.GetName())
+			xDSLogger.Error("rdsHandler: Received unsubscribed RDS resource. Ignoring", "rdsName", rdsResource.GetName())
 			continue
 		}
 		listenerName := client.apiRequests[rdsURL].resources[rdsResource.GetName()].(map[string]interface{})["listenerName"].(string)
@@ -284,7 +318,7 @@ func rdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 		}
 		rdsToLds[listenerName] = append(rdsToLds[listenerName], rdsResource)
 	}
-	log.Printf("[DEBUG] rdsToLds - %v", rdsToLds)
+	xDSLogger.Trace("rdsHandler: rdsToLds details", "rdsToLds", rdsToLds)
 	for _, rdsArray := range rdsToLds {
 		dependentClusters := client.rdsAddHandler(client.nsConfigAdaptor, rdsArray, client.apiRequests[rdsURL].resources[rdsArray[0].GetName()])
 		for _, clusterName := range dependentClusters["cdsNames"].([]string) {
@@ -309,17 +343,17 @@ func (client *AdsClient) reloadCds() {
 	client.connectionMux.Unlock()
 	stream, err := adsClient.StreamAggregatedResources(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] reloadCds create stream failed : %v", err)
+		xDSLogger.Error("reloadCds: Create stream failed", "error", err)
 		return
 	}
 	if err = stream.Send(&discovery.DiscoveryRequest{TypeUrl: cdsURL, Node: client.nodeID}); err != nil {
-		log.Printf("[ERROR] reloadCds send request failed : %v", err)
+		xDSLogger.Error("reloadCds: Send request failed", "error", err)
 	} else {
 		res, err := stream.Recv()
 		if err != nil {
-			log.Printf("[ERROR] reloadCds recv failed : %v", err)
+			xDSLogger.Error("reloadCds: Recv failed", "error", err)
 		} else {
-			log.Printf("[TRACE] reloadCds rcvd message")
+			xDSLogger.Trace("reloadCds: Received message")
 			cdsHandler(client, res)
 		}
 	}
@@ -345,7 +379,7 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 		},
 	}
 	adsClient.nodeID = &core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &metadata}
-	log.Println("[TRACE] Node details: ", adsClient.nodeID)
+	xDSLogger.Info("NewAdsClient: Node details ", "nodeID", adsClient.nodeID)
 	adsClient.quit = make(chan int)
 	adsClient.cdsAddHandler = clusterAdd
 	adsClient.cdsDelHandler = clusterDel
@@ -354,9 +388,11 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 	adsClient.edsAddHandler = clusterEndpointUpdate
 	adsClient.rdsAddHandler = routeUpdate
 	s := strings.Split(adsinfo.AdsServerURL, ":")
+	xDSServerURL = s[0]
 	nsinfo.adsServerPort = "unknown"
 	if len(s) > 1 {
 		nsinfo.adsServerPort = s[1]
+		xDSServerPort, _ = strconv.Atoi(s[1])
 	}
 	if cainfo != nil {
 		s = strings.Split(cainfo.CAAddress, ":")
@@ -364,9 +400,15 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 			nsinfo.caServerPort = s[1]
 		}
 	}
+	nsinfo.bootStrapConfReqd = true
 	adsClient.nsInfo = nsinfo
 	adsClient.caInfo = cainfo
 	return adsClient, nil
+}
+
+// SetLogLevel function sets the log level of adsclient package
+func (client *AdsClient) SetLogLevel(level string) {
+	xDSLogger.SetLevel(hclog.LevelFromString(level))
 }
 
 // GetNodeID returns the node ID of the client
@@ -376,7 +418,7 @@ func (client *AdsClient) GetNodeID() *core.Node {
 
 func (client *AdsClient) startCertKeyHandler(errCh chan<- error) error {
 	if client.caInfo == nil {
-		log.Printf("[DEBUG] CA details are not specified. Not creating certificate key handler.")
+		xDSLogger.Info("startCertKeyHandler: CA details are not specified. Not creating certificate key handler.")
 		return nil
 	}
 	certinfo := new(certkeyhandler.CertDetails)
@@ -388,7 +430,7 @@ func (client *AdsClient) startCertKeyHandler(errCh chan<- error) error {
 	certinfo.Org = orgName
 	certkeyhdlr, err := certkeyhandler.NewCertKeyHandler(client.caInfo, certinfo)
 	if err != nil {
-		log.Printf("[ERROR] Could not create certkey handler. Error: %s", err.Error())
+		xDSLogger.Error("startCertKeyHandler: Could not create certkey handler", "error", err.Error())
 		return err
 	}
 	client.ckHandlerMux.Lock()
@@ -401,24 +443,25 @@ func (client *AdsClient) startCertKeyHandler(errCh chan<- error) error {
 // StartClient starts connecting and listening to the ADS server
 func (client *AdsClient) StartClient() {
 	var err error
-	log.Printf("[TRACE]: Starting ADS client")
+	xDSLogger.Trace("Starting ADS client")
 	go func() {
 		ckHandlerStarted := false
 		ckhErrCh := make(chan error)
 		for {
 			select {
 			case <-client.quit:
-				log.Printf("[TRACE]: Stopping ADS client")
+				xDSLogger.Trace("Stopping ADS client")
 				return
 			case ckherr := <-ckhErrCh:
 				if ckherr != nil {
-					log.Printf("[ERROR] Certificate Key Handler Problem. %s", ckherr.Error())
+					xDSLogger.Error("StartClient: Certificate Key Handler Problem", "ckherr", ckherr.Error())
+					ckHandlerStarted = false
 					client.ckHandlerMux.Lock()
 					client.ckHandler = nil
 					client.ckHandlerMux.Unlock()
 					// Start handler again
 					if err := client.startCertKeyHandler(ckhErrCh); err != nil {
-						log.Printf("[ERROR] Could not start certificate key handler. Error= %s", err.Error())
+						xDSLogger.Error("StartClient: Could not start certificate key handler", "error", err.Error())
 						return
 					}
 					ckHandlerStarted = true
@@ -430,7 +473,7 @@ func (client *AdsClient) StartClient() {
 				}
 				if client.caInfo != nil && ckHandlerStarted == false {
 					if err := client.startCertKeyHandler(ckhErrCh); err != nil {
-						log.Printf("[ERROR] Could not start certificate key handler. Error= %s", err.Error())
+						xDSLogger.Error("StartClient: Could not start certificate key handler", "error", err.Error())
 						return
 					}
 					ckHandlerStarted = true
@@ -442,7 +485,7 @@ func (client *AdsClient) StartClient() {
 					client.connection, err = insecureConnectToServer(client.adsServerURL, ckHandlerStarted)
 				}
 				if err != nil {
-					log.Printf("[TRACE]: Connection to grpc server failed with %v", err)
+					xDSLogger.Trace("StartClient: Connection to grpc server failed", "error", err)
 					client.connectionMux.Unlock()
 					time.Sleep(1 * time.Second)
 					continue
@@ -451,7 +494,7 @@ func (client *AdsClient) StartClient() {
 				client.connectionMux.Unlock()
 				client.stream, err = adsClient.StreamAggregatedResources(context.Background())
 				if err != nil {
-					log.Printf("[ERROR] grpc Creating new stream failed with : %v", err)
+					xDSLogger.Error("StartClient: grpc new stream creation failed", "error", err)
 					continue
 				}
 				client.apiRequests = map[string]*apiRequest{
@@ -478,6 +521,7 @@ func (client *AdsClient) assignConfigAdaptor() error {
 	if client.nsConfigAdaptor == nil {
 		client.nsConfigAdaptor, err = newConfigAdaptor(client.nsInfo)
 		if err != nil {
+			xDSLogger.Error("assignConfigAdaptor: Could not create nsConfigAdaptor", "error", err.Error())
 			return err
 		}
 		client.nsConfigAdaptor.startConfigAdaptor(client)
@@ -489,6 +533,7 @@ func (client *AdsClient) releaseConfigAdaptor(shouldStopConfigAdaptor bool) {
 	client.nsConfigAdaptorMux.Lock()
 	defer client.nsConfigAdaptorMux.Unlock()
 	if client.nsConfigAdaptor != nil {
+		client.nsConfigAdaptor.client.Logout() // TODO: Might need to move to other file
 		if shouldStopConfigAdaptor == true {
 			client.nsConfigAdaptor.stopConfigAdaptor()
 		}
@@ -497,13 +542,27 @@ func (client *AdsClient) releaseConfigAdaptor(shouldStopConfigAdaptor bool) {
 }
 
 func (client *AdsClient) stopClientConnection(shouldStopConfigAdaptor bool) {
+	/* Close grpc stream first */
+	if client.stream != nil {
+		err := client.stream.CloseSend()
+		if err != nil {
+			xDSLogger.Error("stopClientConnection: Error in closing client stream", "error", err.Error())
+		} else {
+			xDSLogger.Trace("stopClientConnection: Successfully closed client stream")
+		}
+		client.stream = nil
+	}
 	client.connectionMux.Lock()
 	if client.connection != nil {
-		client.connection.Close()
+		err := client.connection.Close()
+		if err != nil {
+			xDSLogger.Error("stopClientConnection: gRPC connection closing error", "error", err.Error())
+		}
+		client.connection = nil
 	}
 	client.connectionMux.Unlock()
 	client.releaseConfigAdaptor(shouldStopConfigAdaptor)
-	log.Printf("[TRACE]: closed client connection")
+	xDSLogger.Trace("stopClientConnection: closed client connection")
 }
 
 // StopClient closes the connection to the ADS server
@@ -515,5 +574,5 @@ func (client *AdsClient) StopClient() {
 	}
 	client.ckHandlerMux.Unlock()
 	client.quit <- 1
-	log.Printf("[TRACE]: Stopped adsClient")
+	xDSLogger.Trace("Stopped adsClient")
 }

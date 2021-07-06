@@ -229,9 +229,21 @@ func Test_clusterEndpointUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed - %v", err)
 	}
+	// Test for logstream endpoint
+	coeTracingEnabled = true
+	nsConfAdaptor.logProxyURL = "coe.citrix-system"
+	eds = env.MakeEndpoint("outbound|5557||coe.citrix-system.svc.cluster.local", []env.ServiceEndpoint{{"1.1.1.1", 5557, 8}})
+	svcGpObj = &nsconfigengine.ServiceGroupAPI{Name: "outbound_5557__coe_citrix_system_svc_cluster_local", Members: []nsconfigengine.ServiceGroupMember{{IP: "1.1.1.1", Port: 5557, Weight: 8}}, IsIPOnlySvcGroup: true}
+	svcGpObj.IsLogProxySvcGrp = true
+	clusterEndpointUpdate(nsConfAdaptor, eds, nil)
+	err = verifyObject(nsConfAdaptor, edsAdd, "outbound|5557||coe.citrix-system.svc.cluster.local", svcGpObj, nil, nil)
+	if err != nil {
+		t.Errorf("Verification failed for logstream endpoint - %v", err)
+	}
 }
 
 func Test_isLogProxyEndpoint(t *testing.T) {
+	coeTracingEnabled = true
 	type EI struct {
 		clustername string
 		logProxyURL string
@@ -412,8 +424,6 @@ func Test_routeUpdate(t *testing.T) {
 func Test_clusterAdd_transportSocket(t *testing.T) {
 	certFileName := "../tests/tls_conn_mgmt_certs/client-cert.pem"
 	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
-	//certFileName := "/etc/certs/server-cert.crt"
-	//`keyFileName := "/etc/certs/server-key.key"
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
