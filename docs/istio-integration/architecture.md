@@ -42,7 +42,7 @@ For detailed instructions on how to deploy Citrix ADC CPX as an Ingress Gateway,
 
 ### Citrix ADC MPX or VPX as an Ingress Gateway
 
-Citrix ADC VPX or MPX can be deployed as an Ingress Gateway to the Istio service mesh. In this deployment, a Kubernetes pod is deployed with an `xDS-adaptor` container. The `xDS-adaptor` container connects to the Istio control pane and reads the ingress configuration and then configures the Citrix ADC VPX or MPX accordingly.
+Citrix ADC VPX or MPX can be deployed as an Ingress Gateway to the Istio service mesh. In this deployment, a Kubernetes pod is deployed with an `xDS-adaptor` container. The `xDS-adaptor` container connects to the Istio control plane and reads the ingress configuration and then configures the Citrix ADC VPX or MPX accordingly.
 
 **Note:** For this deployment, establish the connectivity between the concerned Citrix ADC and the cluster nodes.
 
@@ -74,3 +74,15 @@ The following diagram shows a sample deployment of Citrix ADC CPX as an Egress G
 ![CPX egress](../media/cpx-egress.png)
 
 For detailed instructions on how to deploy Citrix ADC CPX as an Egress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
+
+## Deploy Citrix ADC VPX as an Egress Gateway
+
+An Egress Gateway defines the traffic exit point from a service mesh. Citrix ADC VPX can be deployed as an Egress Gateway to the Istio service mesh. In this deployment, a Kubernetes pod is deployed with an xDS-adaptor container. The xDS-adaptor container connects to the Istio control plane and reads the egress configuration and then configures the Citrix ADC VPX accordingly.
+
+**Note**: For this deployment, establish the connectivity between the concerned Citrix ADC and the cluster nodes.
+
+The following diagram shows a sample deployment of Citrix ADC VPX as an Egress Gateway.
+
+![VPX egress](../media/vpx-egress.jpeg)
+
+For detailed instructions on how to deploy Citrix ADC VPX as an Egress Gateway, see [Deploying Citrix ADC with Istio](deploy-istio-adaptor-helm-chart.md).
