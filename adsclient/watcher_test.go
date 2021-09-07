@@ -18,13 +18,14 @@ import (
 	"citrix-xds-adaptor/tests/env"
 	"errors"
 	"fmt"
-	"github.com/citrix/adc-nitro-go/resource/config/ssl"
-	netscaler "github.com/citrix/adc-nitro-go/service"
 	"os"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/citrix/adc-nitro-go/resource/config/ssl"
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 func getValueInt(obj map[string]interface{}, name string) (int, error) {
@@ -66,7 +67,8 @@ func Test_addDir(t *testing.T) {
 	}
 	configAdaptor := new(configAdaptor)
 	configAdaptor.client = env.GetNitroClient()
-	w, err := newWatcher(configAdaptor)
+	w, err := newWatcher()
+	w.nsConfig = configAdaptor
 	if err == nil {
 		for _, c := range cases {
 			_, _, _, err := w.addDir(c.certName, c.keyName)
@@ -90,7 +92,8 @@ func Test_addDir(t *testing.T) {
 func Test_run(t *testing.T) {
 	configAdaptor := new(configAdaptor)
 	configAdaptor.client = env.GetNitroClient()
-	w, err := newWatcher(configAdaptor)
+	w, err := newWatcher()
+	w.nsConfig = configAdaptor
 	if err := os.Mkdir("/tmp/adsclienttest", 0777); err != nil {
 		t.Errorf("Could not create temp folder")
 	}
@@ -140,7 +143,8 @@ func Test_run(t *testing.T) {
 	if err = env.CopyFileContents("../tests/certs/certrotation/app1.1000.rotationroot.com.key", keyPath); err != nil {
 		t.Errorf("Could not copy file. Error: %s", err.Error())
 	}
-	go w.Run()
+	cwErrCh := make(chan error)
+	go w.Run(cwErrCh)
 	os.RemoveAll("/tmp/adsclienttest/.Test..")
 	time.Sleep(5 * time.Second)
 	certData, keyData, _ = getCertKeyData(certPath, keyPath)

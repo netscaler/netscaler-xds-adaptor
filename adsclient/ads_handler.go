@@ -53,7 +53,10 @@ const (
 	citrixEgressGateway = "citrix-egressgateway"
 	istioEgressGateway  = "istio-egressgateway"
 	// K8sServiceSuffix is common suffix of k8s service
-	K8sServiceSuffix = "svc.cluster.local"
+	K8sServiceSuffix  = "svc.cluster.local"
+	defaultSDSName    = "default"
+	sdsLeafCertPrefix = "file-cert"
+	sdsRootCertPrefix = "file-root"
 )
 
 var valueNameToNum = map[string]int{
@@ -82,6 +85,27 @@ func extractPortAndDomainName(input string) (ok bool, port int, domainName strin
 	return true, port, domainName
 }
 
+// valid input format: "outbound|80||httpbin.org"
+func extractPortAndDirection(input string) (ok bool, port int, direction string) {
+	s := strings.Split(input, "|")
+	if len(s) < 4 {
+		xDSLogger.Debug("extractPortAndDirection: Invalid input", "input", input)
+		return false, 0, ""
+	}
+	port, err := strconv.Atoi(s[1])
+	if err != nil {
+		xDSLogger.Debug("extractPortAndDirection: Port value is invalid in input", "port", s[1], "input", input)
+		return false, 0, ""
+	}
+	direction = strings.ToLower(s[0])
+
+	if direction != "outbound" && direction != "inbound" {
+		xDSLogger.Debug("extractPortAndDirection: Direction invalid", "direction", direction)
+		return false, 0, ""
+	}
+	return true, port, direction
+}
+
 func getLbMethod(lbMethod xdsCluster.Cluster_LbPolicy) string {
 	/*
 		xDS Simple LB Method   | CPX Configuration
@@ -98,16 +122,8 @@ func getLbMethod(lbMethod xdsCluster.Cluster_LbPolicy) string {
 }
 
 func addToWatch(nsConfig *configAdaptor, certPath, keyPath string) (string, string, string, error) {
-	var err error
 	if certPath == "" {
 		return "", "", "", nil
-	}
-	if nsConfig.watch == nil {
-		nsConfig.watch, err = newWatcher(nsConfig)
-		if err != nil {
-			return "", "", "", err
-		}
-		go nsConfig.watch.Run()
 	}
 	return nsConfig.watch.addDir(certPath, keyPath)
 }
@@ -126,16 +142,45 @@ func getTLSDetailsFromTransportSocket(nsConfig *configAdaptor, transportSocket *
 		} else {
 			for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
 				var certFileName, keyFileName, rootCertFileName string
-				if sdsConfig.GetName() == "default" {
-					certFileName, keyFileName, rootCertFileName, _ = addToWatch(nsConfig, ClientCertChainFile, ClientKeyFile)
-					if rootCertFileName == "" {
-						_, _, rootCertFileName, _ = addToWatch(nsConfig, CAcertFile, "")
+				var certFile, keyFile, rootFile string
+				sdsName := sdsConfig.GetName()
+				switch sdsName {
+				case defaultSDSName:
+					certFile = ClientCertChainFile
+					keyFile = ClientKeyFile
+					rootFile = CAcertFile
+				case "":
+					break
+				default:
+					// App certs are present in "TlsCertificateSdsSecretConfigs" whereas
+					// root cert is present in ValidationContext
+					// Format of sdsName is "file-cert:path-of-leaf-cert~path-of-key"
+					// e.g. "file-cert:/etc/istio/ingressgateway-certs/tls.crt~/etc/istio/ingressgateway-certs/tls.key"
+					n := strings.Split(sdsName, ":")
+					if n[0] != sdsLeafCertPrefix { // We need certificate from SDS resource. If it is not present, skip it.
+						xDSLogger.Warn("getTLSDetailsFromTransportSocket: Certificate prefix is not proper")
+						break
 					}
-					lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
-						CertFilename:       certFileName,
-						PrivateKeyFilename: keyFileName,
-						RootCertFilename:   rootCertFileName})
+					ck := strings.Split(n[1], "~") // `~` is separator of cert and key
+					certFile = ck[0]
+					keyFile = ck[1]
+					rootFile = tlsContext.GetCommonTlsContext().GetCombinedValidationContext().GetValidationContextSdsSecretConfig().GetName()
+					n = strings.Split(rootFile, ":")
+					if n[0] != sdsRootCertPrefix {
+						rootFile = "" // Keep it empty. Proceed with client certificate only OR should we skip it?
+						//break
+					} else {
+						rootFile = n[1]
+					}
 				}
+				certFileName, keyFileName, rootCertFileName, _ = addToWatch(nsConfig, certFile, keyFile)
+				if rootCertFileName == "" {
+					_, _, rootCertFileName, _ = addToWatch(nsConfig, rootFile, "")
+				}
+				lbObj.BackendTLS = append(lbObj.BackendTLS, nsconfigengine.SSLSpec{
+					CertFilename:       certFileName,
+					PrivateKeyFilename: keyFileName,
+					RootCertFilename:   rootCertFileName})
 			}
 			// If certificates are provided as part of UpstreamTlsContext, then retrieve same
 			for _, tlsCertificate := range tlsContext.GetCommonTlsContext().GetTlsCertificates() {
@@ -371,13 +416,37 @@ func getTLSfromTransportSocket(nsConfig *configAdaptor, csObj *nsconfigengine.CS
 		}
 	}
 	for _, sdsConfig := range tlsContext.GetCommonTlsContext().GetTlsCertificateSdsSecretConfigs() {
-		if sdsConfig.GetName() == "default" {
-			certKeyFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, ClientCertChainFile, ClientKeyFile)
-			if rootCertFileName == "" {
-				_, _, rootCertFileName, _ = addToWatch(nsConfig, CAcertFile, "")
+		var certFile, keyFile, rootFile string
+		sdsName := sdsConfig.GetName()
+		switch sdsName {
+		case defaultSDSName:
+			certFile = ClientCertChainFile
+			keyFile = ClientKeyFile
+			rootFile = CAcertFile
+		case "":
+			break
+		default:
+			n := strings.Split(sdsName, ":")
+			if n[0] != sdsLeafCertPrefix {
+				break
 			}
-			csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: certKeyFileName, PrivateKeyFilename: keyFileName, RootCertFilename: rootCertFileName})
+			ck := strings.Split(n[1], "~")
+			certFile = ck[0]
+			keyFile = ck[1]
+			rootFile = tlsContext.GetCommonTlsContext().GetValidationContext().GetTrustedCa().GetFilename()
+			if rootFile == "" { // Could not fine CA cert from validationContext. Check in CombinedValidationContext
+				rootFile = tlsContext.GetCommonTlsContext().GetCombinedValidationContext().GetValidationContextSdsSecretConfig().GetName()
+				n = strings.Split(rootFile, ":")
+				if n[0] == sdsRootCertPrefix {
+					rootFile = n[1]
+				}
+			}
 		}
+		certKeyFileName, keyFileName, rootCertFileName, _ := addToWatch(nsConfig, certFile, keyFile)
+		if rootCertFileName == "" {
+			_, _, rootCertFileName, _ = addToWatch(nsConfig, rootFile, "")
+		}
+		csObj.FrontendTLS = append(csObj.FrontendTLS, nsconfigengine.SSLSpec{SNICert: sniCertVal, CertFilename: certKeyFileName, PrivateKeyFilename: keyFileName, RootCertFilename: rootCertFileName})
 		return nil
 	}
 	return tlsContext
@@ -858,8 +927,18 @@ func staticAndDNSTypeClusterEndpointUpdate(nsConfig *configAdaptor, cluster *xds
 		resourceName: entityName,
 		resource:     svcGpObj,
 	}
+
+	ok, port, direction := extractPortAndDirection(cluster.GetName())
+	if ok && direction == "inbound" {
+		// If it is inbound, then create endpoint on localhost and provided port.
+		// Inbound will be true only sidecar proxies.
+		svcGpObj.IsIPOnlySvcGroup = true
+		svcGpObj.Members = append(svcGpObj.Members, nsconfigengine.ServiceGroupMember{IP: nsLoopbackIP, Port: port, Weight: defaultWeight})
+		nsConfig.addConfig(&confBl)
+		return
+	}
 	/* Hosts field is removed in go-control-plane:0.9.8.
-	 * So, no ned to check for STATIC and STRICT_DNS type clusters
+	 * So, no need to check for STATIC and STRICT_DNS type clusters
 	 */
 	if cluster.GetType() == xdsCluster.Cluster_ORIGINAL_DST {
 		ok, port, domain := extractPortAndDomainName(cluster.GetName())

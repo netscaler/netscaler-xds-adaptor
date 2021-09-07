@@ -94,17 +94,17 @@ func Test_verifyPeerCertificate(t *testing.T) {
 		expectedError error
 	}{
 		{EI{"../tests/tls_conn_mgmt_certs/client-root-cert.pem",
-			"spiffe://cluster.local/ns/default/sa/httpserver",
+			"spiffe://cluster.local/ns/httpbin/sa/httpbin",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, nil,
 		},
 		{EI{"../tests/tls_conn_mgmt_certs/client-root-cert.pem",
-			"spiffe://cluster.local/ns/default/sa/httpserver-wrong",
+			"spiffe://cluster.local/ns/httpbin/sa/httpbin-wrong",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, idMismatchErr,
 		},
 		{EI{"../tests/tls_conn_mgmt_certs/cert-chain.pem",
-			"spiffe://cluster.local/ns/default/sa/httpserver",
+			"spiffe://cluster.local/ns/httpbin/sa/httpbin",
 			"../tests/tls_conn_mgmt_certs/client-cert.pem",
 			"../tests/tls_conn_mgmt_certs/client-key.pem"}, verifyFailErr,
 		},
@@ -162,9 +162,9 @@ func Test_secureConnectToServer(t *testing.T) {
 		input          EI
 		expectedOutput EO
 	}{
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/httpbin/sa/httpbin", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "../tests/tls_conn_mgmt_certs/client-key.pem"},
 			EO{nil, errors.New("context deadline exceeded")}},
-		{EI{"localhost:15011", "spiffe://cluster.local/ns/default/sa/httpserver", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
+		{EI{"localhost:15011", "spiffe://cluster.local/ns/httpbin/sa/httpbin", "../tests/tls_conn_mgmt_certs/client-root-cert.pem", "../tests/tls_conn_mgmt_certs/client-cert.pem", "emptyfile"},
 			EO{nil, errors.New("tls: failed to find any PEM data in key input")}},
 	}
 
