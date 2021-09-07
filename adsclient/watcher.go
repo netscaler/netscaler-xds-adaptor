@@ -16,6 +16,7 @@ package adsclient
 import (
 	"citrix-xds-adaptor/nsconfigengine"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -34,7 +35,20 @@ type Watcher struct {
 	stopCh     chan bool
 }
 
-func newWatcher(nsConfig *configAdaptor) (*Watcher, error) {
+// StartCertWatcher will start the Certificate Watcher
+func (client *AdsClient) StartCertWatcher(errCh chan<- error) error {
+	w, err := newWatcher()
+	if err != nil {
+		xDSLogger.Error("StartCertWatcher: Could not create new watcher", "error", err.Error())
+		return err
+	}
+	client.certWatcherMux.Lock()
+	client.certWatcher = w
+	client.certWatcherMux.Unlock()
+	go client.certWatcher.Run(errCh)
+	return nil
+}
+func newWatcher() (*Watcher, error) {
 	var err error
 	watch := &Watcher{
 		dirNames: make(map[string]map[string]string),
@@ -45,7 +59,6 @@ func newWatcher(nsConfig *configAdaptor) (*Watcher, error) {
 		xDSLogger.Error("newWatcher: Failed to create Watcher", "error", err)
 		return nil, err
 	}
-	watch.nsConfig = nsConfig
 	return watch, nil
 }
 func fileExists(filename string) bool {
@@ -178,15 +191,17 @@ func (w *Watcher) addDir(certPath, keyPath string) (string, string, string, erro
 }
 
 // Run is a thread which will alert whenever files in the directory added for watch gets updated.
-func (w *Watcher) Run() {
+func (w *Watcher) Run(errCh chan<- error) {
 	for {
 		select {
 		case <-w.stopCh:
-			xDSLogger.Info("xDS-adaptor's Watcher thread stopped")
+			xDSLogger.Info("xDS-adaptor's Certificate watcher thread stopped")
+			errCh <- fmt.Errorf("xDS-adaptor's Certificate watcher thread stopped")
 			return
 		case event, ok := <-w.watcher.Events:
 			if !ok {
-				xDSLogger.Error("Error watching events")
+				xDSLogger.Error("Error watching certificate related events")
+				errCh <- fmt.Errorf("Error watching certificate related events")
 				return
 			}
 			w.watcherMux.Lock()
@@ -245,6 +260,7 @@ func (w *Watcher) Run() {
 			w.watcherMux.Unlock()
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
+				errCh <- fmt.Errorf("Certificate watcher encountered issue in monitoring events ")
 				return
 			}
 			xDSLogger.Error("Watcher error", "error", err)

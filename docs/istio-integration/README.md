@@ -6,7 +6,7 @@ Citrix ADC can be integrated with Istio in three ways:
 
 - Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh. 
 - Citrix ADC CPX as a sidecar proxy with application containers in the service mesh.
-- Citrix ADC CPX, MPX, or VPX as an Egress Gateway for the service mesh.
+- Citrix ADC CPX as an Egress Gateway for the service mesh.
 
 ## Citrix ADC as an Ingress Gateway for Istio
 
@@ -16,9 +16,9 @@ An Istio ingress gateway acts as an entry point for the incoming traffic and sec
 
 In Istio service mesh, a sidecar proxy runs alongside application pods and it intercepts and manage incoming and outgoing traffic for applications. Citrix ADC CPX can be deployed as the sidecar proxy in the application pods. A sidecar proxy applies the configured routing policies or rules to the ingress and egress traffic from the pod.
 
-## Citrix ADC as an Egress Gateway for Istio
+## Citrix ADC CPX as an Egress Gateway for Istio
 
-An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh. It also provides routing rules to exit the Istio service mesh.
+An Egress Gateway defines the traffic exit point from a service mesh. The Citrix ADC CPX as an Egress Gateway performs load balancing, monitoring at the edge of the service mesh. It also provides routing rules to exit the Istio service mesh.
 
 ## <a name="architecture">Architecture</a>
 
@@ -30,11 +30,11 @@ In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress G
 
 | Ingress Gateway | Sidecar Proxy | Egress Gateway| Supported |
 |-----------------|---------------|---------------|-----------|
-| Citrix ADC | Citrix ADC CPX | Citrix ADC | Yes |
+| Citrix ADC | Citrix ADC CPX | Citrix ADC CPX | Yes |
 | Citrix ADC | Citrix ADC CPX | Envoy proxy | Yes |
-| Citrix ADC | Envoy proxy | Citrix ADC | Yes |
+| Citrix ADC | Envoy proxy | Citrix ADC CPX | Yes |
 | Citrix ADC | Envoy proxy | Envoy proxy | Yes |
-| Envoy proxy | Citrix ADC CPX| Citrix ADC | Yes |
+| Envoy proxy | Citrix ADC CPX| Citrix ADC CPX | Yes |
 | Envoy proxy | Citrix ADC CPX| Envoy proxy | Yes |
 
 To deploy Citrix ADC with Istio using Helm charts, see [Deployment](../istio-integration/deploy-istio-adaptor-helm-chart.md).

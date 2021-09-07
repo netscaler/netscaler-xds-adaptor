@@ -126,6 +126,8 @@ type AdsClient struct {
 	caInfo             *certkeyhandler.CADetails
 	ckHandler          *certkeyhandler.CertKeyHandler
 	ckHandlerMux       sync.Mutex
+	certWatcherMux     sync.Mutex
+	certWatcher        *Watcher
 }
 
 func init() {
@@ -447,11 +449,28 @@ func (client *AdsClient) StartClient() {
 	go func() {
 		ckHandlerStarted := false
 		ckhErrCh := make(chan error)
+		certWatcherStarted := false
+		cwErrCh := make(chan error)
 		for {
 			select {
 			case <-client.quit:
 				xDSLogger.Trace("Stopping ADS client")
 				return
+
+			case cwerr := <-cwErrCh:
+				if cwerr != nil {
+					xDSLogger.Error("StartClient: Certificate Watcher stopped.", "error", cwerr.Error())
+					certWatcherStarted = false
+					// Start certWatcher again
+					client.certWatcherMux.Lock()
+					client.certWatcher = nil
+					client.certWatcherMux.Unlock()
+					if err := client.StartCertWatcher(cwErrCh); err != nil {
+						xDSLogger.Error("StartClient: Could not start certificate watcher", "error", err.Error())
+						return
+					}
+					certWatcherStarted = true
+				}
 			case ckherr := <-ckhErrCh:
 				if ckherr != nil {
 					xDSLogger.Error("StartClient: Certificate Key Handler Problem", "ckherr", ckherr.Error())
@@ -467,6 +486,19 @@ func (client *AdsClient) StartClient() {
 					ckHandlerStarted = true
 				}
 			default:
+				/*
+					The Order of execution is important:
+					i) Create certificate watcher to monitor changes in SSL certificates
+					ii) Create ADC config adaptor
+					iii) Create a certificate-key handler to generate CSR
+				*/
+				if certWatcherStarted == false {
+					if err := client.StartCertWatcher(cwErrCh); err != nil {
+						xDSLogger.Error("StartClient: Could not start certificate watcher", "error", err.Error())
+						return
+					}
+					certWatcherStarted = true
+				}
 				err = client.assignConfigAdaptor()
 				if err != nil {
 					continue
@@ -520,6 +552,8 @@ func (client *AdsClient) assignConfigAdaptor() error {
 	defer client.nsConfigAdaptorMux.Unlock()
 	if client.nsConfigAdaptor == nil {
 		client.nsConfigAdaptor, err = newConfigAdaptor(client.nsInfo)
+		client.certWatcher.nsConfig = client.nsConfigAdaptor
+		client.nsConfigAdaptor.watch = client.certWatcher
 		if err != nil {
 			xDSLogger.Error("assignConfigAdaptor: Could not create nsConfigAdaptor", "error", err.Error())
 			return err
@@ -573,6 +607,11 @@ func (client *AdsClient) StopClient() {
 		client.ckHandler.StopHandler()
 	}
 	client.ckHandlerMux.Unlock()
+	client.certWatcherMux.Lock()
+	if client.certWatcher != nil {
+		client.certWatcher.Stop()
+	}
+	client.certWatcherMux.Unlock()
 	client.quit <- 1
 	xDSLogger.Trace("Stopped adsClient")
 }

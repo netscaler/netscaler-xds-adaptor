@@ -245,6 +245,9 @@ func NewServiceGroupAPI(name string) *ServiceGroupAPI {
 
 func isLogProxyWorkingBuild() bool {
 	nsReleaseNo, nsBuildNo := getNsReleaseBuild()
+	if nsReleaseNo >= 13.1 {
+		return true
+	}
 	switch nsReleaseNo {
 	case 13.0:
 		if nsBuildNo >= 48.0 {

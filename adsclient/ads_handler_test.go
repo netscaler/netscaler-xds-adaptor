@@ -79,6 +79,35 @@ func Test_extractPortAndDomainName(t *testing.T) {
 	}
 }
 
+func Test_extractPortAndDirection(t *testing.T) {
+	type EO struct {
+		ok        bool
+		port      int
+		direction string
+	}
+	cases := []struct {
+		input          string
+		expectedOutput EO
+	}{
+		{"outbound|80|http|httpbin.org", EO{true, 80, "outbound"}},
+		{"PassthroughCluster", EO{false, 0, ""}},
+		{"outbound|8080||*.bar.com", EO{true, 8080, "outbound"}},
+		{"inbound|8080||*", EO{true, 8080, "inbound"}},
+		{"inbound|8080||", EO{true, 8080, "inbound"}},
+		{"outbound|80abcd||httpbin.org", EO{false, 0, ""}},
+		{"outbound|||httpbin.org", EO{false, 0, ""}},
+		{"ppp|90", EO{false, 0, ""}},
+		{"ppp|90||httpbin.org", EO{false, 0, ""}},
+	}
+
+	for _, c := range cases {
+		ok, port, direction := extractPortAndDirection(c.input)
+		if (ok != c.expectedOutput.ok) || (port != c.expectedOutput.port) || (direction != c.expectedOutput.direction) {
+			t.Errorf("Incorrect output for `%s` : expected %+v but got `ok:%t port:%d direction:%s`", c.input, c.expectedOutput, ok, port, direction)
+		}
+	}
+}
+
 func Test_getLbMethod(t *testing.T) {
 	cases := []struct {
 		input          cluster.Cluster_LbPolicy
@@ -155,6 +184,9 @@ func Test_clusterAdd(t *testing.T) {
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	log.Println("HTTP cluster add")
 	cds.OutlierDetection = &cluster.OutlierDetection{Interval: &duration.Duration{Seconds: int64(5), Nanos: int32(100000000)}, BaseEjectionTime: &duration.Duration{Seconds: int64(7)}, ConsecutiveGatewayFailure: &wrappers.UInt32Value{Value: uint32(9)}}
 	lbObj := &nsconfigengine.LBApi{Name: "c1", FrontendServiceType: "HTTP", LbMethod: "ROUNDROBIN", BackendServiceType: "HTTP", MaxConnections: 0xfffffffe, MaxHTTP2ConcurrentStreams: 1000, NetprofileName: "k8s"}
@@ -280,6 +312,9 @@ func Test_listenerAdd(t *testing.T) {
 	keyFile := "../tests/tls_conn_mgmt_certs/key.pem"
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
 	if err != nil {
 		t.Errorf("Failed reading Cert/Key- %v", err)
@@ -427,6 +462,9 @@ func Test_clusterAdd_transportSocket(t *testing.T) {
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
 	if err != nil {
 		t.Errorf("Failed reading Cert/Key- %v", err)
@@ -567,6 +605,9 @@ func Test_clusterAdd_SDS(t *testing.T) {
 	cds := env.MakeCluster("c1") // Creates a cluster of type EDS
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	log.Println("HTTP cluster add")
 	rootCertFile := "../tests/tls_conn_mgmt_certs/root-cert.pem"
 	certChainFile := "../tests/tls_conn_mgmt_certs/cert-chain.pem"
@@ -711,6 +752,9 @@ func Test_getAuthConfig(t *testing.T) {
 	expectedAuthSpec := &nsconfigengine.AuthSpec{Name: "l1", Issuer: "https://secret.foo.com", Jwks: jwtKey, Forward: false, ForwardHeader: "x-header", Audiences: []string{"a1", "a2"}, FrontendTLS: []nsconfigengine.SSLSpec{{SNICert: false, CertFilename: ClientCertChainFile, PrivateKeyFilename: ClientKeyFile}}}
 	t.Logf("Get AuthSpecConfig")
 	nsConfAdaptor := getNsConfAdaptor()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	authSpec := getAuthConfig(nsConfAdaptor, "l1", httpFilters)
 	compare := reflect.DeepEqual(expectedAuthSpec, authSpec)
 	if compare == false {
@@ -897,6 +941,9 @@ func Test_multiClusterListenerConfig(t *testing.T) {
 	keyFileName := "../tests/tls_conn_mgmt_certs/client-key.pem"
 	nsConfAdaptor := getNsConfAdaptor()
 	nsConfAdaptor.client = env.GetNitroClient()
+	w, _ := newWatcher()
+	nsConfAdaptor.watch = w
+	w.nsConfig = nsConfAdaptor
 	certData, keyData, err := env.GetCertKeyData(certFileName, keyFileName)
 	if err != nil {
 		t.Errorf("Failed reading Cert/Key- %v", err)

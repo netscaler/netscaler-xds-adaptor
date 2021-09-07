@@ -487,8 +487,5 @@ func (confAdaptor *configAdaptor) startConfigAdaptor(adsClient *AdsClient) {
 
 func (confAdaptor *configAdaptor) stopConfigAdaptor() {
 	xDSLogger.Trace("stopConfigAdaptor: Config adaptor is stopped")
-	if confAdaptor.watch != nil {
-		confAdaptor.watch.Stop()
-	}
 	confAdaptor.quit <- true
 }
