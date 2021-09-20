@@ -1,5 +1,5 @@
 # Project information
-site_name: Citrix ADC Istio Adaptor
+site_name: Citrix ADC xDS Adaptor
 site_title: Developer Docs
 site_description: Documentation for the Citrix ADC integration with Istio
 site_url: https://developer-docs.citrix.com

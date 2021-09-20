@@ -24,6 +24,7 @@ Sometimes, even though the certificate signing request (CSR) is approved by the 
         cpx-sidecar-injector.citrix-system   51s   kubernetes.io/legacy-unknown   system:serviceaccount:citrix-cpx-istio-sidecar-injector:cpx-sidecar-injector-service-account   Approved
 
 Following is a workaround suggested in the Kubernetes documentation to resolve the issue:
+
 1.	Enable the Kubernetes controller manager’s default certificate [signer](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#a-note-to-cluster-administrators) using the following steps.
     1.	Edit your cluster in Rancher.
     2.	Click the Edit as YAML button and edit as the following (See the [Rancher cluster configuration](https://rancher.com/docs/rancher/v2.x/en/cluster-admin/editing-clusters/) for information to edit the YAML file).
@@ -34,5 +35,6 @@ Following is a workaround suggested in the Kubernetes documentation to resolve t
         cluster-signing-cert-file: "/etc/kubernetes/ssl/kube-ca.pem"
         cluster-signing-key-file: "/etc/kubernetes/ssl/kube-ca-key.pem"
  	```
-For more information on kube-controllers services default options in RKE, see [Rancher documentation](https://rancher.com/docs/rke/latest/en/config-options/services/#kubernetes-controller-manager).
+
+For more information on `kube-controllers` services default options in RKE, see [Rancher documentation](https://rancher.com/docs/rke/latest/en/config-options/services/#kubernetes-controller-manager).
 
