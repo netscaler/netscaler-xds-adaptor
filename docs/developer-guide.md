@@ -1,8 +1,8 @@
-# Developer Guide
+# Citrix ADC xDS-adaptor Developer Guide
 
 ## Build the Citrix ADC xDS-adaptor
 
-To build the `xDS-adaptor` container, you need to have the following software installed on your machine:
+To build the Citrix ADC `xDS-adaptor` container, you need to have the following software installed on your machine:
 
 - Docker
 - Make
@@ -12,14 +12,16 @@ To build images, run the following command:
 
     make build
 
-To create the xDS-adaptor container, run the following command:
+To create the  Citrix ADC xDS-adaptor container, run the following command:
 
     make docker_build
 
 ## Testing the Citrix ADC xDS-adaptor
 
-Citrix ADC `xDS-adaptor` is developed to work generically for Ingress and sidecar proxy. So, testing `xDS-adaptor` in any mode of Citrix ADC CPX is enough. Citrix ADC `xDS-adaptor`'s test coverage primarily focuses on [Unit testing](https://en.wikipedia.org/wiki/Unit_testing) of `xDS-adaptor` code and [Integration testing](https://en.wikipedia.org/wiki/Integration_testing) with Citrix ADC.
-As a prerequisite for testing `xDS-adaptor`, run [Citrix ADC CPX](https://docs.citrix.com/en-us/citrix-adc-cpx/12-1/deploy-using-docker-image-file.html) in the same machine.
+Citrix ADC `xDS-adaptor` is developed to work generically for Ingress and sidecar proxy. So, testing  Citrix ADC `xDS-adaptor` in any mode of Citrix ADC CPX is enough. Citrix ADC `xDS-adaptor`'s test coverage primarily focuses on [Unit testing](https://en.wikipedia.org/wiki/Unit_testing) of  Citrix ADC xDS-adaptor code and [Integration testing](https://en.wikipedia.org/wiki/Integration_testing) with Citrix ADC.
+
+As a prerequisite for testing  Citrix ADC xDS-adaptor, run [Citrix ADC CPX](https://docs.citrix.com/en-us/citrix-adc-cpx/12-1/deploy-using-docker-image-file.html) in the same machine.
+
 Specify the following environment variables before running the test command.
 
 | Parameter                      | Description                   |
@@ -38,6 +40,3 @@ You can clean up using the following command:
 
 
         make clean
-
-
-

@@ -1,7 +1,6 @@
-# Helm charts for Citrix ADC integration to Istio
+# Helm charts for Citrix ADC integration with Istio
 
 The [citrix-helm-charts repository](https://github.com/citrix/citrix-helm-charts) contains [Helm](https://helm.sh) charts for installing Citrix ADC CPX as Ingress Gateway, Egress Gateway, and sidecar proxy in [Istio](https://istio.io) version 1.6.4.
-
 
 > **Note:** Charts may require access to the `kube-system` namespace and require cluster wide permissions for full functionality. Install and configure the Helm client and Tiller.
 
@@ -23,4 +22,4 @@ The stable directory contains charts which are created and tested by Citrix.
 
 ## Documentation
 
-Chart's README describes the functionality and values.yaml shows the default values.
+Chart's README describes the functionality and `values.yaml` shows the default values.

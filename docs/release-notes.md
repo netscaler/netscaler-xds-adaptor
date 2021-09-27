@@ -1,6 +1,6 @@
 # Release Notes
 
-The Citrix ADC `xds-adaptor` release notes describe new features, enhancements to existing features, fixed issues, and known issues available in the release. The latest version of `xds-adaptor` is available in the [Quay.io](https://quay.io/citrix/citrix-xds-adaptor) repository.
+The Citrix ADC `xds-adaptor` release notes describe new features, enhancements to existing features, fixed issues, and known issues available in the release. The latest version of Citrix ADC `xds-adaptor` is available in the [Quay.io](https://quay.io/citrix/citrix-xds-adaptor) repository.
 
 Release notes may include one or more of the following sections:
 

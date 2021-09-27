@@ -1,8 +1,12 @@
 # Citrix ADC integration with Istio
 
-A service mesh is an infrastructure layer that handles communication between microservices. Service mesh provides capabilities like service discovery, load balancing, security, and monitoring. [Istio](https://istio.io) is an open source and platform-independent service mesh that connects, monitors, and secures microservices. Citrix ADC has advanced traffic management capabilities for enhancing application performance and provides comprehensive security. Citrix ADC integration with Istio allows you to secure and optimize traffic for applications in the service mesh using Citrix ADC features.
+A service mesh is an infrastructure layer that handles communication between microservices. Service mesh provides capabilities like service discovery, load balancing, security, and monitoring. [Istio](https://istio.io) is an open source and platform-independent service mesh that connects, monitors, and secures microservices. 
 
-Citrix ADC can be integrated with Istio in three ways:
+Citrix ADC has advanced traffic management capabilities for enhancing application performance and provides comprehensive security. Citrix ADC integration with Istio allows you to secure and optimize traffic for applications in the service mesh using Citrix ADC features.
+
+The Citrix ADC xDS-adaptor is a container for integrating Citrix ADC with service mesh control plane implementations based on xDS APIs (Istio, Consul, and so on). It communicates with the service mesh control plane and listens for updates by acting as a gRPC client to the control plane API server. Based on the updates from the control plane, the Citrix ADC xDS-Adaptor generates the equivalent Citrix ADC configuration.
+
+Citrix ADC can be integrated with Istio in the following ways:
 
 - Citrix ADC CPX, MPX, or VPX as an Ingress Gateway to the service mesh. 
 - Citrix ADC CPX as a sidecar proxy with application containers in the service mesh.
@@ -39,7 +43,7 @@ In an Istio service mesh, you can use Citrix ADC as an Ingress Gateway, Egress G
 
 To deploy Citrix ADC with Istio using Helm charts, see [Deployment](../istio-integration/deploy-istio-adaptor-helm-chart.md).
 
-**Note**: _Citrix ADC deployed as Ingress gateway in multi cluster Istio service mesh works only with Citrix ADC CPXs acting as sidecars._
+**Note**: _Citrix ADC deployed as Ingress gateway in multi cluster Istio service mesh works only with Citrix ADC CPX instances acting as sidecars._
 
 ## Features
 
@@ -77,17 +81,18 @@ Some important security features, which are supported on the Citrix ADC, are the
 
 #### Monitoring of service mesh certificates and keys
 
-The `xDS-adaptor` monitors the folder where a service mesh deploys certificates and keys for mutual TLS authentication between Citrix ADC proxies. After an update of certificate and key, the `xDS-adaptor` loads the new certificate and key to the Citrix ADC.
+The Citrix ADC xDS-adaptor monitors the folder where a service mesh deploys certificates and keys for mutual TLS authentication between Citrix ADC proxies. After an update of certificate and key, the Citrix ADC xDS-adaptor loads the new certificate and key to the Citrix ADC.
 
 ### Observability
 
 When a service is deployed in a service mesh, you may be interested to get insights about the service behavior. Citrix ADC proxy provides a rich set of in-built metrics to provide insights about the service behavior. When Citrix ADC CPX is deployed as a sidecar, these metrics represent the telemetry data for an application. It helps to reduce the burden of application developers by eliminating the need to include a lot of instrumentation codes in the application. Instead, the developer can focus on the core application logic.
 
-Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to endpoints such as Prometheus, Zipkin, Kafka, and so on.
+Citrix provides [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter) and [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) which help to export metrics and transactional data to endpoints such as Prometheus, Zipkin, Kafka, and so on.
 
 The statistical data of a Citrix ADC ingress device can be exported to the Prometheus using [Citrix ADC Metrics Exporter](https://github.com/citrix/citrix-adc-metrics-exporter).
 
-[Citrix Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice that collects metrics from Citrix ADCs, and export them to endpoints such as Zipkin, Kafka, and Prometheus.
+[Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) is a microservice that collects metrics from Citrix ADCs, and export them to endpoints such as Zipkin, Kafka, and Prometheus.
+
 For more information about Citrix ADC Observability Exporter, see [Citrix ADC Observability Exporter](https://github.com/citrix/citrix-observability-exporter) documentation.
 
 #### Telemetry in an Ingress or Egress Gateway
@@ -100,4 +105,4 @@ Citrix ADC CPX with Citrix ADC Observability Exporter can export metrics to Prom
 
 Citrix ADC CPX sends transactional data to Citrix ADC Observability Exporter which, eventually, exports these traces spans to [Zipkin](https://zipkin.io). This distributed tracing enables you to track a service-to-service communication within a service mesh. It helps to get deeper understanding about request latency, serialization, and parallelism.
 
-To know the list of supported fields on Citrix ADC as per the service mesh CRDs (Destination Rule, Virtual Service, Policy, Gateway, and Service Entry), see [features](features.md).
+For information on the list of the supported fields on Citrix ADC as per the service mesh CRDs (Destination Rule, Virtual Service, Policy, Gateway, and Service Entry), see [features](features.md).
