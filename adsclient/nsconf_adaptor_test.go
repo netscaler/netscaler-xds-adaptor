@@ -105,7 +105,9 @@ func Test_bootstrapConfig(t *testing.T) {
 		configs2 := []env.VerifyNitroConfig{
 			{"nsacl", "allowadmserver", map[string]interface{}{"aclname": "allowadmserver", "aclaction": "ALLOW", "srcipval": "1.1.1.1", "priority": 65537}},
 			{"nsacl", "allowlicenseserver", map[string]interface{}{"aclname": "allowlicenseserver", "aclaction": "ALLOW", "srcipval": "1.1.1.2", "priority": 65538}},
-			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1) && CLIENT.IP.DST.NE(1.1.1.2)"}},
+			{"nsacl", "allownitro", map[string]interface{}{"aclname": "allownitro", "aclaction": "ALLOW", "protocol": "TCP", "destportval": "9443", "priority": 65540, "kernelstate": "APPLIED"}},
+			{"nsacl", "allowicmp", map[string]interface{}{"aclname": "allowicmp", "aclaction": "ALLOW", "protocol": "ICMP", "priority": 65546, "kernelstate": "APPLIED"}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1) && CLIENT.TCP.DSTPORT.NE(5557) && CLIENT.TCP.DSTPORT.NE(5558) && CLIENT.TCP.DSTPORT.NE(5563) && CLIENT.IP.DST.NE(1.1.1.2) && CLIENT.TCP.DSTPORT.NE(27000) && CLIENT.TCP.DSTPORT.NE(7279)"}},
 		}
 		configs3 := []env.VerifyNitroConfig{}
 		configs3 = append(configs, configs2...)
@@ -123,7 +125,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		}
 		configs2 = []env.VerifyNitroConfig{
 			{"nsacl", "allowlicenseserver", map[string]interface{}{"aclname": "allowlicenseserver", "aclaction": "ALLOW", "srcipval": "1.1.1.2", "priority": 65538}},
-			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.TCP.DSTPORT.NE(15012) && CLIENT.IP.DST.NE(1.1.1.2)"}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.TCP.DSTPORT.NE(15012) && CLIENT.IP.DST.NE(1.1.1.2) && CLIENT.TCP.DSTPORT.NE(27000) && CLIENT.TCP.DSTPORT.NE(7279)"}},
 		}
 		configs3 = append(configs, configs2...)
 		err = env.VerifyConfigBlockPresence(configAd.client, configs3)
@@ -140,7 +142,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		}
 		configs2 = []env.VerifyNitroConfig{
 			{"nsacl", "allowadmserver", map[string]interface{}{"aclname": "allowadmserver", "aclaction": "ALLOW", "srcipval": "1.1.1.1", "priority": 65537}},
-			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1)"}},
+			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1) && CLIENT.TCP.DSTPORT.NE(5557) && CLIENT.TCP.DSTPORT.NE(5558) && CLIENT.TCP.DSTPORT.NE(5563)"}},
 		}
 		configs3 = append(configs, configs2...)
 		err = env.VerifyConfigBlockPresence(configAd.client, configs3)

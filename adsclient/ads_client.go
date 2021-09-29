@@ -552,12 +552,12 @@ func (client *AdsClient) assignConfigAdaptor() error {
 	defer client.nsConfigAdaptorMux.Unlock()
 	if client.nsConfigAdaptor == nil {
 		client.nsConfigAdaptor, err = newConfigAdaptor(client.nsInfo)
-		client.certWatcher.nsConfig = client.nsConfigAdaptor
-		client.nsConfigAdaptor.watch = client.certWatcher
 		if err != nil {
 			xDSLogger.Error("assignConfigAdaptor: Could not create nsConfigAdaptor", "error", err.Error())
 			return err
 		}
+		client.certWatcher.nsConfig = client.nsConfigAdaptor
+		client.nsConfigAdaptor.watch = client.certWatcher
 		client.nsConfigAdaptor.startConfigAdaptor(client)
 	}
 	return nil

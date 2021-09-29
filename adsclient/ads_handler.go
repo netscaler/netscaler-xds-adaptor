@@ -47,7 +47,10 @@ const (
 	localHostIP         = "127.0.0.1"
 	nsLoopbackIP        = "192.0.0.2"
 	logStreamPort       = 5557 // Logstream is used for Transactional data which is used in tracing (e.g. zipkin)
+	logStreamPort5558   = 5558
 	ulfdRestPort        = 5563 // Rest port is used for time-series data which is used in Prometheus
+	licensingPort       = 27000
+	licensingPort7279   = 7279
 	defaultWeight       = 1
 	defaultMirrorWeight = 100
 	citrixEgressGateway = "citrix-egressgateway"
