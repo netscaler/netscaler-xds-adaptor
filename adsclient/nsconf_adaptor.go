@@ -147,6 +147,7 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 	jsonLogFormat := getBoolEnv("JSONLOG")
 	configAdaptor.client, err = netscaler.NewNitroClientFromParams(netscaler.NitroParams{Url: nsinfo.NetscalerURL, Username: nsinfo.NetscalerUsername, Password: nsinfo.NetscalerPassword, SslVerify: nsinfo.SslVerify, RootCAPath: nsinfo.RootCAPath, ServerName: nsinfo.ServerName, LogLevel: logLevel, JSONLogFormat: jsonLogFormat})
 	if err != nil {
+		xDSLogger.Error("newConfigAdaptor: Nitroclient creation failed", "error", err)
 		return nil, err
 	}
 	for {
@@ -162,6 +163,7 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 		if isCPX(nsinfo.NetscalerURL) {
 			err = configAdaptor.sidecarBootstrapConfig()
 			if err != nil {
+				xDSLogger.Error("newConfigAdaptor: BootstrapConfig failed", "error", err)
 				return nil, err
 			}
 		}
@@ -232,14 +234,19 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 		listenPolicy = listenPolicy + " && CLIENT.TCP.DSTPORT.NE(" + confAdaptor.caServerPort + ")"
 	}
 	if len(confAdaptor.analyticsServerIP) > 0 {
-		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.analyticsServerIP + ")"
+		// Refer https://docs.citrix.com/en-us/citrix-application-delivery-management-service/system-requirements.html#ports
+		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.analyticsServerIP + ")" + " && CLIENT.TCP.DSTPORT.NE(" + fmt.Sprint(logStreamPort) + ")" + " && CLIENT.TCP.DSTPORT.NE(" + fmt.Sprint(logStreamPort5558) + ")" + " && CLIENT.TCP.DSTPORT.NE(" + fmt.Sprint(ulfdRestPort) + ")"
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowadmserver", Resource: ns.Nsacl{Aclname: "allowadmserver", Aclaction: "ALLOW", Srcip: true, Srcipval: confAdaptor.analyticsServerIP, Priority: 65537}})
+		// Identify secure Nitro port to allow Nitro traffic from ADM
+		snp, _ := nsconfigengine.GetParticularNSField(confAdaptor.client, "nsparam", "mgmthttpsport")
+		secureNitroPort := fmt.Sprintf("%v", snp)
+		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allownitro", Resource: ns.Nsacl{Aclname: "allownitro", Aclaction: "ALLOW", Protocol: "TCP", Destport: true, Destportval: secureNitroPort, Priority: 65540}})
+		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowicmp", Resource: ns.Nsacl{Aclname: "allowicmp", Aclaction: "ALLOW", Protocol: "ICMP", Priority: 65546}})
 	}
 	if len(confAdaptor.licenseServerIP) > 0 && confAdaptor.licenseServerIP != confAdaptor.analyticsServerIP {
-		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.licenseServerIP + ")"
+		listenPolicy = listenPolicy + " && CLIENT.IP.DST.NE(" + confAdaptor.licenseServerIP + ")" + " && CLIENT.TCP.DSTPORT.NE(" + fmt.Sprint(licensingPort) + ")" + " && CLIENT.TCP.DSTPORT.NE(" + fmt.Sprint(licensingPort7279) + ")"
 		configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowlicenseserver", Resource: ns.Nsacl{Aclname: "allowlicenseserver", Aclaction: "ALLOW", Srcip: true, Srcipval: confAdaptor.licenseServerIP, Priority: 65538}})
 	}
-	// Create drop_all_vserver config
 	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "drop_all_vserver", Resource: lb.Lbvserver{Name: "drop_all_vserver", Servicetype: "ANY", Ipv46: "*", Port: 65535, Listenpolicy: listenPolicy}})
 	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacl.Type(), ResourceName: "denyall", Resource: ns.Nsacl{Aclname: "denyall", Aclaction: "DENY", Priority: 100000}})
 	configs = append(configs, nsconfigengine.NsConfigEntity{ResourceType: netscaler.Nsacls.Type(), ResourceName: "", Resource: ns.Nsacls{}, Operation: "apply"})

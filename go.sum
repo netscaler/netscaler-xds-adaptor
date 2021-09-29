@@ -174,6 +174,7 @@ github.com/citrix/adc-nitro-go v0.0.0-20210616092114-c917a2b77ef3 h1:qc1KwolVG6G
 github.com/citrix/adc-nitro-go v0.0.0-20210616092114-c917a2b77ef3/go.mod h1:1SPLFfIOtWnKiNWEuLhRqGrEi6VxGkXt4gpWa+mhaCg=
 github.com/citrix/adc-nitro-go v0.0.0-20210701174421-a3bd5f0e580a h1:eVmWPQ/A+dk+dAVLszXUZEY5Dpuxd4pwK6peOdU6/gQ=
 github.com/citrix/adc-nitro-go v0.0.0-20210701174421-a3bd5f0e580a/go.mod h1:1SPLFfIOtWnKiNWEuLhRqGrEi6VxGkXt4gpWa+mhaCg=
+github.com/citrix/adc-nitro-go v0.0.0-20210906082353-a57db5c1f504 h1:t+zgkZvOJW9P9IwGw4SowOTGNoYxeryuN4iqC0TbL8I=
 github.com/clbanning/x2j v0.0.0-20191024224557-825249438eec/go.mod h1:jMjuTZXRI4dUb/I5gc9Hdhagfvm9+RyrPryS/auMzxE=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
@@ -577,6 +578,7 @@ github.com/imdario/mergo v0.3.8/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJ
 github.com/imdario/mergo v0.3.9/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
 github.com/imdario/mergo v0.3.10/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
 github.com/imdario/mergo v0.3.11/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
+github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NHg9XEKhtSvM=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=

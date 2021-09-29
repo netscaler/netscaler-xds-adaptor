@@ -281,3 +281,15 @@ func GetLogString(data interface{}) string {
 	m1 = regexp.MustCompile("BEGIN EC PRIVATE KEY(.*)END EC PRIVATE KEY")
 	return m1.ReplaceAllString(s, " XXX ")
 }
+
+// GetParticularNSField function will return the value for the provided fieldName from the provided resourceType.
+// If fieldName doesn't exist in resourceType, then returned value will be nil.
+func GetParticularNSField(client *netscaler.NitroClient, resourceType, fieldName string) (interface{}, error) {
+	res, err := client.FindResource(resourceType, "")
+	//[]map[string]interface{}, error = FindResourceArrayWithParams(findParams FindParams)
+	if err != nil {
+		nsconfLogger.Error("GetParticularNSField: Could not get fieldName value for resource", "resource", resourceType, "fieldName", fieldName, "error", err)
+		return nil, err
+	}
+	return res[fieldName], nil
+}
