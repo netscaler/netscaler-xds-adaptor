@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,8 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/certkeyhandler"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/citrix/citrix-xds-adaptor/certkeyhandler"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -37,6 +39,7 @@ import (
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
+	//"istio.io/istio/pilot/pkg/model"
 )
 
 const (
@@ -98,7 +101,7 @@ type apiRequest struct {
 		ldsURL -> [csVsName]
 		rdsURL -> lds Name, CsVsName, serviceType
 		cdsURL -> serviceType
-		edsURL -> cds Name
+		edsURL -> cds Name, subset, Namespace, serviceName
 	*/
 	handler func(*AdsClient, *discovery.DiscoveryResponse)
 }
@@ -128,6 +131,51 @@ type AdsClient struct {
 	ckHandlerMux       sync.Mutex
 	certWatcherMux     sync.Mutex
 	certWatcher        *Watcher
+}
+type StringBool bool
+type StringList []string
+
+func (s StringBool) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%t"`, s)), nil
+}
+
+func (s *StringBool) UnmarshalJSON(data []byte) error {
+	pls, err := strconv.Unquote(string(data))
+	if err != nil {
+		return err
+	}
+	b, err := strconv.ParseBool(pls)
+	if err != nil {
+		return err
+	}
+	*s = StringBool(b)
+	return nil
+}
+
+// NodeMetadata defines the metadata associated with a proxy
+type NodeMetadata struct {
+	// IstioVersion specifies the Istio version associated with the proxy
+	IstioVersion string `json:"ISTIO_VERSION,omitempty"`
+	// Labels specifies the set of workload instance (ex: k8s pod) labels associated with this node.
+	Labels map[string]string `json:"LABELS,omitempty"`
+	// ConfigNamespace is the name of the metadata variable that carries info about
+	// the config namespace associated with the proxy
+	ConfigNamespace string `json:"CONFIG_NAMESPACE,omitempty"`
+	// Namespace is the namespace in which the workload instance is running.
+	Namespace string `json:"NAMESPACE,omitempty"` // replaces CONFIG_NAMESPACE
+	// ServiceAccount specifies the service account which is running the workload.
+	ServiceAccount string `json:"SERVICE_ACCOUNT,omitempty"`
+	// MeshID specifies the mesh ID environment variable.
+	MeshID string `json:"MESH_ID,omitempty"`
+	// ClusterID defines the cluster the node belongs to.
+	ClusterID string `json:"CLUSTER_ID,omitempty"`
+	// InstanceName is the short name for the workload instance (ex: pod name)
+	// replaces POD_NAME
+	InstanceName string `json:"NAME,omitempty"`
+	// SdsEnabled indicates if SDS is enabled or not. This is are set to "1" if true
+	SdsEnabled StringBool `json:"SDS,omitempty"`
+	// SdsTrustJwt indicates if SDS trust jwt is enabled or not. This is are set to "1" if true
+	SdsTrustJwt StringBool `json:"TRUSTJWT,omitempty"`
 }
 
 func init() {
@@ -203,6 +251,31 @@ func (client *AdsClient) readADSResponse() {
 	}
 }
 
+type clusterServicesMetadata struct {
+	Host      string `json:"host"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type istioMetadata struct {
+	Config   string                    `json:"config"`
+	DefPort  int                       `json:"default_original_port"`
+	Services []clusterServicesMetadata `json:"services"`
+	Subset   string                    `json:"subset"`
+}
+
+func mapToIstioMetadata(msg *_struct.Struct) (*istioMetadata, error) {
+	b, err := msg.MarshalJSON()
+	if err != nil {
+		xDSLogger.Error("mapToIstioMetadata: Error in marshalling Istio metadata", "Error", err.Error())
+	}
+	imd := istioMetadata{}
+	if err = json.Unmarshal(b, &imd); err != nil {
+		xDSLogger.Error("mapToIstioMetadata: Error in unmarshalling Istio metadata", "Error", err.Error())
+	}
+	return &imd, nil
+}
+
 func cdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 	clusterNames := make(map[string]bool)
 	edsResources := make(map[string]interface{})
@@ -221,7 +294,22 @@ func cdsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 			edsName = client.cdsAddHandler(client.nsConfigAdaptor, cdsResource, "HTTP")
 		}
 		if edsName != "" {
-			edsResources[edsName] = cdsResource.Name
+			edsR := map[string]interface{}{"cdsName": cdsResource.Name}
+			md := cdsResource.GetMetadata().GetFilterMetadata()
+			if imd, ok := md["istio"]; ok { // Istio metadata present
+				meta, err := mapToIstioMetadata(imd)
+				if err != nil {
+					xDSLogger.Error("cdsHandler: Istio metadata could not be retrieved")
+					break
+				}
+				for _, m := range meta.Services {
+					edsR["namespace"] = m.Namespace
+					edsR["servicename"] = m.Name
+					edsR["hostname"] = m.Host
+				}
+				edsR["subset"] = meta.Subset
+			}
+			edsResources[edsName] = edsR
 			if _, ok := client.apiRequests[edsURL].resources[edsName]; !ok {
 				requestEds = true
 			}
@@ -253,19 +341,23 @@ func ldsHandler(client *AdsClient, m *discovery.DiscoveryResponse) {
 		ldsResources[ldsResource.Name] = make([]string, 0)
 		dependentResourcesList := client.ldsAddHandler(client.nsConfigAdaptor, ldsResource)
 		for _, dependentResources := range dependentResourcesList {
-			for _, rdsConfigName := range dependentResources["rdsNames"].([]string) {
-				rdsResources[rdsConfigName] = dependentResources
-				if _, ok := client.apiRequests[rdsURL].resources[rdsConfigName]; !ok {
-					requestRds = true
+			if dependentResources["rdsNames"] != nil {
+				for _, rdsConfigName := range dependentResources["rdsNames"].([]string) {
+					rdsResources[rdsConfigName] = dependentResources
+					if _, ok := client.apiRequests[rdsURL].resources[rdsConfigName]; !ok {
+						requestRds = true
+					}
 				}
 			}
-			for _, cdsConfigName := range dependentResources["cdsNames"].([]string) {
-				if _, ok := client.apiRequests[cdsURL].resources[cdsConfigName]; !ok {
-					requestCds = true
-					client.apiRequests[cdsURL].resources[cdsConfigName] = dependentResources["serviceType"]
+			if dependentResources["cdsNames"] != nil {
+				for _, cdsConfigName := range dependentResources["cdsNames"].([]string) {
+					if _, ok := client.apiRequests[cdsURL].resources[cdsConfigName]; !ok {
+						requestCds = true
+						client.apiRequests[cdsURL].resources[cdsConfigName] = dependentResources["serviceType"]
+					}
 				}
 			}
-			if dependentResources["csVsName"].(string) != "" {
+			if _, ok := dependentResources["csVsName"].(string); ok {
 				ldsResources[ldsResource.Name] = append(ldsResources[ldsResource.Name].([]string), dependentResources["csVsName"].(string))
 			}
 		}
@@ -368,19 +460,48 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 	adsClient.adsServerURL = adsinfo.AdsServerURL
 	adsClient.adsServerSpiffeID = adsinfo.AdsServerSpiffeID
 	adsClient.secureConnect = adsinfo.SecureConnect
-	metadata := _struct.Struct{
-		Fields: map[string]*_struct.Value{
-			"CLUSTER_ID":       {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("CLUSTER_ID")}},
-			"CONFIG_NAMESPACE": {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
-			"MESH_ID":          {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("TRUST_DOMAIN")}},
-			"NAME":             {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("HOSTNAME")}},
-			"NAMESPACE":        {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
-			"SDS":              {Kind: &_struct.Value_StringValue{StringValue: "true"}},
-			"SERVICE_ACCOUNT":  {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("SERVICE_ACCOUNT")}},
-			"TRUSTJWT":         {Kind: &_struct.Value_StringValue{StringValue: "true"}},
-		},
+	/*
+		metadata := _struct.Struct{
+			Fields: map[string]*_struct.Value{
+				"CLUSTER_ID":       {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("CLUSTER_ID")}},
+				"CONFIG_NAMESPACE": {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
+				"MESH_ID":          {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("TRUST_DOMAIN")}},
+				"NAME":             {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("HOSTNAME")}},
+				"NAMESPACE":        {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("POD_NAMESPACE")}},
+				"SDS":              {Kind: &_struct.Value_StringValue{StringValue: "true"}},
+				"SERVICE_ACCOUNT":  {Kind: &_struct.Value_StringValue{StringValue: os.Getenv("SERVICE_ACCOUNT")}},
+				"TRUSTJWT":         {Kind: &_struct.Value_StringValue{StringValue: "true"}},
+				"ISTIO_VERSION":    {Kind: &_struct.Value_StringValue{StringValue: "1.12"}},
+				"LABELS": structpb.NewStructValue(&structpb.Struct{Fields: map[string]*structpb.Value{
+					"app": structpb.NewStringValue("citrix-ingressgateway"),
+				}}),
+			},
+		}
+	*/
+	// We need above set of metadata to be sent to xds-control-plane in above commented format. It is tricky to populate LABELS field using range.
+	// So, we are using JSON marshal/unmarshaling to convert NodeMetadata info to _struct.Struct format
+	labels := getLabelsMap(labelsFile)
+	metadata := NodeMetadata{
+		ClusterID:       os.Getenv("CLUSTER_ID"),
+		ConfigNamespace: os.Getenv("POD_NAMESPACE"),
+		MeshID:          os.Getenv("TRUST_DOMAIN"),
+		InstanceName:    os.Getenv("HOSTNAME"),
+		Namespace:       os.Getenv("POD_NAMESPACE"),
+		SdsEnabled:      StringBool(true),
+		ServiceAccount:  os.Getenv("SERVICE_ACCOUNT"),
+		SdsTrustJwt:     StringBool(true),
+		Labels:          labels,
 	}
-	adsClient.nodeID = &core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &metadata}
+
+	var targetMdStruct _struct.Struct
+	mdJson, _ := json.Marshal(metadata)
+	err := json.Unmarshal(mdJson, &targetMdStruct)
+	if err != nil {
+		xDSLogger.Error("NewAdsClient: Error in unmarshaling metadata", "error", err.Error())
+	}
+	xDSLogger.Trace("NewAdsClient: Metadata info", "metadata", targetMdStruct)
+
+	adsClient.nodeID = &core.Node{Id: adsinfo.NodeID, Cluster: adsinfo.ApplicationName, Metadata: &targetMdStruct}
 	xDSLogger.Info("NewAdsClient: Node details ", "nodeID", adsClient.nodeID)
 	adsClient.quit = make(chan int)
 	adsClient.cdsAddHandler = clusterAdd

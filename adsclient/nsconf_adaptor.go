@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,7 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/nsconfigengine"
+	"bufio"
 	"container/list"
 	"fmt"
 	"io/ioutil"
@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/citrix/citrix-xds-adaptor/nsconfigengine"
 
 	"github.com/citrix/adc-nitro-go/resource/config/analytics"
 	"github.com/citrix/adc-nitro-go/resource/config/basic"
@@ -87,6 +89,8 @@ var (
 	multiClusterPolExprStr = os.Getenv("MULTICLUSTER_SVC_DOMAIN") //".global"
 	multiClusterListenPort = getIntEnv("MULTICLUSTER_LISTENER_PORT")
 	coeTracingEnabled      = getBoolEnv("COE_TRACING") // Either COE or ADM can be endpoint for collecting tracing data
+	labelsFile             = "/etc/podinfo/labels"
+	labelsFuncEnabled      = getBoolEnv("ENABLE_LABELS_FEATURE")
 )
 
 func getBoolEnv(key string) bool {
@@ -121,6 +125,86 @@ func isCPX(url string) bool {
 		return true
 	}
 	return false
+}
+
+func getLabelsMap(filename string) map[string]string {
+	labels := make(map[string]string)
+	file, err := os.Open(filename)
+	if err != nil {
+		xDSLogger.Error("Could not open labels file", "filename", filename)
+		return labels
+	}
+	// The bufio.NewScanner() function is called in which the
+	// object os.File passed as its parameter and this returns a
+	// object bufio.Scanner which is further used on the
+	// bufio.Scanner.Split() method.
+	scanner := bufio.NewScanner(file)
+	// The bufio.ScanLines is used as an
+	// input to the method bufio.Scanner.Split()
+	// and then the scanning forwards to each
+	// new line using the bufio.Scanner.Scan()
+	// method.
+	scanner.Split(bufio.ScanLines)
+	var text []string
+	for scanner.Scan() {
+		text = append(text, scanner.Text())
+	}
+
+	// The method os.File.Close() is called
+	// on the os.File object to close the file
+	file.Close()
+
+	// and then a loop iterates through
+	// and prints each of the slice values.
+
+	for _, each_ln := range text {
+		kv := strings.Split(each_ln, "=")
+		value := kv[1][1 : len(kv[1])-1]
+		labels[kv[0]] = value
+	}
+	return labels
+}
+
+func getMyLabels(filename string) string {
+	file, err := os.Open(filename)
+	if err != nil {
+		xDSLogger.Error("Could not open labels file", "filename", filename)
+		return ""
+	}
+	// The bufio.NewScanner() function is called in which the
+	// object os.File passed as its parameter and this returns a
+	// object bufio.Scanner which is further used on the
+	// bufio.Scanner.Split() method.
+	scanner := bufio.NewScanner(file)
+	// The bufio.ScanLines is used as an
+	// input to the method bufio.Scanner.Split()
+	// and then the scanning forwards to each
+	// new line using the bufio.Scanner.Scan()
+	// method.
+	scanner.Split(bufio.ScanLines)
+	var text []string
+	for scanner.Scan() {
+		text = append(text, scanner.Text())
+	}
+
+	// The method os.File.Close() is called
+	// on the os.File object to close the file
+	file.Close()
+
+	// and then a loop iterates through
+	// and prints each of the slice values.
+	jsonformat := ""
+	for _, each_ln := range text {
+		// replace key="value" with "key":"value"
+		jsonformat = jsonformat + "\"" + strings.Replace(each_ln, "=", "\":", -1) + ","
+
+	}
+	if jsonformat == "" {
+		return ""
+	}
+	jsonformat = "{" + jsonformat[0:len(jsonformat)-1] + "}"
+	//fmt.Println(jsonformat)
+	return jsonformat
 }
 
 func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
@@ -159,6 +243,17 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 		xDSLogger.Trace("newConfigAdaptor: Error connecting to the ADC", "error", err)
 		time.Sleep(1 * time.Second)
 	}
+	build, err := configAdaptor.client.FindResource(netscaler.Nsversion.Type(), "")
+	if err != nil {
+		return nil, err
+	}
+	err = nsconfigengine.SetNsReleaseBuild(build)
+	if err != nil {
+		return nil, err
+	}
+	if nsinfo.NetscalerVIP == "nsip" {
+		configAdaptor.vserverIP = configAdaptor.nsip
+	}
 	if nsinfo.bootStrapConfReqd {
 		if isCPX(nsinfo.NetscalerURL) {
 			err = configAdaptor.sidecarBootstrapConfig()
@@ -177,18 +272,6 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 			xDSLogger.Warn("newConfigAdaptor: Logproxy related config is not successful", "error", err)
 		}
 		nsinfo.bootStrapConfReqd = false
-	}
-
-	if nsinfo.NetscalerVIP == "nsip" {
-		configAdaptor.vserverIP = configAdaptor.nsip
-	}
-	build, err := configAdaptor.client.FindResource(netscaler.Nsversion.Type(), "")
-	if err != nil {
-		return nil, err
-	}
-	err = nsconfigengine.SetNsReleaseBuild(build)
-	if err != nil {
-		return nil, err
 	}
 	return configAdaptor, nil
 }
@@ -227,6 +310,22 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserverservicebinding{Name: "dns_vserver", Servicename: "dns_service"}, IgnoreErrors: []string{"Resource already exists"}},
 		{ResourceType: netscaler.Dnsnameserver.Type(), ResourceName: "dns_vserver", Resource: dns.Dnsnameserver{Dnsvservername: "dns_vserver"}, IgnoreErrors: []string{"Name servers already configured.", "Invalid value [dnsVserverName, value differs from existing entity and it cant be updated.]"}},
 		{ResourceType: netscaler.Nsacl.Type(), ResourceName: "allowpromexp", Resource: ns.Nsacl{Aclname: "allowpromexp", Aclaction: "ALLOW", Protocol: "TCP", Destport: true, Destportval: "8888", Priority: 65536}},
+	}
+	relNo, _ := nsconfigengine.GetNsReleaseBuild()
+	if relNo >= 13.1 && labelsFuncEnabled {
+		metaData := os.Getenv("CLUSTER_ID") + "." + os.Getenv("POD_NAMESPACE") + "." + os.Getenv("APPLICATION_NAME") + ".*" + ".*" + ".*"
+		labelJSON := getMyLabels(labelsFile)
+		epRes192_2 := map[string]interface{}{"endpointkind": "IP", "endpointname": nsLoopbackIP, "endpointmetadata": metaData}
+		epRes192_1 := map[string]interface{}{"endpointkind": "IP", "endpointname": "192.0.0.1", "endpointmetadata": metaData}
+		if len(labelJSON) > 0 {
+			epRes192_2 = map[string]interface{}{"endpointkind": "IP", "endpointname": nsLoopbackIP, "endpointmetadata": metaData, "endpointlabelsjson": labelJSON}
+			epRes192_1 = map[string]interface{}{"endpointkind": "IP", "endpointname": "192.0.0.1", "endpointmetadata": metaData, "endpointlabelsjson": labelJSON}
+		}
+		endpointConfig := []nsconfigengine.NsConfigEntity{
+			{ResourceType: "endpointinfo", ResourceName: nsLoopbackIP, Resource: epRes192_2, IgnoreErrors: []string{"Resource already exists", "Invalid value [set command not present for this resource]", "Failed to create resource of type endpointinfo"}},
+			{ResourceType: "endpointinfo", ResourceName: "192.0.0.1", Resource: epRes192_1, IgnoreErrors: []string{"Resource already exists", "Invalid value [set command not present for this resource]", "Failed to create resource of type endpointinfo"}},
+		}
+		configs = append(configs, endpointConfig...)
 	}
 	listenPolicy := "CLIENT.TCP.DSTPORT.NE(" + confAdaptor.adsServerPort + ")"
 	// CA port and xDS server's ports can be different
@@ -274,6 +373,25 @@ func (confAdaptor *configAdaptor) bootstrapConfig() error {
 		// Dummy HTTP Vserver is added for Redirect Case
 		{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "ns_dummy_http", Resource: lb.Lbvserver{Name: "ns_dummy_http", Servicetype: "HTTP"}},
 		{ResourceType: netscaler.Lbvserver_service_binding.Type(), ResourceName: "ns_dummy_http", Resource: lb.Lbvserverservicebinding{Name: "ns_dummy_http", Servicename: "ns_blackhole_http"}, IgnoreErrors: []string{"Resource already exists"}},
+	}
+	relNo, _ := nsconfigengine.GetNsReleaseBuild()
+	if relNo >= 13.1 && labelsFuncEnabled { // Labels supported build
+		epResIP := os.Getenv("INSTANCE_IP")
+		if len(confAdaptor.vserverIP) > 0 { // If gateway mode, then add endpoint info for VIP
+			epResIP = confAdaptor.vserverIP
+		}
+		metaData := os.Getenv("CLUSTER_ID") + "." + os.Getenv("POD_NAMESPACE") + "." + os.Getenv("APPLICATION_NAME") + ".*" + ".*" + ".*"
+		labelJSON := getMyLabels(labelsFile)
+		epRes := map[string]interface{}{"endpointkind": "IP", "endpointname": epResIP, "endpointmetadata": metaData}
+		if len(labelJSON) > 0 {
+			epRes = map[string]interface{}{"endpointkind": "IP", "endpointname": epResIP, "endpointmetadata": metaData, "endpointlabelsjson": labelJSON}
+		}
+		endpointConfig := []nsconfigengine.NsConfigEntity{
+			// Set location parameter {"locationparameter":{"context": "custom", "q1label": "Cluster", "q2label": "Namespace", "q3label": "Service", "q4label": "Node", "q5label": "Hostname", "q6label": *}}
+			{ResourceType: netscaler.Locationparameter.Type(), ResourceName: "", Resource: basic.Locationparameter{Context: "custom", Q1label: "Cluster", Q2label: "Namespace", Q3label: "Service", Q4label: "Node", Q5label: "Hostname", Q6label: "*"}, Operation: "set"},
+			{ResourceType: "endpointinfo", ResourceName: epResIP, Resource: epRes, IgnoreErrors: []string{"Resource already exists", "Invalid value [set command not present for this resource]", "Failed to create resource of type endpointinfo"}},
+		}
+		configs = append(configs, endpointConfig...)
 	}
 	err = confAdaptor.client.EnableFeatures([]string{"aaa"})
 	if err != nil {

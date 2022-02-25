@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,6 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/nsconfigengine"
-	"citrix-xds-adaptor/tests/env"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +21,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/citrix/citrix-xds-adaptor/nsconfigengine"
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 
 	"github.com/citrix/adc-nitro-go/resource/config/ssl"
 	netscaler "github.com/citrix/adc-nitro-go/service"

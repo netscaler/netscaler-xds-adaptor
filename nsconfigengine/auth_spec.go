@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -81,9 +81,9 @@ func getAuthnRule(rules []AuthRuleMatch) string {
 
 func addPatSet(client *netscaler.NitroClient, confErr *nitroError, authResourceName string, jwtAudiences []string) string {
 	if len(jwtAudiences) > 0 {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset.Type(), authResourceName, policy.Policypatset{Name: authResourceName}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset.Type(), authResourceName, policy.Policypatset{Name: authResourceName}, "add", "", "", ""}, nil, nil))
 		for _, audience := range jwtAudiences {
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset_pattern_binding.Type(), authResourceName, policy.Policypatsetpatternbinding{Name: authResourceName, String: audience}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset_pattern_binding.Type(), authResourceName, policy.Policypatsetpatternbinding{Name: authResourceName, String: audience}, "add", "", "", ""}, nil, nil))
 		}
 		return authResourceName
 	}
@@ -130,7 +130,7 @@ func isJwksFilePresent(client *netscaler.NitroClient, jwksFileName string) bool 
 
 func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroError) {
 	nsconfLogger.Trace("authAdd: AuthSpec addition", "authSpec", authSpec)
-	nsReleaseNo, nsBuildNo := getNsReleaseBuild()
+	nsReleaseNo, nsBuildNo := GetNsReleaseBuild()
 	var audiences string
 	/* Check if CertFile is already uploaded, if not Upload the CertFile again */
 	jwksFileName := GetNSCompatibleNameHash(authSpec.Jwks, 127)
@@ -172,19 +172,19 @@ func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroE
 		excludeRule = getAuthnRule(authSpec.ExcludePaths)
 	}
 	authSpec.curPolicyPriority = 10
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver.Type(), authSpec.Name, authentication.Authenticationvserver{Name: authSpec.Name, Servicetype: "SSL", Ipv46: "0.0.0.0"}, "add"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver.Type(), authSpec.Name, authentication.Authenticationvserver{Name: authSpec.Name, Servicetype: "SSL", Ipv46: "0.0.0.0"}, "add", "", "", ""}, nil, nil))
 	authResourceName := authSpec.Name + "_" + fmt.Sprint(authSpec.curPolicyPriority)
 	if audiences == "" {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authResourceName, map[string]interface{}{"name": authResourceName, "audience": true}, "unset"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authResourceName, map[string]interface{}{"name": authResourceName, "audience": true}, "unset", "", "", ""}, nil, nil))
 	}
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authResourceName, authentication.Authenticationoauthaction{Name: authResourceName, Authorizationendpoint: dummyEndPoint, Tokenendpoint: dummyEndPoint, Clientid: "testcitrix", Clientsecret: "testcitrix", Issuer: authSpec.Issuer, Certfilepath: jwksFileLocation, Audience: audiences}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), authResourceName, authentication.Authenticationpolicy{Name: authResourceName, Rule: policyRule, Action: authResourceName}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curPolicyPriority, Gotopriorityexpression: "NEXT"}, "add"}, []string{"A policy is already bound to the specified priority"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authResourceName, authentication.Authenticationoauthaction{Name: authResourceName, Authorizationendpoint: dummyEndPoint, Tokenendpoint: dummyEndPoint, Clientid: "testcitrix", Clientsecret: "testcitrix", Issuer: authSpec.Issuer, Certfilepath: jwksFileLocation, Audience: audiences}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), authResourceName, authentication.Authenticationpolicy{Name: authResourceName, Rule: policyRule, Action: authResourceName}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curPolicyPriority, Gotopriorityexpression: "NEXT"}, "add", "", "", ""}, []string{"A policy is already bound to the specified priority"}, nil))
 	if excludeRule != "" {
 		authSpec.curPolicyPriority = 20
 		authResourceName := authSpec.Name + "_" + fmt.Sprint(authSpec.curPolicyPriority)
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), authResourceName, authentication.Authenticationpolicy{Name: authResourceName, Rule: excludeRule, Action: "NO_AUTHN"}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curPolicyPriority, Gotopriorityexpression: "NEXT"}, "add"}, []string{"A policy is already bound to the specified priority"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), authResourceName, authentication.Authenticationpolicy{Name: authResourceName, Rule: excludeRule, Action: "NO_AUTHN"}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curPolicyPriority, Gotopriorityexpression: "NEXT"}, "add", "", "", ""}, []string{"A policy is already bound to the specified priority"}, nil))
 	}
 	for _, header := range authSpec.JwtHeaders {
 		authSpec.curLoginSchemaPriority = authSpec.curLoginSchemaPriority + 10
@@ -193,9 +193,9 @@ func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroE
 			loginSchemaRule = policyRule + " && " + loginSchemaRule
 		}
 		authResourceName := authSpec.Name + "_lgnschm_" + fmt.Sprint(authSpec.curLoginSchemaPriority)
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), authResourceName, authentication.Authenticationloginschema{Name: authResourceName, Authenticationschema: "noschema", Userexpression: "HTTP.REQ.HEADER(\"" + header.Name + "\")"}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), authResourceName, authentication.Authenticationloginschemapolicy{Name: authResourceName, Rule: loginSchemaRule, Action: authResourceName}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curLoginSchemaPriority, Gotopriorityexpression: "NEXT"}, "add"}, []string{"A policy is already bound to the specified priority"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), authResourceName, authentication.Authenticationloginschema{Name: authResourceName, Authenticationschema: "noschema", Userexpression: "HTTP.REQ.HEADER(\"" + header.Name + "\")"}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), authResourceName, authentication.Authenticationloginschemapolicy{Name: authResourceName, Rule: loginSchemaRule, Action: authResourceName}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curLoginSchemaPriority, Gotopriorityexpression: "NEXT"}, "add", "", "", ""}, []string{"A policy is already bound to the specified priority"}, nil))
 	}
 	for _, param := range authSpec.JwtParams {
 		authSpec.curLoginSchemaPriority = authSpec.curLoginSchemaPriority + 10
@@ -204,9 +204,9 @@ func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroE
 			loginSchemaRule = policyRule + " && " + loginSchemaRule
 		}
 		authResourceName := authSpec.Name + "_lgnschm_" + fmt.Sprint(authSpec.curLoginSchemaPriority)
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), authResourceName, authentication.Authenticationloginschema{Name: authResourceName, Authenticationschema: "noschema", Userexpression: "HTTP.REQ.URL.QUERY.VALUE(\"" + param + "\")"}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), authResourceName, authentication.Authenticationloginschemapolicy{Name: authResourceName, Rule: loginSchemaRule, Action: authResourceName}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curLoginSchemaPriority, Gotopriorityexpression: "NEXT"}, "add"}, []string{"A policy is already bound to the specified priority"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), authResourceName, authentication.Authenticationloginschema{Name: authResourceName, Authenticationschema: "noschema", Userexpression: "HTTP.REQ.URL.QUERY.VALUE(\"" + param + "\")"}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), authResourceName, authentication.Authenticationloginschemapolicy{Name: authResourceName, Rule: loginSchemaRule, Action: authResourceName}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, authentication.Authenticationvserverauthenticationpolicybinding{Name: authSpec.Name, Policy: authResourceName, Priority: authSpec.curLoginSchemaPriority, Gotopriorityexpression: "NEXT"}, "add", "", "", ""}, []string{"A policy is already bound to the specified priority"}, nil))
 	}
 	addSSLVserver(client, authSpec.Name, authSpec.FrontendTLS, false, confErr)
 	authSpec.deleteStale(client, confErr)
@@ -215,7 +215,7 @@ func (authSpec *AuthSpec) authAdd(client *netscaler.NitroClient, confErr *nitroE
 func (authSpec *AuthSpec) deletePatSet(client *netscaler.NitroClient, confErr *nitroError) {
 	_, err := client.FindResource(netscaler.Policypatset.Type(), authSpec.Name)
 	if err == nil {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset.Type(), authSpec.Name, nil, "delete"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Policypatset.Type(), authSpec.Name, nil, "delete", "", "", ""}, nil, nil))
 	}
 }
 
@@ -238,8 +238,8 @@ func (authSpec *AuthSpec) deleteStale(client *netscaler.NitroClient, confErr *ni
 			if priority <= authSpec.curPolicyPriority {
 				continue
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, map[string]string{"name": bvserverName, "policy": bPolicyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationpolicy_binding.Type(), authSpec.Name, map[string]string{"name": bvserverName, "policy": bPolicyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationpolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
 			deleteStaleJwksFile(client, confErr, bPolicyName)
 		}
 	}
@@ -258,16 +258,16 @@ func (authSpec *AuthSpec) deleteStale(client *netscaler.NitroClient, confErr *ni
 			if priority <= authSpec.curLoginSchemaPriority {
 				continue
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationloginschemapolicy_binding.Type(), authSpec.Name, map[string]string{"name": bvserverName, "policy": bPolicyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), bPolicyName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver_authenticationloginschemapolicy_binding.Type(), authSpec.Name, map[string]string{"name": bvserverName, "policy": bPolicyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschemapolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationloginschema.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
 		}
 	}
 }
 
 func deleteStaleJwksFile(client *netscaler.NitroClient, confErr *nitroError, authAction string) {
 	auth, err := client.FindResource(netscaler.Authenticationoauthaction.Type(), authAction)
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authAction, nil, "delete"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationoauthaction.Type(), authAction, nil, "delete", "", "", ""}, nil, nil))
 	if err == nil {
 		if jwksFile, err := getValueString(auth, "certfilepath"); err == nil {
 			jwks := jwksFile[strings.LastIndex(jwksFile, "/")+1:]
@@ -280,14 +280,14 @@ func deleteStaleJwksFile(client *netscaler.NitroClient, confErr *nitroError, aut
 func (authSpec *AuthSpec) authDelete(client *netscaler.NitroClient, confErr *nitroError) {
 	nsconfLogger.Trace("Deleting AuthSpec", "authSpec", authSpec)
 	authSpec.deleteStale(client, confErr)
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver.Type(), authSpec.Name, nil, "delete"}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Authenticationvserver.Type(), authSpec.Name, nil, "delete", "", "", ""}, []string{"No such resource"}, nil))
 }
 
 func updateVserverAuthSpec(client *netscaler.NitroClient, csVserverName string, authSpec *AuthSpec, confErr *nitroError) {
 	nsconfLogger.Trace("updateVserverAuthSpec", "authSpec", authSpec, "csVserver", csVserverName)
 	authVserverName := csVserverName + "authn"
 	if authSpec == nil {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csVserverName, map[string]interface{}{"name": csVserverName, "authn401": true, "authnvsname": true}, "unset"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csVserverName, map[string]interface{}{"name": csVserverName, "authn401": true, "authnvsname": true}, "unset", "", "", ""}, nil, nil))
 		authSpecD := &AuthSpec{Name: authVserverName}
 		authSpecD.deletePatSet(client, confErr)
 		authSpecD.authDelete(client, confErr)
@@ -295,6 +295,6 @@ func updateVserverAuthSpec(client *netscaler.NitroClient, csVserverName string, 
 		authSpec.Name = authVserverName
 		authSpec.deletePatSet(client, confErr)
 		authSpec.authAdd(client, confErr)
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csVserverName, cs.Csvserver{Name: csVserverName, Authn401: "ON", Authnvsname: authSpec.Name}, "set"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csVserverName, cs.Csvserver{Name: csVserverName, Authn401: "ON", Authnvsname: authSpec.Name}, "set", "", "", ""}, nil, nil))
 	}
 }

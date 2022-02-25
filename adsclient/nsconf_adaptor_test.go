@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,11 +14,13 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/tests/env"
 	"log"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/citrix/citrix-xds-adaptor/nsconfigengine"
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 
 	netscaler "github.com/citrix/adc-nitro-go/service"
 )
@@ -70,6 +72,10 @@ func verifyModes(t *testing.T, client *netscaler.NitroClient, modes []string) {
 func Test_bootstrapConfig(t *testing.T) {
 	t.Log("Verify BootStrap Config")
 	var err interface{}
+	os.Setenv("CLUSTER_ID", "Kubernetes")
+	os.Setenv("POD_NAMESPACE", "default")
+	os.Setenv("APPLICATION_NAME", "myapp")
+	os.Setenv("INSTANCE_IP", env.GetNetscalerIP())
 	analyticserverip := "1.1.1.1"
 	licenseserverip := "1.1.1.2"
 	configAdaptorerrorlog := "Unable to get a config adaptor. newConfigAdaptor failed with"
@@ -92,6 +98,7 @@ func Test_bootstrapConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf(" %s  %v", configAdaptorerrorlog, err)
 	}
+	relNo, _ := nsconfigengine.GetNsReleaseBuild()
 	if strings.Contains(env.GetNetscalerURL(), "localhost") || strings.Contains(env.GetNetscalerURL(), "127.0.0.1") {
 		t.Logf("Verifying sidecar bootstrap config")
 		configs := []env.VerifyNitroConfig{
@@ -108,6 +115,17 @@ func Test_bootstrapConfig(t *testing.T) {
 			{"nsacl", "allownitro", map[string]interface{}{"aclname": "allownitro", "aclaction": "ALLOW", "protocol": "TCP", "destportval": "9443", "priority": 65540, "kernelstate": "APPLIED"}},
 			{"nsacl", "allowicmp", map[string]interface{}{"aclname": "allowicmp", "aclaction": "ALLOW", "protocol": "ICMP", "priority": 65546, "kernelstate": "APPLIED"}},
 			{"lbvserver", "drop_all_vserver", map[string]interface{}{"name": "drop_all_vserver", "servicetype": "ANY", "ipv46": "*", "port": 65535, "listenpolicy": "CLIENT.TCP.DSTPORT.NE(15010) && CLIENT.IP.DST.NE(1.1.1.1) && CLIENT.TCP.DSTPORT.NE(5557) && CLIENT.TCP.DSTPORT.NE(5558) && CLIENT.TCP.DSTPORT.NE(5563) && CLIENT.IP.DST.NE(1.1.1.2) && CLIENT.TCP.DSTPORT.NE(27000) && CLIENT.TCP.DSTPORT.NE(7279)"}},
+		}
+		endpointConfig := []env.VerifyNitroConfig{}
+		// Label Endpoints support is provided from 13.1 version
+		if relNo >= 13.1 {
+			metaData := "Kubernetes." + os.Getenv("POD_NAMESPACE") + "." + os.Getenv("APPLICATION_NAME") + ".*" + ".*" + ".*"
+			endpointConfig = []env.VerifyNitroConfig{
+				//{"endpointinfo", os.Getenv("INSTANCE_IP"), map[string]interface{}{"endpointkind": "IP", "endpointname": os.Getenv("INSTANCE_IP"), "endpointmetadata": metaData}},
+				{"endpointinfo", nsLoopbackIP, map[string]interface{}{"endpointkind": "IP", "endpointname": nsLoopbackIP, "endpointmetadata": metaData}},
+				{"endpointinfo", "192.0.0.1", map[string]interface{}{"endpointkind": "IP", "endpointname": "192.0.0.1", "endpointmetadata": metaData}},
+			}
+			configs = append(configs, endpointConfig...)
 		}
 		configs3 := []env.VerifyNitroConfig{}
 		configs3 = append(configs, configs2...)
@@ -196,6 +214,20 @@ func Test_bootstrapConfig(t *testing.T) {
 		{netscaler.Lbvserver.Type(), "ns_dummy_http", map[string]interface{}{"name": "ns_dummy_http", "servicetype": "HTTP"}},
 		{netscaler.Lbvserver_service_binding.Type(), "ns_dummy_http", map[string]interface{}{"name": "ns_dummy_http", "servicename": "ns_blackhole_http"}},
 	}
+
+	if relNo >= 13.1 {
+		metaData := os.Getenv("CLUSTER_ID") + "." + os.Getenv("POD_NAMESPACE") + "." + os.Getenv("APPLICATION_NAME") + ".*" + ".*" + ".*"
+		//os.Getenv("CLUSTER_ID") + os.Getenv("POD_NAMESPACE") + ".service." + os.Getenv("APPLICATION_NAME")
+		epResIP := os.Getenv("INSTANCE_IP")
+		if len(configAd.vserverIP) > 0 { // If gateway mode, then add endpoint info for VIP
+			epResIP = configAd.vserverIP
+		}
+		endpointConfig := env.VerifyNitroConfig{
+			"endpointinfo", epResIP, map[string]interface{}{"endpointkind": "IP", "endpointname": epResIP, "endpointmetadata": metaData},
+		}
+		configs = append(configs, endpointConfig)
+	}
+
 	err = env.VerifyConfigBlockPresence(configAd.client, configs)
 	if err != nil {
 		t.Errorf("Config verification failed for bootstrap config, error %v", err)

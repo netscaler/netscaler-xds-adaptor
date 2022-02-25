@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,9 +15,10 @@ package env
 
 import (
 	"fmt"
-	netscaler "github.com/citrix/adc-nitro-go/service"
 	"log"
 	"reflect"
+
+	netscaler "github.com/citrix/adc-nitro-go/service"
 )
 
 type VerifyNitroConfig struct {

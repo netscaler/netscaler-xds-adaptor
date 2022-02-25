@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,6 @@ limitations under the License.
 package main
 
 import (
-	"citrix-xds-adaptor/adsclient"
-	"citrix-xds-adaptor/certkeyhandler"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -25,6 +23,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/citrix/citrix-xds-adaptor/adsclient"
+	"github.com/citrix/citrix-xds-adaptor/certkeyhandler"
 )
 
 const (

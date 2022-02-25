@@ -1,5 +1,5 @@
 # STEP 1 build executable binary
-ARG START_CONTAINER=golang:1.13
+ARG START_CONTAINER=golang:1.16
 FROM ${START_CONTAINER} as builder
 
 # https://unix.stackexchange.com/questions/96892/what-does-adduser-disabled-login-do
@@ -10,7 +10,7 @@ COPY . /citrix-xds-adaptor
 WORKDIR /citrix-xds-adaptor
 
 #build the binary
-RUN GOARCH=amd64 CGO_ENABLED=0 GOOS=linux go build -o /go/bin/xds-adaptor -ldflags "-extldflags -static -s -w " citrix-xds-adaptor/xds-adaptor
+RUN GOARCH=amd64 CGO_ENABLED=0 GOOS=linux go build -o /go/bin/xds-adaptor -ldflags "-extldflags -static -s -w " github.com/citrix/citrix-xds-adaptor/xds-adaptor
 
 # STEP 2 build a small image
 # start from scratch

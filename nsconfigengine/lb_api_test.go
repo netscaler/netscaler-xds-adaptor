@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,9 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-xds-adaptor/tests/env"
 	"testing"
+
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 )
 
 func Test_getLbMonName(t *testing.T) {

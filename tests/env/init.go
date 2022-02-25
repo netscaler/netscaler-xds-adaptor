@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -35,6 +35,7 @@ import (
 	xdsutil "github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	ptypes "github.com/golang/protobuf/ptypes"
 	duration "github.com/golang/protobuf/ptypes/duration"
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/txn2/txeh"
 	proto "istio.io/istio/pkg/proto"
@@ -222,6 +223,38 @@ func MakeCluster(clusterName string) *cluster.Cluster {
 		EdsClusterConfig: &cluster.Cluster_EdsClusterConfig{
 			ServiceName: clusterName,
 		},
+		Metadata: &core.Metadata{
+			FilterMetadata: map[string]*_struct.Struct{
+				"istio": {
+					Fields: map[string]*_struct.Value{
+						"default_original_port": {
+							Kind: &_struct.Value_NumberValue{
+								NumberValue: float64(8080), // random port value
+							},
+						},
+						"services": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: []*_struct.Value{
+							{Kind: &_struct.Value_StructValue{StructValue: &_struct.Struct{Fields: map[string]*_struct.Value{
+								"host": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: clusterName + "default.svc.cluster.local",
+									},
+								},
+								"name": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: clusterName,
+									},
+								},
+								"namespace": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: "default",
+									},
+								},
+							}}}},
+						}}}},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -234,6 +267,48 @@ func MakeClusterDNS(clusterName string, dns string, port int) *cluster.Cluster {
 			Type: cluster.Cluster_STRICT_DNS,
 		},
 		LoadAssignment: MakeEndpoint(clusterName, []ServiceEndpoint{{IP: dns, Port: port, Weight: 1}}),
+		Metadata: &core.Metadata{
+			FilterMetadata: map[string]*_struct.Struct{
+				"istio": {
+					Fields: map[string]*_struct.Value{
+						"default_original_port": {
+							Kind: &_struct.Value_NumberValue{
+								NumberValue: float64(8080), // random port value
+							},
+						},
+						"services": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: []*_struct.Value{
+							{Kind: &_struct.Value_StructValue{StructValue: &_struct.Struct{Fields: map[string]*_struct.Value{
+								"host": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: clusterName + "default.svc.cluster.local",
+									},
+								},
+								"name": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: clusterName,
+									},
+								},
+								"namespace": {
+									Kind: &_struct.Value_StringValue{
+										StringValue: "default",
+									},
+								},
+							}}}},
+						}}}},
+					},
+				},
+			},
+		},
+	}
+}
+func MakeClusterORIGINAL_DST(clusterName string, original_dst string) *cluster.Cluster {
+	var to duration.Duration = duration.Duration{Seconds: 1}
+	return &cluster.Cluster{
+		Name:           clusterName,
+		ConnectTimeout: &to,
+		ClusterDiscoveryType: &cluster.Cluster_Type{
+			Type: cluster.Cluster_ORIGINAL_DST,
+		},
 	}
 }
 

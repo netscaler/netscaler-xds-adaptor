@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,12 +14,15 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/delayserver"
-	"citrix-xds-adaptor/nsconfigengine"
 	"fmt"
 	"net"
+	"os"
+	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/citrix/citrix-xds-adaptor/delayserver"
+	"github.com/citrix/citrix-xds-adaptor/nsconfigengine"
 
 	xdsCluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	xdsEndpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -57,6 +60,7 @@ const (
 	istioEgressGateway  = "istio-egressgateway"
 	// K8sServiceSuffix is common suffix of k8s service
 	K8sServiceSuffix  = "svc.cluster.local"
+	logStreamRDSName  = "http.5557"
 	defaultSDSName    = "default"
 	sdsLeafCertPrefix = "file-cert"
 	sdsRootCertPrefix = "file-root"
@@ -563,7 +567,7 @@ func getLogProxyType(nsConfig *configAdaptor, filter *xdsListener.Filter, lPort 
 		}
 		resourceName = httpCM.GetRds().GetRouteConfigName()
 	}
-	if strings.Contains(resourceName, nsConfig.logProxyURL) {
+	if strings.Contains(resourceName, nsConfig.logProxyURL) || strings.Contains(resourceName, logStreamRDSName) {
 		// It is indeed logproxy service. Check if logstream port or ulfd port
 		if lPort == logStreamPort {
 			return "LOGSTREAM", "LOGSTREAM"
@@ -751,6 +755,7 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	 * Thus the order of adding configBlocks matter
 	 */
 	csObjList := make([]map[string]interface{}, 0)
+	csObjMaps := make(map[string]interface{})
 	// If it is a xDS Server's listener, then skip the ADC config creation for the same.
 	// Connection to xDSServer is already established using RNAT session, and subsequent
 	// gRPC connection attempts face TLS-handshake issue due to presence of SSL_TCP servicegroup
@@ -762,9 +767,10 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	// This type of listener does not provide HTTP CM filter or TCP proxy filter, and it does not have routes/cluster details
 	if multiClusterIngress == true && isMultiClusterListener(listener) {
 		multiClusterListenerConfig(nsConfig, listener)
+		csObjMaps["csVsName"] = nsconfigengine.GetNSCompatibleName(listener.GetName())
+		csObjList = append(csObjList, csObjMaps)
 		return csObjList
 	}
-	csObjMaps := make(map[string]interface{})
 
 	for _, filterChain := range listener.GetFilterChains() {
 		csObjMap, err := getListenerFilterChainConfig(nsConfig, csObjMaps, listener, filterChain)
@@ -850,6 +856,16 @@ func listenerDel(nsConfig *configAdaptor, listenerName string, csVsNames []strin
 	nsConfig.delConfig(&confBl)
 }
 
+func getValueString(obj map[string]interface{}, name string) (string, error) {
+	if valI, ok := obj[name]; ok {
+		if val, ok1 := valI.(string); ok1 {
+			return val, nil
+		}
+		return "", fmt.Errorf("value '%v' is of type %s and not string", valI, reflect.TypeOf(valI).String())
+	}
+	return "", fmt.Errorf("key '%s' not found in resource", name)
+}
+
 func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
 	if len(nsConfig.logProxyURL) == 0 {
 		return ""
@@ -904,6 +920,16 @@ func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEn
 			}
 		}
 	}
+	if d, ok := data.(map[string]interface{}); ok {
+		svcGpObj.Metadata.ClusterName = os.Getenv("CLUSTER_ID") //"Kubernetes"
+		svcGpObj.Metadata.HostName, _ = getValueString(d, "hostname")
+		svcGpObj.Metadata.SvcName, _ = getValueString(d, "servicename")
+		svcGpObj.Metadata.Namespace, _ = getValueString(d, "namespace")
+		svcGpObj.Metadata.LabelSubset, _ = getValueString(d, "subset")
+	} else {
+		xDSLogger.Debug("clusterEndpointUpdate: Could not convert interface to map for cluster", "clusterName", clusterLoadAssignment.ClusterName)
+	}
+
 	switch lep := isLogProxyEndpoint(nsConfig, clusterLoadAssignment.ClusterName); lep {
 	case "LOGSTREAM":
 		svcGpObj.IsLogProxySvcGrp = coeTracingEnabled

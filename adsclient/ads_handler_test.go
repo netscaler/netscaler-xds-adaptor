@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +14,6 @@ limitations under the License.
 package adsclient
 
 import (
-	"citrix-xds-adaptor/nsconfigengine"
-	"citrix-xds-adaptor/tests/env"
 	"container/list"
 	"fmt"
 	"io/ioutil"
@@ -24,6 +22,9 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/citrix/citrix-xds-adaptor/nsconfigengine"
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -272,6 +273,47 @@ func Test_clusterEndpointUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Verification failed for logstream endpoint - %v", err)
 	}
+}
+
+func Test_staticAndDNSTypeClusterEndpointUpdate(t *testing.T) {
+	nsConfAdaptor := getNsConfAdaptor()
+	cds := env.MakeCluster("inbound|80||httpbin")
+	svcGpObj := &nsconfigengine.ServiceGroupAPI{Name: "inbound_80__httpbin", Members: []nsconfigengine.ServiceGroupMember{{IP: nsLoopbackIP, Port: 80, Weight: defaultWeight}}, IsIPOnlySvcGroup: true}
+	staticAndDNSTypeClusterEndpointUpdate(nsConfAdaptor, cds)
+	err := verifyObject(nsConfAdaptor, edsAdd, "inbound|80||httpbin", svcGpObj, nil, nil)
+	if err != nil {
+		t.Errorf("Verification failed - %v", err)
+	}
+	cds = env.MakeClusterORIGINAL_DST("outbound|80||httpbin.org", "ORIGINAL_DST")
+	svcGpObj = &nsconfigengine.ServiceGroupAPI{Name: "outbound_80__httpbin_org", Members: []nsconfigengine.ServiceGroupMember{{Domain: "httpbin.org", Port: 80}}}
+	staticAndDNSTypeClusterEndpointUpdate(nsConfAdaptor, cds)
+	err = verifyObject(nsConfAdaptor, edsAdd, "outbound|80||httpbin.org", svcGpObj, nil, nil)
+	if err != nil {
+		t.Errorf("Verification failed - %v", err)
+	}
+	// Test for logstream endpoint
+	coeTracingEnabled = true
+	nsConfAdaptor.logProxyURL = "coe.citrix-system"
+	cds = env.MakeClusterORIGINAL_DST("outbound|5557||coe.citrix-system.svc.cluster.local", "ORIGINAL_DST")
+	svcGpObj = &nsconfigengine.ServiceGroupAPI{Name: "outbound_5557__coe_citrix_system_svc_cluster_local", Members: []nsconfigengine.ServiceGroupMember{{Domain: "coe.citrix-system.svc.cluster.local", Port: 5557}}}
+	svcGpObj.IsLogProxySvcGrp = true
+	staticAndDNSTypeClusterEndpointUpdate(nsConfAdaptor, cds)
+	err = verifyObject(nsConfAdaptor, edsAdd, "outbound|5557||coe.citrix-system.svc.cluster.local", svcGpObj, nil, nil)
+	if err != nil {
+		t.Errorf("Verification failed for logstream endpoint - %v", err)
+	}
+	cds = env.MakeClusterORIGINAL_DST("outbound|5563||coe.citrix-system.svc.cluster.local", "ORIGINAL_DST")
+	svcGpObj = &nsconfigengine.ServiceGroupAPI{Name: "outbound_5563__coe_citrix_system_svc_cluster_local", Members: []nsconfigengine.ServiceGroupMember{{Domain: "coe.citrix-system.svc.cluster.local", Port: 5563}}}
+	svcGpObj.PromEP = "coe.citrix-system.svc.cluster.local"
+	staticAndDNSTypeClusterEndpointUpdate(nsConfAdaptor, cds)
+	err = verifyObject(nsConfAdaptor, edsAdd, "outbound|5563||coe.citrix-system.svc.cluster.local", svcGpObj, nil, nil)
+	if err != nil {
+		t.Errorf("Verification failed for logstream endpoint - %v", err)
+	}
+	//Negative test case with invalid port value
+	cds = env.MakeClusterORIGINAL_DST("outbound|abcd||httpbin.org", "ORIGINAL_DST")
+	staticAndDNSTypeClusterEndpointUpdate(nsConfAdaptor, cds)
+
 }
 
 func Test_isLogProxyEndpoint(t *testing.T) {

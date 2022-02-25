@@ -1,6 +1,6 @@
 TARGETS=nsconfigengine adsclient xds-adaptor delayserver certkeyhandler tests
 
-VERSION=0.9.9
+VERSION=0.10.1
 
 DOCKER_CMD=docker run $(DOCKER_CMD_OPTIONS) -v `pwd`:/citrix-xds-adaptor -w /citrix-xds-adaptor --rm xds-build:$(VERSION)
 
@@ -66,12 +66,15 @@ integration_test:
 	make create_deviceinfo
 	$(eval load := $(shell docker run --name $(INGRESS_ADC_NAME) -dt --cap-add=NET_ADMIN -e EULA=yes -e KUBERNETES_TASK_ID="" -e NS_CPX_LITE=1 -v `pwd`/tests/deviceinfo:/var/deviceinfo $(CPX_IMAGE)))
 	$(eval NS_TEST_IP := $(shell docker inspect --format '{{ .NetworkSettings.IPAddress }}' $(INGRESS_ADC_NAME)))
-	$(eval DOCKER_CMD_OPTIONS := -e NS_TEST_IP=$(NS_TEST_IP) -e NS_TEST_NITRO_PORT=9080 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct -v `pwd`/tests/deviceinfo:/var/deviceinfo )
-	$(DOCKER_CMD) go test -race -timeout 2m -cover -coverprofile=integrationtestcov.out -coverpkg=citrix-xds-adaptor/adsclient,citrix-xds-adaptor/nsconfigengine -v /citrix-xds-adaptor/tests
+	$(eval DOCKER_CMD_OPTIONS := -e NS_TEST_IP=$(NS_TEST_IP) -e NS_TEST_NITRO_PORT=9080 -e NS_TEST_LOGIN=nsroot -e NS_TEST_PASSWORD=nsroot -e GOPROXY=https://proxy.golang.org,direct  -e GODEBUG=x509ignoreCN=0 -v `pwd`/tests/deviceinfo:/var/deviceinfo )
+	$(DOCKER_CMD) go test -race -timeout 2m -cover -coverprofile=integrationtestcov.out -coverpkg=github.com/citrix/citrix-xds-adaptor/adsclient,github.com/citrix/citrix-xds-adaptor/nsconfigengine -v /citrix-xds-adaptor/tests
 	docker kill $(INGRESS_ADC_NAME)
 	docker rm $(INGRESS_ADC_NAME)
 	make destroy_certs
 	make destroy_deviceinfo
+
+system_test:
+	python system_tests/system_test.py ${BUILD_NUMBER} ${GIT_BRANCH} ${GIT_COMMIT} ${OB_USER} '${OB_PASSWD}' '${GIT_BB_TOKEN}'
 
 clean_cpx:
 	-docker kill $(INGRESS_ADC_NAME)

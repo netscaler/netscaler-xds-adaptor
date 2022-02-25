@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -36,7 +36,7 @@ func NsConfigCommit(client *netscaler.NitroClient, configs []NsConfigEntity) err
 		if config.Operation != "" {
 			operation = config.Operation
 		}
-		confErr.updateError(doNitro(client, nitroConfig{config.ResourceType, config.ResourceName, config.Resource, operation}, config.IgnoreErrors, nil))
+		confErr.updateError(doNitro(client, nitroConfig{resourceType: config.ResourceType, resourceName: config.ResourceName, resource: config.Resource, operation: operation}, config.IgnoreErrors, nil))
 	}
 	return confErr.getError()
 }

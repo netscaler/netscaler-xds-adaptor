@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,10 +14,11 @@ limitations under the License.
 package nsconfigengine
 
 import (
-	"citrix-xds-adaptor/tests/env"
 	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 )
 
 func init() {
@@ -64,12 +65,12 @@ func Test_doNitro(t *testing.T) {
 		inputActionsOnError []nitroConfig
 		expectedOutput      error
 	}{
-		{nitroConfig{"lbvserver", "t1", map[string]interface{}{"name": "t1", "servicetype": "http"}, "add"}, nil, nil, nil},
-		{nitroConfig{"lbvserver", "t1", nil, "delete"}, nil, nil, nil},
-		{nitroConfig{"lbvserver_service_binding", "t3", map[string]interface{}{"name": "t3", "servicename": "s1"}, "add"}, nil, nil, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t3, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t3]\", \"severity\": \"ERROR\" })")},
-		{nitroConfig{"lbvserver_service_binding", "t4", map[string]interface{}{"name": "t4", "servicename": "s1"}, "add"}, []string{"No such resource", "xxx"}, nil, nil},
-		{nitroConfig{"lbvserver_service_binding", "t5", map[string]interface{}{"name": "t5", "servicename": "s1"}, "add"}, []string{"xxx"}, []nitroConfig{{"lbvserver", "t3", nil, "delete"}}, nil},
-		{nitroConfig{"lbvserver_service_binding", "t6", map[string]interface{}{"name": "t6", "servicename": "s1"}, "add"}, []string{"xxx"}, []nitroConfig{{"lbvserver_service_binding", "t2", map[string]interface{}{"name": "t2", "servicename": "s1"}, "add"}}, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t6, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t6]\", \"severity\": \"ERROR\" }) ; [ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t2, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t2]\", \"severity\": \"ERROR\" })")},
+		{nitroConfig{"lbvserver", "t1", map[string]interface{}{"name": "t1", "servicetype": "http"}, "add", "", "", ""}, nil, nil, nil},
+		{nitroConfig{"lbvserver", "t1", nil, "delete", "", "", ""}, nil, nil, nil},
+		{nitroConfig{"lbvserver_service_binding", "t3", map[string]interface{}{"name": "t3", "servicename": "s1"}, "add", "", "", ""}, nil, nil, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t3, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t3]\", \"severity\": \"ERROR\" })")},
+		{nitroConfig{"lbvserver_service_binding", "t4", map[string]interface{}{"name": "t4", "servicename": "s1"}, "add", "", "", ""}, []string{"No such resource", "xxx"}, nil, nil},
+		{nitroConfig{"lbvserver_service_binding", "t5", map[string]interface{}{"name": "t5", "servicename": "s1"}, "add", "", "", ""}, []string{"xxx"}, []nitroConfig{{"lbvserver", "t3", nil, "delete", "", "", ""}}, nil},
+		{nitroConfig{"lbvserver_service_binding", "t6", map[string]interface{}{"name": "t6", "servicename": "s1"}, "add", "", "", ""}, []string{"xxx"}, []nitroConfig{{"lbvserver_service_binding", "t2", map[string]interface{}{"name": "t2", "servicename": "s1"}, "add", "", "", ""}}, fmt.Errorf("[ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t6, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t6]\", \"severity\": \"ERROR\" }) ; [ERROR] nitro-go: Failed to create resource of type lbvserver_service_binding, name=t2, err=failed: 404 Not Found ({ \"errorcode\": 258, \"message\": \"No such resource [name, t2]\", \"severity\": \"ERROR\" })")},
 	}
 	client := env.GetNitroClient()
 	for _, c := range cases {

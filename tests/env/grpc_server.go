@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -32,6 +32,7 @@ import (
 	routeserver "github.com/envoyproxy/go-control-plane/envoy/service/route/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	rsrc "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -119,8 +120,14 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCache(version string, nodeID *
 	if listener != nil {
 		listeners = append(listeners, listener)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil, nil)
-	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
+	resources := map[rsrc.Type][]types.Resource{
+		rsrc.EndpointType: endpoints,
+		rsrc.ClusterType:  clusters,
+		rsrc.RouteType:    routes,
+		rsrc.ListenerType: listeners,
+	}
+	s, _ := cache.NewSnapshot(version, resources)
+	return grpcAdsServer.snapshot.SetSnapshot(context.Background(), nodeID.GetId(), s)
 }
 
 func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nodeID *core.Node, listener []*listener.Listener,
@@ -141,6 +148,12 @@ func (grpcAdsServer *GrpcADSServer) UpdateSpanshotCacheMulti(version string, nod
 	for _, lt := range listener {
 		listeners = append(listeners, lt)
 	}
-	s := cache.NewSnapshot(version, endpoints, clusters, routes, listeners, nil, nil)
-	return grpcAdsServer.snapshot.SetSnapshot(nodeID.GetId(), s)
+	resources := map[rsrc.Type][]types.Resource{
+		rsrc.EndpointType: endpoints,
+		rsrc.ClusterType:  clusters,
+		rsrc.RouteType:    routes,
+		rsrc.ListenerType: listeners,
+	}
+	s, _ := cache.NewSnapshot(version, resources)
+	return grpcAdsServer.snapshot.SetSnapshot(context.Background(), nodeID.GetId(), s)
 }

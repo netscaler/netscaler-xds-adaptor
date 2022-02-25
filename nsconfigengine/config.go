@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -83,6 +83,10 @@ type nitroConfig struct {
 	resourceName string
 	resource     interface{}
 	operation    string
+	// These next fields are primarily used for binding/unbinding operations
+	boundResourceType string
+	boundResourceName string
+	bindingFilterName string
 }
 
 func attemptLogin(client *netscaler.NitroClient) error {
@@ -97,25 +101,31 @@ func attemptLogin(client *netscaler.NitroClient) error {
 	return fmt.Errorf("Login attempts failed : %v", err)
 }
 
-func attemptConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
+func attemptConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation, boundResourceType, boundResourceName, bindingFilterName string) error {
 	var err error
 	if operation == "add" {
 		_, err = client.AddResource(resourceType, resourceName, resource)
 	} else if operation == "set" {
-		_, err = client.UpdateResource(resourceType, resourceName, resource)
+		if len(resourceName) > 0 {
+			_, err = client.UpdateResource(resourceType, resourceName, resource)
+		} else {
+			err = client.UpdateUnnamedResource(resourceType, resource)
+		}
 	} else if operation == "delete" {
 		if resource != nil {
 			err = client.DeleteResourceWithArgsMap(resourceType, resourceName, resource.(map[string]string))
 		} else {
 			err = client.DeleteResource(resourceType, resourceName)
 		}
+	} else if operation == "unbind" {
+		err = client.UnbindResource(resourceType, resourceName, boundResourceType, boundResourceName, bindingFilterName)
 	} else {
 		err = client.ActOnResource(resourceType, resource, operation)
 	}
 	return err
 }
 
-func commitConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation string) error {
+func commitConfig(client *netscaler.NitroClient, resourceType string, resourceName string, resource interface{}, operation, boundResourceType, boundResourceName, bindingFilterName string) error {
 	var err error
 
 	for i := 0; i < 2; i++ {
@@ -123,7 +133,7 @@ func commitConfig(client *netscaler.NitroClient, resourceType string, resourceNa
 		if err != nil {
 			return err
 		}
-		err = attemptConfig(client, resourceType, resourceName, resource, operation)
+		err = attemptConfig(client, resourceType, resourceName, resource, operation, boundResourceType, boundResourceName, bindingFilterName)
 		if err == nil || !strings.Contains(err.Error(), "Not logged in or connection timed out") {
 			return err
 		}
@@ -133,7 +143,7 @@ func commitConfig(client *netscaler.NitroClient, resourceType string, resourceNa
 
 func doNitro(client *netscaler.NitroClient, nsConfig nitroConfig, ignoreErrors []string, actionsOnError []nitroConfig) error {
 	var err error
-	err = commitConfig(client, nsConfig.resourceType, nsConfig.resourceName, nsConfig.resource, nsConfig.operation)
+	err = commitConfig(client, nsConfig.resourceType, nsConfig.resourceName, nsConfig.resource, nsConfig.operation, nsConfig.boundResourceType, nsConfig.boundResourceName, nsConfig.bindingFilterName)
 	if err != nil {
 		for _, errMessage := range ignoreErrors {
 			if strings.Contains(err.Error(), errMessage) {
@@ -146,7 +156,7 @@ func doNitro(client *netscaler.NitroClient, nsConfig nitroConfig, ignoreErrors [
 		var actionErr error
 		errStr := ""
 		for _, action := range actionsOnError {
-			actionErr = commitConfig(client, action.resourceType, action.resourceName, action.resource, action.operation)
+			actionErr = commitConfig(client, action.resourceType, action.resourceName, action.resource, action.operation, action.boundResourceType, action.boundResourceName, action.bindingFilterName)
 			if actionErr != nil {
 				errStr = errStr + "; " + actionErr.Error()
 			}
@@ -157,6 +167,20 @@ func doNitro(client *netscaler.NitroClient, nsConfig nitroConfig, ignoreErrors [
 		return nil
 	}
 	return err
+}
+
+// GetNameWithQuotedPeriods returns string with periods quoted with ""
+func GetNameWithQuotedPeriod(entityName string) string {
+	var re = regexp.MustCompile("[.]")
+	name := re.ReplaceAllString(entityName, "\".\"")
+	return name
+}
+
+// GetNameWithoutPeriod returns string with periods replaced by _
+func GetNameWithoutPeriod(entityName string) string {
+	var re = regexp.MustCompile("[.]")
+	name := re.ReplaceAllString(entityName, "_")
+	return name
 }
 
 // GetPrefixForGateway returns prefix based on Vserver IP
@@ -237,7 +261,8 @@ type buildInfo struct {
 
 var curBuild buildInfo
 
-func getNsReleaseBuild() (float64, float64) {
+// GetNsReleaseBuild returns the build details of Citrix ADC
+func GetNsReleaseBuild() (float64, float64) {
 	return curBuild.release, curBuild.buildNo
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -82,13 +82,13 @@ func NewCSApi(name string, vserverType string, ip string, port int) *CSApi {
 func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
 	nsconfLogger.Trace("CSApi add", "csObj", GetLogString(csObj))
 	confErr := newNitroError()
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}, nil, []nitroConfig{{netscaler.Csvserver.Type(), csObj.Name, nil, "delete"}, {netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add"}}))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add", "", "", ""}, nil, []nitroConfig{{netscaler.Csvserver.Type(), csObj.Name, nil, "delete", "", "", ""}, {netscaler.Csvserver.Type(), csObj.Name, cs.Csvserver{Name: csObj.Name, Port: csObj.Port, Servicetype: csObj.VserverType, Ipv46: csObj.IP}, "add", "", "", ""}}))
 	if csObj.AllowACL == true {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacl.Type(), csObj.Name, ns.Nsacl{Aclname: csObj.Name, Aclaction: "ALLOW", Priority: csObj.Port, Protocol: "tcp", Destip: true, Destipval: csObj.IP, Destport: true, Destportval: fmt.Sprint(csObj.Port)}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacls.Type(), "", ns.Nsacls{}, "apply"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacl.Type(), csObj.Name, ns.Nsacl{Aclname: csObj.Name, Aclaction: "ALLOW", Priority: csObj.Port, Protocol: "tcp", Destip: true, Destipval: csObj.IP, Destport: true, Destportval: fmt.Sprint(csObj.Port)}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacls.Type(), "", ns.Nsacls{}, "apply", "", "", ""}, nil, nil))
 		// AllowACL flag also indicates if this is an inbound cs vserver or not. Bind analyticsprofiles this cs vserver
 		for _, profname := range csObj.AnalyticsProfileNames {
-			confErr.updateError(doNitro(client, nitroConfig{"csvserver_analyticsprofile_binding", csObj.Name, map[string]string{"name": csObj.Name, "analyticsprofile": profname}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{"csvserver_analyticsprofile_binding", csObj.Name, map[string]string{"name": csObj.Name, "analyticsprofile": profname}, "add", "", "", ""}, nil, nil))
 		}
 	}
 	if csObj.VserverType == "SSL" || csObj.VserverType == "SSL_TCP" {
@@ -99,8 +99,8 @@ func (csObj *CSApi) Add(client *netscaler.NitroClient) error {
 		if csObj.VserverType == "TCP" || csObj.VserverType == "SSL_TCP" {
 			serviceType = "TCP"
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), csObj.DefaultLbVserverName, lb.Lbvserver{Name: csObj.DefaultLbVserverName, Servicetype: serviceType}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_lbvserver_binding.Type(), csObj.Name, cs.Csvserverlbvserverbinding{Name: csObj.Name, Lbvserver: csObj.DefaultLbVserverName}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), csObj.DefaultLbVserverName, lb.Lbvserver{Name: csObj.DefaultLbVserverName, Servicetype: serviceType}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_lbvserver_binding.Type(), csObj.Name, cs.Csvserverlbvserverbinding{Name: csObj.Name, Lbvserver: csObj.DefaultLbVserverName}, "add", "", "", ""}, nil, nil))
 	}
 
 	addSSLForwardSpec(client, csObj.Name, csObj.SSLForwarding, confErr)
@@ -116,9 +116,9 @@ func (csObj *CSApi) Delete(client *netscaler.NitroClient) error {
 	updateVserverAuthSpec(client, csObj.Name, csObj.AuthSpec, confErr)
 	csBindings := NewCSBindingsAPI(csObj.Name)
 	csBindings.deleteState(client, confErr)
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacl.Type(), csObj.Name, nil, "delete"}, []string{"No such resource"}, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacls.Type(), "", ns.Nsacls{}, "apply"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, nil, "delete"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacl.Type(), csObj.Name, nil, "delete", "", "", ""}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Nsacls.Type(), "", ns.Nsacls{}, "apply", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver.Type(), csObj.Name, nil, "delete", "", "", ""}, nil, nil))
 	return confErr.getError()
 }
 
@@ -275,17 +275,17 @@ func NewHTTPCalloutPolicy(vserverName, returnType, fullReqExpr, IP, port, result
 //mirrorPolicyAdd adds the HTTP callout, rewrite policy and action required for HTTP mirror support
 func (csBindings *CSBindingsAPI) mirrorPolicyAdd(client *netscaler.NitroClient, confErr *nitroError, callout *HTTPCalloutPolicy, policyName string) {
 	expr := "http.req.header(\"host\").prefix(':', 0).append(\"-shadow:\").append(http.req.header(\"host\").after_str(\":\")).STRIP_END_CHARS(\":\")"
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), policyName, policy.Policyhttpcallout{Name: policyName, Vserver: callout.LbVserverName, Returntype: callout.ReturnType, Resultexpr: callout.ResultExpr, Fullreqexpr: callout.FullReqExpr}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), callout.LbVserverName, rewrite.Rewriteaction{Name: callout.LbVserverName, Type: "replace", Target: "HTTP.REQ.HEADER(\"HOST\")", Stringbuilderexpr: expr}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), callout.LbVserverName, rewrite.Rewritepolicy{Name: callout.LbVserverName, Rule: "true", Action: callout.LbVserverName}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver_rewritepolicy_binding.Type(), callout.LbVserverName, lb.Lbvserverrewritepolicybinding{Name: callout.LbVserverName, Policyname: callout.LbVserverName, Priority: rwPolicyStartPriority, Bindpoint: "REQUEST", Gotopriorityexpression: "NEXT"}, "add"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), policyName, policy.Policyhttpcallout{Name: policyName, Vserver: callout.LbVserverName, Returntype: callout.ReturnType, Resultexpr: callout.ResultExpr, Fullreqexpr: callout.FullReqExpr}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), callout.LbVserverName, rewrite.Rewriteaction{Name: callout.LbVserverName, Type: "replace", Target: "HTTP.REQ.HEADER(\"HOST\")", Stringbuilderexpr: expr}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), callout.LbVserverName, rewrite.Rewritepolicy{Name: callout.LbVserverName, Rule: "true", Action: callout.LbVserverName}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver_rewritepolicy_binding.Type(), callout.LbVserverName, lb.Lbvserverrewritepolicybinding{Name: callout.LbVserverName, Policyname: callout.LbVserverName, Priority: rwPolicyStartPriority, Bindpoint: "REQUEST", Gotopriorityexpression: "NEXT"}, "add", "", "", ""}, nil, nil))
 }
 
 func mirrorPolicyDeleteWithLBvserver(client *netscaler.NitroClient, confErr *nitroError, policyName, vserver string) {
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), policyName, nil, "delete"}, []string{"No such resource"}, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver_rewritepolicy_binding.Type(), vserver, map[string]string{"name": vserver, "policyname": vserver}, "delete"}, []string{"No such resource"}, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), vserver, nil, "delete"}, []string{"No such resource"}, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), vserver, nil, "delete"}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), policyName, nil, "delete", "", "", ""}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver_rewritepolicy_binding.Type(), vserver, map[string]string{"name": vserver, "policyname": vserver}, "delete", "", "", ""}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), vserver, nil, "delete", "", "", ""}, []string{"No such resource"}, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), vserver, nil, "delete", "", "", ""}, []string{"No such resource"}, nil))
 	lbObj := NewLBApi(vserver, "", "", "")
 	lbObj.Delete(client)
 }
@@ -296,9 +296,9 @@ func (csBindings *CSBindingsAPI) mirrorPolicyDelete(client *netscaler.NitroClien
 	if err == nil {
 		for _, callout := range calloutPolicy {
 			vserver := callout["vserver"].(string)
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": policyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), policyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), policyName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": policyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), policyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), policyName, nil, "delete", "", "", ""}, nil, nil))
 			mirrorPolicyDeleteWithLBvserver(client, confErr, mirrorPolicy, vserver)
 		}
 	}
@@ -330,13 +330,13 @@ func (csBindings *CSBindingsAPI) responderPolicyAdd(client *netscaler.NitroClien
 		responderAction.Responsestatuscode = responseCode
 	}
 	//Action update can fail if it is of different type. In this case unbind policy, delete policy, delete action and add action again
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderaction.Type(), responderEntityName, responderAction, "add"}, nil, []nitroConfig{
-		{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": responderEntityName}, "delete"},
-		{netscaler.Responderpolicy.Type(), responderEntityName, nil, "delete"},
-		{netscaler.Responderaction.Type(), responderEntityName, nil, "delete"},
-		{netscaler.Responderaction.Type(), responderEntityName, responderAction, "add"}}))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderpolicy.Type(), responderEntityName, responder.Responderpolicy{Name: responderEntityName, Rule: policyRule, Action: responderEntityName}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, cs.Csvserverresponderpolicybinding{Name: csBindings.Name, Policyname: responderEntityName, Priority: csBindings.curResPriority, Gotopriorityexpression: "END"}, "add"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderaction.Type(), responderEntityName, responderAction, "add", "", "", ""}, nil, []nitroConfig{
+		{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": responderEntityName}, "delete", "", "", ""},
+		{netscaler.Responderpolicy.Type(), responderEntityName, nil, "delete", "", "", ""},
+		{netscaler.Responderaction.Type(), responderEntityName, nil, "delete", "", "", ""},
+		{netscaler.Responderaction.Type(), responderEntityName, responderAction, "add", "", "", ""}}))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderpolicy.Type(), responderEntityName, responder.Responderpolicy{Name: responderEntityName, Rule: policyRule, Action: responderEntityName}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, cs.Csvserverresponderpolicybinding{Name: csBindings.Name, Policyname: responderEntityName, Priority: csBindings.curResPriority, Gotopriorityexpression: "END"}, "add", "", "", ""}, nil, nil))
 	csBindings.curResPriority = csBindings.curResPriority + 10
 }
 
@@ -356,14 +356,14 @@ func (csBindings *CSBindingsAPI) rewritePolicyAdd(client *netscaler.NitroClient,
 	}
 	// Action update can fail if it is of different type. In this case unbind policy, delete policy, delete action and add action again
 	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), rwEntityName,
-		rewrite.Rewriteaction{Name: rwEntityName, Type: rewritepolinfo.ActionType, Target: rewritepolinfo.ActionTarget, Stringbuilderexpr: rewritepolinfo.ActionStringBldrExp, Search: rewritepolinfo.Search}, "add"}, nil, []nitroConfig{
-		{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": rwEntityName}, "delete"},
-		{netscaler.Rewritepolicy.Type(), rwEntityName, nil, "delete"},
-		{netscaler.Rewriteaction.Type(), rwEntityName, nil, "delete"},
+		rewrite.Rewriteaction{Name: rwEntityName, Type: rewritepolinfo.ActionType, Target: rewritepolinfo.ActionTarget, Stringbuilderexpr: rewritepolinfo.ActionStringBldrExp, Search: rewritepolinfo.Search}, "add", "", "", ""}, nil, []nitroConfig{
+		{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": rwEntityName}, "delete", "", "", ""},
+		{netscaler.Rewritepolicy.Type(), rwEntityName, nil, "delete", "", "", ""},
+		{netscaler.Rewriteaction.Type(), rwEntityName, nil, "delete", "", "", ""},
 		{netscaler.Rewriteaction.Type(), rwEntityName,
-			rewrite.Rewriteaction{Name: rwEntityName, Type: rewritepolinfo.ActionType, Target: rewritepolinfo.ActionTarget, Stringbuilderexpr: rewritepolinfo.ActionStringBldrExp, Search: rewritepolinfo.Search}, "add"}}))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), rwEntityName, rewrite.Rewritepolicy{Name: rwEntityName, Rule: policyRule, Action: rwEntityName}, "add"}, nil, nil))
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, cs.Csvserverrewritepolicybinding{Name: csBindings.Name, Policyname: rwEntityName, Priority: csBindings.curRwPriority, Gotopriorityexpression: "NEXT", Bindpoint: rewritepolinfo.Bindpoint}, "add"}, nil, nil))
+			rewrite.Rewriteaction{Name: rwEntityName, Type: rewritepolinfo.ActionType, Target: rewritepolinfo.ActionTarget, Stringbuilderexpr: rewritepolinfo.ActionStringBldrExp, Search: rewritepolinfo.Search}, "add", "", "", ""}}))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), rwEntityName, rewrite.Rewritepolicy{Name: rwEntityName, Rule: policyRule, Action: rwEntityName}, "add", "", "", ""}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, cs.Csvserverrewritepolicybinding{Name: csBindings.Name, Policyname: rwEntityName, Priority: csBindings.curRwPriority, Gotopriorityexpression: "NEXT", Bindpoint: rewritepolinfo.Bindpoint}, "add", "", "", ""}, nil, nil))
 	csBindings.curRwPriority = csBindings.curRwPriority + 10
 }
 
@@ -383,7 +383,7 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 				lbObj.Persistencetype = "SOURCEIP"
 			}
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), csactpolinfo.TargetLB, lbObj, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), csactpolinfo.TargetLB, lbObj, "add", "", "", ""}, nil, nil))
 	}
 	for _, policyRule := range csactpolinfo.PolicyRules {
 		if policyRule == "" {
@@ -404,9 +404,9 @@ func (csBindings *CSBindingsAPI) csPolicyAdd(client *netscaler.NitroClient, conf
 		} else {
 			csBindings.mirrorPolicyDelete(client, confErr, csBoundEntityName)
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB, Targetvserverexpr: csactpolinfo.TargetVserverExpr}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), csBoundEntityName, cs.Cspolicy{Policyname: csBoundEntityName, Rule: policyRule, Action: csBoundEntityName}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, cs.Csvservercspolicybinding{Name: csBindings.Name, Policyname: csBoundEntityName, Priority: csBindings.curCsPriority}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), csBoundEntityName, cs.Csaction{Name: csBoundEntityName, Targetlbvserver: csactpolinfo.TargetLB, Targetvserverexpr: csactpolinfo.TargetVserverExpr}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), csBoundEntityName, cs.Cspolicy{Policyname: csBoundEntityName, Rule: policyRule, Action: csBoundEntityName}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, cs.Csvservercspolicybinding{Name: csBindings.Name, Policyname: csBoundEntityName, Priority: csBindings.curCsPriority}, "add", "", "", ""}, nil, nil))
 		csBindings.curCsPriority = csBindings.curCsPriority + 10
 
 	}
@@ -426,15 +426,15 @@ func (csBindings *CSBindingsAPI) Add(client *netscaler.NitroClient) error {
 		bindingName := csBindings.Name + "_" + fmt.Sprint(csBindings.curCsPriority)
 		httpCalloutName := GetNSCompatibleNameByLen(bindingName+"_call_Delay", 31)
 		if csBinding.Fault.DelayPercent != 0 {
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, policy.Policyhttpcallout{Name: httpCalloutName, Ipaddress: "192.0.0.2", Port: delayServerPort, Returntype: "TEXT", Hostexpr: "\"127.0.0.1\"", Urlstemexpr: "\"/?sleep=" + fmt.Sprint(csBinding.Fault.DelaySeconds) + "\"", Resultexpr: "http.res.body(100)"}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, policy.Policyhttpcallout{Name: httpCalloutName, Ipaddress: "192.0.0.2", Port: delayServerPort, Returntype: "TEXT", Hostexpr: "\"127.0.0.1\"", Urlstemexpr: "\"/?sleep=" + fmt.Sprint(csBinding.Fault.DelaySeconds) + "\"", Resultexpr: "http.res.body(100)"}, "add", "", "", ""}, nil, nil))
 			curDelayRule = "(" + curPolicyRule + " && sys.random.mul(100).lt(" + fmt.Sprint(csBinding.Fault.DelayPercent) + ") && sys.http_callout(" + httpCalloutName + ").length.gt(0))"
 		} else {
 			_, err := client.FindResource(netscaler.Policyhttpcallout.Type(), httpCalloutName)
 			if err == nil {
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bindingName}, "delete"}, nil, nil))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bindingName, nil, "delete"}, nil, nil))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bindingName, nil, "delete"}, nil, nil))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, nil, "delete"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bindingName}, "delete", "", "", ""}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bindingName, nil, "delete", "", "", ""}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bindingName, nil, "delete", "", "", ""}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), httpCalloutName, nil, "delete", "", "", ""}, nil, nil))
 			}
 		}
 		rewritepolinfo.Bindpoint = "REQUEST"
@@ -508,9 +508,9 @@ func (csBindings *CSBindingsAPI) deleteState(client *netscaler.NitroClient, conf
 			if priority < csBindings.curRwPriority {
 				continue
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), bPolicyName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_rewritepolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewritepolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Rewriteaction.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
 		}
 	}
 
@@ -526,10 +526,10 @@ func (csBindings *CSBindingsAPI) deleteState(client *netscaler.NitroClient, conf
 			if priority < csBindings.curCsPriority {
 				continue
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), GetNSCompatibleNameByLen(bPolicyName+"_call_Delay", 31), nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_cspolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Cspolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csaction.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Policyhttpcallout.Type(), GetNSCompatibleNameByLen(bPolicyName+"_call_Delay", 31), nil, "delete", "", "", ""}, nil, nil))
 			calloutPolicy, err := client.FindResource(netscaler.Policyhttpcallout.Type(), GetNSCompatibleNameByLen(bPolicyName+"_call_Mirror", 31))
 			if err == nil {
 				mirrorPolicyDeleteWithLBvserver(client, confErr, GetNSCompatibleNameByLen(bPolicyName+"_call_Mirror", 31), calloutPolicy["vserver"].(string))
@@ -550,9 +550,9 @@ func (csBindings *CSBindingsAPI) deleteState(client *netscaler.NitroClient, conf
 			if priority < csBindings.curResPriority {
 				continue
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderpolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderaction.Type(), bPolicyName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Csvserver_responderpolicy_binding.Type(), csBindings.Name, map[string]string{"name": csBindings.Name, "policyname": bPolicyName}, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderpolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Responderaction.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
 		}
 	}
 }

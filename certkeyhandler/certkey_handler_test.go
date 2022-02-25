@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,7 +14,6 @@ package certkeyhandler
 
 import (
 	"bytes"
-	"citrix-xds-adaptor/tests/env"
 	"context"
 	"fmt"
 	"net"
@@ -22,6 +21,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/citrix/citrix-xds-adaptor/tests/env"
 
 	"google.golang.org/grpc"
 	pb "istio.io/istio/security/proto"

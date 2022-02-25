@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Citrix Systems, Inc
+Copyright 2022 Citrix Systems, Inc
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -61,7 +61,7 @@ func GetSslCertkeyName(certPath string) string {
 
 func unbindBindSSLCertKeyBindings(client *netscaler.NitroClient, certKeyName, resourceName, entityName, entityType, operation string, isCA bool) {
 	confErr := newNitroError()
-	confErr.updateError(doNitro(client, nitroConfig{entityType, entityName, map[string]string{resourceName: entityName, "Certkeyname": certKeyName, "Ca": strconv.FormatBool(isCA)}, operation}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{entityType, entityName, map[string]string{resourceName: entityName, "Certkeyname": certKeyName, "Ca": strconv.FormatBool(isCA)}, operation, "", "", ""}, nil, nil))
 }
 
 // UpdateBindings will unbind bindings of oldCertKeyName from SSL Vserver/ServiceGroup and bind with newCertKeyName
@@ -186,7 +186,7 @@ func bindSSLCertKeySSLVserverServiceGroup(client *netscaler.NitroClient, certKey
 func bindSSLVserver(client *netscaler.NitroClient, certKeyName string, vserverBinds []SSLVserverBinding) {
 	confErr := newNitroError()
 	for _, vserverBind := range vserverBinds {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverBind.vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverBind.vserverName, Certkeyname: certKeyName, Snicert: vserverBind.sniCert}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverBind.vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverBind.vserverName, Certkeyname: certKeyName, Snicert: vserverBind.sniCert}, "add", "", "", ""}, nil, nil))
 	}
 }
 
@@ -252,10 +252,10 @@ func AddCertKey(client *netscaler.NitroClient, certKeyName, keyFileName string, 
 			if isBundle {
 				bundle = "Yes"
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, ssl.Sslcertkey{Certkey: certKeyName, Cert: sslCertPath + certKeyName, Key: sslCertPath + keyFileName, Bundle: bundle}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, ssl.Sslcertkey{Certkey: certKeyName, Cert: sslCertPath + certKeyName, Key: sslCertPath + keyFileName, Bundle: bundle}, "add", "", "", ""}, nil, nil))
 		}
 	} else {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, ssl.Sslcertkey{Certkey: certKeyName, Cert: sslCertPath + certKeyName}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, ssl.Sslcertkey{Certkey: certKeyName, Cert: sslCertPath + certKeyName}, "add", "", "", ""}, nil, nil))
 	}
 }
 
@@ -291,7 +291,7 @@ func (sslObj *SSLSpec) addInlineCert(client *netscaler.NitroClient, confErr *nit
 			_, err := client.FindResource(netscaler.Sslcertkey.Type(), entityCertName)
 			if err != nil {
 				confErr.updateError(UploadCertData(client, []byte(sslObj.Cert), entityCertName, []byte(sslObj.PrivateKey), entityKeyName))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), entityCertName, ssl.Sslcertkey{Certkey: entityCertName, Cert: sslCertPath + entityCertName, Key: sslCertPath + entityKeyName}, "add"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), entityCertName, ssl.Sslcertkey{Certkey: entityCertName, Cert: sslCertPath + entityCertName, Key: sslCertPath + entityKeyName}, "add", "", "", ""}, nil, nil))
 			}
 		}
 	}
@@ -301,7 +301,7 @@ func (sslObj *SSLSpec) addInlineCert(client *netscaler.NitroClient, confErr *nit
 			_, err := client.FindResource(netscaler.Sslcertkey.Type(), rootCertName)
 			if err != nil {
 				confErr.updateError(UploadCertData(client, []byte(sslObj.RootCert), rootCertName, nil, ""))
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), rootCertName, ssl.Sslcertkey{Certkey: rootCertName, Cert: sslCertPath + rootCertName}, "add"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), rootCertName, ssl.Sslcertkey{Certkey: rootCertName, Cert: sslCertPath + rootCertName}, "add", "", "", ""}, nil, nil))
 			}
 		}
 	}
@@ -321,7 +321,7 @@ func deleteStaleCert(client *netscaler.NitroClient, confErr *nitroError, entityN
 		for _, certBinding := range certBindings {
 			if certKey, err := getValueString(certBinding, "certkeyname"); err == nil {
 				if _, ok := cert[certKey]; !ok {
-					confErr.updateError(doNitro(client, nitroConfig{entityType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey, "ca": strconv.FormatBool(cert[certKey].isCA)}, "delete"}, nil, nil))
+					confErr.updateError(doNitro(client, nitroConfig{entityType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey, "ca": strconv.FormatBool(cert[certKey].isCA)}, "delete", "", "", ""}, nil, nil))
 					DeleteCertKey(client, certKey)
 				}
 			}
@@ -350,17 +350,17 @@ func addSSLServiceGroup(client *netscaler.NitroClient, serviceGroupName string, 
 			}
 		}
 		if entityCertName != "" {
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup_sslcertkey_binding.Type(), serviceGroupName, ssl.Sslservicegroupsslcertkeybinding{Servicegroupname: serviceGroupName, Certkeyname: entityCertName}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup_sslcertkey_binding.Type(), serviceGroupName, ssl.Sslservicegroupsslcertkeybinding{Servicegroupname: serviceGroupName, Certkeyname: entityCertName}, "add", "", "", ""}, nil, nil))
 			certPresent[entityCertName] = CertInfo{certName: entityCertName, isCA: false}
 		}
 		if rootCertName != "" {
 			serverAuth = "ENABLED"
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup_sslcertkey_binding.Type(), serviceGroupName, ssl.Sslservicegroupsslcertkeybinding{Servicegroupname: serviceGroupName, Certkeyname: rootCertName, Ca: true}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup_sslcertkey_binding.Type(), serviceGroupName, ssl.Sslservicegroupsslcertkeybinding{Servicegroupname: serviceGroupName, Certkeyname: rootCertName, Ca: true}, "add", "", "", ""}, nil, nil))
 			certPresent[rootCertName] = CertInfo{certName: rootCertName, isCA: true}
 		}
 	}
 	deleteStaleCert(client, confErr, serviceGroupName, netscaler.Sslservicegroup_sslcertkey_binding.Type(), "servicegroupname", certPresent)
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup.Type(), serviceGroupName, ssl.Sslservicegroup{Servicegroupname: serviceGroupName, Serverauth: serverAuth}, "add"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslservicegroup.Type(), serviceGroupName, ssl.Sslservicegroup{Servicegroupname: serviceGroupName, Serverauth: serverAuth}, "add", "", "", ""}, nil, nil))
 }
 
 func addSSLVserver(client *netscaler.NitroClient, vserverName string, sslObjs []SSLSpec, SSLClientAuth bool, confErr *nitroError) {
@@ -387,11 +387,11 @@ func addSSLVserver(client *netscaler.NitroClient, vserverName string, sslObjs []
 			if sslObj.SNICert == true {
 				sniEnable = "ENABLED"
 			}
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverName, Certkeyname: entityCertName, Snicert: sslObj.SNICert}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverName, Certkeyname: entityCertName, Snicert: sslObj.SNICert}, "add", "", "", ""}, nil, nil))
 			certPresent[entityCertName] = CertInfo{certName: entityCertName, isCA: false}
 		}
 		if rootCertName != "" {
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverName, Certkeyname: rootCertName, Ca: true}, "add"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslcertkey_binding.Type(), vserverName, ssl.Sslvserversslcertkeybinding{Vservername: vserverName, Certkeyname: rootCertName, Ca: true}, "add", "", "", ""}, nil, nil))
 			certPresent[rootCertName] = CertInfo{certName: rootCertName, isCA: true}
 		}
 	}
@@ -400,13 +400,13 @@ func addSSLVserver(client *netscaler.NitroClient, vserverName string, sslObjs []
 		sslClientAuthVal = "ENABLED"
 	}
 	deleteStaleCert(client, confErr, vserverName, netscaler.Sslvserver_sslcertkey_binding.Type(), "vservername", certPresent)
-	confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver.Type(), vserverName, ssl.Sslvserver{Vservername: vserverName, Snienable: sniEnable, Clientauth: sslClientAuthVal}, "set"}, nil, nil))
+	confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver.Type(), vserverName, ssl.Sslvserver{Vservername: vserverName, Snienable: sniEnable, Clientauth: sslClientAuthVal}, "set", "", "", ""}, nil, nil))
 
 }
 
 func sslFileTransfer(client *netscaler.NitroClient, fileName, fileContents string) error {
 	nsconfLogger.Trace(" NetScaler SSL file transfer", "fileName", fileName)
-	return doNitro(client, nitroConfig{netscaler.Systemfile.Type(), fileName, system.Systemfile{Fileencoding: "BASE64", Filelocation: sslCertPath, Filecontent: fileContents, Filename: fileName}, "add"}, nil, nil)
+	return doNitro(client, nitroConfig{netscaler.Systemfile.Type(), fileName, system.Systemfile{Fileencoding: "BASE64", Filelocation: sslCertPath, Filecontent: fileContents, Filename: fileName}, "add", "", "", ""}, nil, nil)
 }
 
 // UploadCert upload a certificate and key on to the Citrix-ADC
@@ -450,7 +450,7 @@ func UpdateCert(client *netscaler.NitroClient, certKeyName, certFileName, keyFil
 	if keyFileName != "" {
 		sslCertKey.Key = keyFileName
 	}
-	return doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, sslCertKey, "update"}, nil, nil)
+	return doNitro(client, nitroConfig{netscaler.Sslcertkey.Type(), certKeyName, sslCertKey, "update", "", "", ""}, nil, nil)
 }
 
 // SSLForwardSpec specifies a set of domains to forwards https traffic to
@@ -481,22 +481,22 @@ func addSSLForwardSpec(client *netscaler.NitroClient, vserverName string, forwar
 	var priority int
 
 	for index, forwardObj := range forwardObjs {
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), forwardObj.LbVserverName, lb.Lbvserver{Name: forwardObj.LbVserverName, Servicetype: "TCP"}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Lbvserver.Type(), forwardObj.LbVserverName, lb.Lbvserver{Name: forwardObj.LbVserverName, Servicetype: "TCP"}, "add", "", "", ""}, nil, nil))
 		priority := index + 1
 		sslPolicyName := vserverName + "_ssl_" + fmt.Sprint(priority)
 		sslActionName := vserverName + "_ssl_" + forwardObj.LbVserverName
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslaction.Type(), sslActionName, ssl.Sslaction{Name: sslActionName, Forward: forwardObj.LbVserverName}, "add"}, []string{"set command not present for this resource"}, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslaction.Type(), sslActionName, ssl.Sslaction{Name: sslActionName, Forward: forwardObj.LbVserverName}, "add", "", "", ""}, []string{"set command not present for this resource"}, nil))
 		rule := getPolicyRuleForSNINames(forwardObj.SNINames)
 		policyObj, errp := client.FindResource(netscaler.Sslpolicy.Type(), sslPolicyName)
 		if errp == nil {
 			curActionName, _ := getValueString(policyObj, "action")
 			curRule, _ := getValueString(policyObj, "rule")
 			if curActionName != sslActionName || curRule != rule {
-				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, map[string]string{"vservername": vserverName, "policyname": sslPolicyName, "type": "CLIENTHELLO_REQ"}, "delete"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, map[string]string{"vservername": vserverName, "policyname": sslPolicyName, "type": "CLIENTHELLO_REQ"}, "delete", "", "", ""}, nil, nil))
 			}
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslpolicy.Type(), sslPolicyName, ssl.Sslpolicy{Name: sslPolicyName, Rule: rule, Action: sslActionName}, "add"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, ssl.Sslvserversslpolicybinding{Vservername: vserverName, Policyname: sslPolicyName, Priority: priority, Type: "CLIENTHELLO_REQ"}, "add"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslpolicy.Type(), sslPolicyName, ssl.Sslpolicy{Name: sslPolicyName, Rule: rule, Action: sslActionName}, "add", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, ssl.Sslvserversslpolicybinding{Vservername: vserverName, Policyname: sslPolicyName, Priority: priority, Type: "CLIENTHELLO_REQ"}, "add", "", "", ""}, nil, nil))
 	}
 	/* Delete stale bindings*/
 	sslvserverSslpolicyBindings, err := client.FindResourceArray(netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName)
@@ -513,8 +513,8 @@ func addSSLForwardSpec(client *netscaler.NitroClient, vserverName string, forwar
 		if priority <= len(forwardObjs) {
 			continue
 		}
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, map[string]string{"vservername": vserverName, "policyname": bPolicyName, "type": "CLIENTHELLO_REQ"}, "delete"}, nil, nil))
-		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslpolicy.Type(), bPolicyName, nil, "delete"}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslvserver_sslpolicy_binding.Type(), vserverName, map[string]string{"vservername": vserverName, "policyname": bPolicyName, "type": "CLIENTHELLO_REQ"}, "delete", "", "", ""}, nil, nil))
+		confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslpolicy.Type(), bPolicyName, nil, "delete", "", "", ""}, nil, nil))
 	}
 	/* Delete stale sslaction */
 	sslActions, errs := client.FindFilteredResourceArray(netscaler.Sslaction.Type(), map[string]string{"referencecount": "0"})
@@ -524,7 +524,7 @@ func addSSLForwardSpec(client *netscaler.NitroClient, vserverName string, forwar
 	for _, sslAction := range sslActions {
 		var actionName string
 		if actionName, err = getValueString(sslAction, "name"); err == nil {
-			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslaction.Type(), actionName, nil, "delete"}, nil, nil))
+			confErr.updateError(doNitro(client, nitroConfig{netscaler.Sslaction.Type(), actionName, nil, "delete", "", "", ""}, nil, nil))
 		}
 	}
 	removeCertBindings(client, confErr, netscaler.Sslvserver.Type(), vserverName, "vservername", netscaler.Sslvserver_sslcertkey_binding.Type())
@@ -535,10 +535,10 @@ func deleteCertBindings(client *netscaler.NitroClient, confErr *nitroError, enti
 	for _, certBinding := range certBindings {
 		if certKey, err := getValueString(certBinding, "certkeyname"); err == nil {
 			if caVal, ok := certBinding["ca"]; ok && caVal == true {
-				confErr.updateError(doNitro(client, nitroConfig{bindingType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey, "ca": "true"}, "delete"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{bindingType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey, "ca": "true"}, "delete", "", "", ""}, nil, nil))
 
 			} else {
-				confErr.updateError(doNitro(client, nitroConfig{bindingType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey}, "delete"}, nil, nil))
+				confErr.updateError(doNitro(client, nitroConfig{bindingType, entityName, map[string]string{resourceName: entityName, "certkeyname": certKey}, "delete", "", "", ""}, nil, nil))
 			}
 			DeleteCertKey(client, certKey)
 		}
