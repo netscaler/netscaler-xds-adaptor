@@ -66,6 +66,11 @@ const (
 	sdsRootCertPrefix = "file-root"
 )
 
+var (
+	// EnableDefaultSSLTCPListener set to true will create SSL type vserver always for listener 0.0.0.0:443 irrespective of absence of tlsContext.
+	EnableDefaultSSLTCPListener = getBoolEnv("DEFAULT_SSL_LISTENER_ON_443")
+)
+
 var valueNameToNum = map[string]int{
 	"HUNDRED":      100,
 	"TEN_THOUSAND": 10000,
@@ -584,7 +589,7 @@ func getListenerFilterType(nsConfig *configAdaptor, filterChain *xdsListener.Fil
 		tlsContextExists = true
 	}
 	for _, filter := range filterChain.GetFilters() {
-		if listenerAddress.GetSocketAddress().GetPortValue() == 443 && listenerAddress.GetSocketAddress().GetAddress() == "0.0.0.0" && filter.Name == envoyUtil.TCPProxy {
+		if EnableDefaultSSLTCPListener && listenerAddress.GetSocketAddress().GetPortValue() == 443 && listenerAddress.GetSocketAddress().GetAddress() == "0.0.0.0" && filter.Name == envoyUtil.TCPProxy {
 			return "SSL", "TCP", nil
 		}
 		// Check for the logstream ports IFF logproxy service has been provided
@@ -643,29 +648,29 @@ func getHTTPFilterConfig(filter *envoyFilterHttp.HttpFilter, out proto.Message) 
 	return nil
 }
 
-// isxDSServerListener checks if given listener represents xDS Server or not
-func isxDSServerListener(listener *xdsListener.Listener) bool {
-	// Check xDSServerURL after checking the if resolvedIP is matching listener IP
-	// If xDSServerURL could not be resolved successfully, then parse every listener resource.
-	if (xDSServerResolvedIP == "") || (listener.GetAddress().GetSocketAddress().GetAddress() == xDSServerResolvedIP) {
+// checkListenerForAddress() checks if given listener represents input address or not
+func checkListenerForAddress(listener *xdsListener.Listener, inputIP, inputURL string) bool {
+	// Check ServerURL after checking the if resolvedIP is matching listener IP
+	// If ServerURL could not be resolved successfully, then parse every listener resource.
+	if (inputIP == "") || (listener.GetAddress().GetSocketAddress().GetAddress() == inputIP) {
 		for _, filterChain := range listener.GetFilterChains() {
 			for _, filter := range filterChain.GetFilters() {
 				switch filterName := filter.GetName(); filterName {
 				case envoyUtil.TCPProxy:
 					tcpProxy := &envoyFilterTcp.TcpProxy{}
 					if err := getListenerFilterConfig(filter, tcpProxy); err != nil {
-						xDSLogger.Error("isxDSServerListener: Could not load tcp proxy filter for listener", "listenerName", listener.GetName(), "error", err)
+						xDSLogger.Error("checkListenerForAddress: Could not load tcp proxy filter for listener", "listenerName", listener.GetName(), "resolvedServiceIP", inputIP, "error", err)
 						continue
 					}
 					ok, _, domain := extractPortAndDomainName(tcpProxy.GetCluster())
 					if !ok {
-						xDSLogger.Debug("isxDSServerListener: Can not ascertain if listener and cluster represents xDS Server", "listenerName", listener.GetName(), "cluster", tcpProxy.GetCluster())
+						xDSLogger.Debug("checkListenerForAddress: Can not ascertain if listener and cluster represents desired service", "listenerName", listener.GetName(), "cluster", tcpProxy.GetCluster(), "resolvedServiceIP", inputIP)
 						return false
 					}
-					// Port check is not introduced because xDS server can run multiple services on different ports apart from xDSServerPort
-					// And we want to skip ADC config for all such services related to xDS Server
-					if strings.Contains(domain, xDSServerURL) {
-						xDSLogger.Trace("isxDSServerListener: Listener resource represents xDS Server", "listenerName", listener.GetName())
+					// Port check is not introduced because this inputURL server can run multiple services on different ports apart from any particular port
+					// And we want to skip ADC config for all such services related to this inputURL Service
+					if strings.Contains(domain, inputURL) {
+						xDSLogger.Trace("checkListenerForAddress: Listener resource represents desired service", "listenerName", listener.GetName(), "serviceFQDN", inputURL)
 						return true
 					}
 				}
@@ -675,15 +680,41 @@ func isxDSServerListener(listener *xdsListener.Listener) bool {
 	return false
 }
 
+// isxDSServerListener checks if given listener represents xDS Server or not
+func isxDSServerListener(listener *xdsListener.Listener) bool {
+	// Check xDSServerURL after checking the if resolvedIP is matching listener IP
+	// If xDSServerURL could not be resolved successfully, then parse every listener resource.
+	// Port check is not introduced because xDS server can run multiple services on different ports apart from xDSServerPort
+	// And we want to skip ADC config for all such services related to xDS Server
+	if checkListenerForAddress(listener, xDSServerResolvedIP, xDSServerURL) {
+		xDSLogger.Debug("isxDSServerListener: Listener resource represents xDS Server", "listenerName", listener.GetName())
+		return true
+	}
+	return false
+}
+
+// isCLAListener checks if given listener represents CLA service or not
+func isCLAListener(listener *xdsListener.Listener) bool {
+	// CLAResolvedIP will always have IP or empty string.
+	// If licenseServer is not provided, CLAResolveIP=""
+	// Else it will be either resolved IP for CLAServiceURL FQDN or user-provided IP address.
+	// Check for listener Address iff CLAResolvedIP is non-zero.
+	// If only IP is provided in license-server argument, then CLAServiceURL is empty.
+	// checkListenerForAddress ensures that if IP address is matching, it'll return true (even if CLAServiceURL="")
+
+	if len(CLAResolvedIP) > 0 && checkListenerForAddress(listener, CLAResolvedIP, CLAServiceURL) {
+		xDSLogger.Debug("isCLAListener: Listener resource represents License Server", "listenerName", listener.GetName())
+		return true
+	}
+	return false
+}
+
 // TODO: How do we identify if it is a special listener?
 // 1. Check for special port 15443 (take value from ENV var)
 // 2. Also check if tcp_cluster_rewrite filter is mentioned or not
 func isMultiClusterListener(listener *xdsListener.Listener) bool {
 	port := listener.GetAddress().GetSocketAddress().GetPortValue()
-	if int(port) == multiClusterListenPort {
-		return true
-	}
-	return false
+	return int(port) == multiClusterListenPort
 }
 
 // Config for special listener:
@@ -756,16 +787,18 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 	 */
 	csObjList := make([]map[string]interface{}, 0)
 	csObjMaps := make(map[string]interface{})
-	// If it is a xDS Server's listener, then skip the ADC config creation for the same.
-	// Connection to xDSServer is already established using RNAT session, and subsequent
-	// gRPC connection attempts face TLS-handshake issue due to presence of SSL_TCP servicegroup
-	if isxDSServerListener(listener) == true {
-		xDSLogger.Trace("listenerAdd: Skipping xDSServer listener", "listenerName", listener.GetName())
+	// If it is a xDS Server's listener OR CLA service, then skip the ADC config creation for the same.
+	// Connection to xDSServer/CLA is already established using RNAT session.
+	// In case of xDSServer, gRPC connection attempts face TLS-handshake issue due to presence of SSL_TCP servicegroup.
+	// In case of CPX Licensing Agent (CLA), the servicegroup representing CLA can't have CLA's podIP due to presence
+	// of CS-VIP created for statefulSet of headless Redis service.
+	if isxDSServerListener(listener) || isCLAListener(listener) {
+		xDSLogger.Trace("listenerAdd: Skipping xDSServer/CLA listener", "listenerName", listener.GetName())
 		return csObjList
 	}
 	// If it is multiCluster gateway, then special config needs to be done for special port (mostly 15443)
 	// This type of listener does not provide HTTP CM filter or TCP proxy filter, and it does not have routes/cluster details
-	if multiClusterIngress == true && isMultiClusterListener(listener) {
+	if multiClusterIngress && isMultiClusterListener(listener) {
 		multiClusterListenerConfig(nsConfig, listener)
 		csObjMaps["csVsName"] = nsconfigengine.GetNSCompatibleName(listener.GetName())
 		csObjList = append(csObjList, csObjMaps)
@@ -797,11 +830,11 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 					xDSLogger.Error("listenerAdd: Error loading http connection manager", "listenerName", listener.GetName(), "error", err)
 				} else {
 					csObj.AuthSpec = getAuthConfig(nsConfig, csObj.Name, httpCM.GetHttpFilters())
-					confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
 					// Add configBlock before calling routeUpdate. But don't add for LOGSTREAM type
 					// In case of COE service, vserverType and serviceType are set to LOGSTREAM
 					// But CS vserver should not be created, only LB vserver should be created for LOGSTREAM
 					if csObj.VserverType != "LOGSTREAM" {
+						confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
 						nsConfig.addConfig(&confBl)
 					}
 					if routeConfig := httpCM.GetRouteConfig(); routeConfig != nil {
@@ -823,11 +856,23 @@ func listenerAdd(nsConfig *configAdaptor, listener *xdsListener.Listener) []map[
 						} else {
 							csObj.SSLForwarding = append(csObj.SSLForwarding, nsconfigengine.SSLForwardSpec{LbVserverName: nsconfigengine.GetNSCompatibleName(tcpProxy.GetCluster()), SNINames: filterChain.GetFilterChainMatch().GetServerNames()})
 						}
-						confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
+
 						if csObj.VserverType != "LOGSTREAM" {
+							confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
 							nsConfig.addConfig(&confBl)
 						}
 						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), tcpProxy.GetCluster())
+					} else if tcpProxy.GetWeightedClusters() != nil {
+						// Add configBlock before calling processWeightedTCPClusters. But don't add for LOGSTREAM type
+						// In case of COE service, vserverType and serviceType are set to LOGSTREAM
+						// But CS vserver should not be created, only LB vserver should be created for LOGSTREAM
+
+						if csObj.VserverType != "LOGSTREAM" {
+							confBl.resource = append(confBl.resource.([]*nsconfigengine.CSApi), csObj)
+							nsConfig.addConfig(&confBl)
+						}
+						cdsMap := processWeightedTCPClusters(nsConfig, tcpProxy, map[string]interface{}{"csVsName": csObj.Name, "serviceType": csObjMap["serviceType"].(string)})
+						csObjMap["cdsNames"] = append(csObjMap["cdsNames"].([]string), cdsMap["cdsNames"].([]string)...)
 					}
 				}
 			}
@@ -887,7 +932,8 @@ func isLogProxyEndpoint(nsConfig *configAdaptor, clusterName string) string {
 
 func clusterEndpointUpdate(nsConfig *configAdaptor, clusterLoadAssignment *xdsEndpoint.ClusterLoadAssignment, data interface{}) {
 	var promEP string
-	xDSLogger.Trace("clusterEndpointUpdate: Endpoint info received for cluster", "clusterName", clusterLoadAssignment.ClusterName)
+	xDSLogger.Debug("clusterEndpointUpdate: Endpoint info received for cluster", "clusterName", clusterLoadAssignment.ClusterName)
+	xDSLogger.Trace("clusterEndpointUpdate: Endpoint info dump for cluster", "clusterName", clusterLoadAssignment.ClusterName, "Endpoints", clusterLoadAssignment.Endpoints)
 	entityName := nsconfigengine.GetNSCompatibleName(clusterLoadAssignment.ClusterName)
 	onlyIPs := true // Assume that all endpoints are IP addresses initially
 	svcGpObj := nsconfigengine.NewServiceGroupAPI(entityName)
@@ -1107,5 +1153,49 @@ func routeUpdate(nsConfig *configAdaptor, routes []*xdsRoute.RouteConfiguration,
 	if serviceType != "LOGSTREAM" { // CS vserver of Logstream type not allowed. Hence no CS policy/action are created
 		nsConfig.addConfig(&confBl)
 	}
+	return map[string]interface{}{"cdsNames": clusterNames, "serviceType": inputMap["serviceType"]}
+}
+
+// processWeightedTCPClusters processes weighted clusters provided in listener resource's TCP filter.
+// We need to create canary config for these weighted clusters that is categorized as "rdsAdd" configblock.
+func processWeightedTCPClusters(nsConfig *configAdaptor, tcpProxy *envoyFilterTcp.TcpProxy, data interface{}) map[string]interface{} {
+	// Extract csObj from data interface
+	inputMap := data.(map[string]interface{})
+	clusterNames := make([]string, 0)
+	serviceType := inputMap["serviceType"].(string)
+	entityName := inputMap["csVsName"].(string)
+	csBindings := nsconfigengine.NewCSBindingsAPI(entityName)
+	binding := nsconfigengine.CSBinding{}
+	xDSLogger.Trace("processWeightedTCPClusters: ", "serviceType", serviceType, "CS Vserver Name", entityName)
+	confBl := configBlock{
+		configType:   rdsAdd, // configType is rdsAdd because rdsAdd is associated with CSBindings API. And we want to create CSBindings in this case.
+		resourceName: entityName,
+		resource:     csBindings,
+	}
+
+	// Reasoning for why "tcpProxy.GetCluster() != " condition (present in listenerAdd's TCPProxy switch-case)
+	// is not brought in this function.
+	// For non-weighted cluster, DefaultLbVserver is created which is part of CS vserver config itself
+	// i.e. csObj.DefaultLbVserverName field is populated and ldsAdd config resource (responsible to create CS vserver)
+	// is created. We must add ldsAdd configBlock before adding rdsAdd configBlock.
+	// If we bring csObj population in this function, two configBlocks (ldsAdd and rdsAdd) would be required to be added
+	// and that will make code uglier.
+	// Thus handling only weightedCluster use-case in this function.
+
+	if tcpProxy.GetWeightedClusters() != nil {
+		// Get list of ClusterNames with their weights
+		wtClus := tcpProxy.GetWeightedClusters().GetClusters()
+		for _, c := range wtClus {
+			binding.CsPolicy.Canary = append(binding.CsPolicy.Canary, nsconfigengine.Canary{LbVserverName: nsconfigengine.GetNSCompatibleName(c.Name), LbVserverType: serviceType, Weight: int(c.Weight)})
+			clusterNames = append(clusterNames, c.Name)
+		}
+	}
+	csBindings.Bindings = append(csBindings.Bindings, binding)
+	if serviceType != "LOGSTREAM" {
+		// CS policy-action should not be created, only LB vserver should be created for LOGSTREAM
+		// Hence return clusterNames but don't add rdsAdd configBlock
+		nsConfig.addConfig(&confBl)
+	}
+	xDSLogger.Trace("processWeightedTCPClusters: Requesting weighted clusters", "clusters", clusterNames)
 	return map[string]interface{}{"cdsNames": clusterNames, "serviceType": inputMap["serviceType"]}
 }

@@ -455,7 +455,7 @@ func addEndpointMetadata(client *netscaler.NitroClient, endpointIP string, md Me
 		// Kubernetes service can't start with number and can't have `.` in it. But serviceentries can be created for domain-names like www.citrix.com.
 		// So GetNameWithoutPeriod will convert serviceentry name having periods to "_"
 		// Q4 qualifier is node and xds-control plane doesn't provide this info. So it is marked as *
-		mData := md.ClusterName + "." + md.Namespace + "." + GetNameWithQuotedPeriod(md.SvcName) + ".*." + GetNameWithQuotedPeriod(md.HostName) + ".*"
+		mData := md.ClusterName + "." + md.Namespace + "." + "\"" + md.SvcName + "\"" + ".*." + "\"" + md.HostName + "\".*"
 		labelJSON := ""
 		if md.LabelSubset != "" {
 			labelJSON = "{\"subset\":\"" + md.LabelSubset + "+\"}"

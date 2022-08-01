@@ -87,7 +87,7 @@ func Test_bootstrapConfig(t *testing.T) {
 	nsinfo.NetscalerVIP = ""
 	nsinfo.NetProfile = "k8s"
 	nsinfo.AnalyticsServerIP = analyticserverip
-	nsinfo.LicenseServerIP = licenseserverip
+	nsinfo.LicenseServer = licenseserverip
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
 	nsinfo.adsServerPort = "15010"
 	nsinfo.bootStrapConfReqd = true
@@ -134,7 +134,7 @@ func Test_bootstrapConfig(t *testing.T) {
 			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
 		nsinfo.AnalyticsServerIP = ""
-		nsinfo.LicenseServerIP = licenseserverip
+		nsinfo.LicenseServer = licenseserverip
 		nsinfo.caServerPort = "15012"
 		nsinfo.bootStrapConfReqd = true
 		configAd, err := newConfigAdaptor(nsinfo)
@@ -151,7 +151,7 @@ func Test_bootstrapConfig(t *testing.T) {
 			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
 		nsinfo.AnalyticsServerIP = analyticserverip
-		nsinfo.LicenseServerIP = ""
+		nsinfo.LicenseServer = ""
 		nsinfo.caServerPort = ""
 		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
@@ -167,7 +167,7 @@ func Test_bootstrapConfig(t *testing.T) {
 		if err != nil {
 			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
-		nsinfo.LicenseServerIP = analyticserverip
+		nsinfo.LicenseServer = analyticserverip
 		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
 		if err != nil {
@@ -178,7 +178,7 @@ func Test_bootstrapConfig(t *testing.T) {
 			t.Errorf("%s %v", bootstrapconfiglog, err)
 		}
 		nsinfo.AnalyticsServerIP = ""
-		nsinfo.LicenseServerIP = ""
+		nsinfo.LicenseServer = ""
 		nsinfo.bootStrapConfReqd = true
 		configAd, err = newConfigAdaptor(nsinfo)
 		if err != nil {

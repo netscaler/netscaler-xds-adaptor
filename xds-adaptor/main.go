@@ -114,7 +114,7 @@ func main() {
 	userNameCredentialFile := flag.String("citrix-adc-user", "", "Location of file that holds Citrix ADC username")
 	passWordCredentialFile := flag.String("citrix-adc-password", "", "Location of file that holds Citrix ADC password")
 	analyticsServerIP := flag.String("citrix-adm", "", "Citrix ADM IP to plot the service graph")
-	licenseServerIP := flag.String("citrix-license-server", "", "Licensing server IP(usually Citrix ADM IP)")
+	licenseServer := flag.String("citrix-license-server", "", "Licensing server IP/FQDN(usually Citrix ADM IP or CPX Licensing Agent Service FQDN)")
 	logProxyURL := flag.String("coe", "", "Citrix-Observability-Exporter(Logproxy)'s service name")
 	adcServerName := flag.String("citrix-adc-server-name", "", "Common Name or SAN used in ADC Nitro certificate")
 	adcCA := flag.String("citrix-adc-server-ca", "", "The CA for the server certificate")
@@ -166,7 +166,7 @@ func main() {
 	nsinfo.NetscalerVIP = vsvrIP
 	nsinfo.NetProfile = *netProfile
 	nsinfo.AnalyticsServerIP = *analyticsServerIP
-	nsinfo.LicenseServerIP = *licenseServerIP
+	nsinfo.LicenseServer = *licenseServer
 	nsinfo.LogProxyURL = *logProxyURL
 	nsinfo.LocalHostVIP = *localHostVIP
 	if *adcServerName != "" {

@@ -33,7 +33,6 @@ import (
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	ads "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	resource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/golang/protobuf/ptypes"
 	_struct "github.com/golang/protobuf/ptypes/struct"
@@ -50,9 +49,11 @@ const (
 )
 
 var (
-	xDSServerPort       int
+	//xDSServerPort       int
 	xDSServerURL        string
 	xDSServerResolvedIP string
+	CLAServiceURL       string
+	CLAResolvedIP       string
 	xDSLogger           hclog.Logger
 )
 
@@ -80,7 +81,7 @@ type NSDetails struct {
 	NetscalerVIP      string
 	NetProfile        string
 	AnalyticsServerIP string
-	LicenseServerIP   string
+	LicenseServer     string
 	LogProxyURL       string
 	SslVerify         bool
 	RootCAPath        string
@@ -433,7 +434,7 @@ func (client *AdsClient) reloadCds() {
 		return
 	}
 	client.connectionMux.Lock()
-	adsClient := ads.NewAggregatedDiscoveryServiceClient(client.connection)
+	adsClient := discovery.NewAggregatedDiscoveryServiceClient(client.connection)
 	client.connectionMux.Unlock()
 	stream, err := adsClient.StreamAggregatedResources(context.Background())
 	if err != nil {
@@ -515,7 +516,7 @@ func NewAdsClient(adsinfo *AdsDetails, nsinfo *NSDetails, cainfo *certkeyhandler
 	nsinfo.adsServerPort = "unknown"
 	if len(s) > 1 {
 		nsinfo.adsServerPort = s[1]
-		xDSServerPort, _ = strconv.Atoi(s[1])
+		//xDSServerPort, _ = strconv.Atoi(s[1])
 	}
 	if cainfo != nil {
 		s = strings.Split(cainfo.CAAddress, ":")
@@ -643,7 +644,7 @@ func (client *AdsClient) StartClient() {
 					time.Sleep(1 * time.Second)
 					continue
 				}
-				adsClient := ads.NewAggregatedDiscoveryServiceClient(client.connection)
+				adsClient := discovery.NewAggregatedDiscoveryServiceClient(client.connection)
 				client.connectionMux.Unlock()
 				client.stream, err = adsClient.StreamAggregatedResources(context.Background())
 				if err != nil {
