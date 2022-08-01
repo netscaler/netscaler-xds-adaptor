@@ -208,6 +208,7 @@ func getMyLabels(filename string) string {
 }
 
 func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
+	var err error
 	configAdaptor := new(configAdaptor)
 	configAdaptor.adsServerPort = nsinfo.adsServerPort
 	configAdaptor.vserverIP = nsinfo.NetscalerVIP
@@ -219,11 +220,22 @@ func newConfigAdaptor(nsinfo *NSDetails) (*configAdaptor, error) {
 	configAdaptor.rdsHash = make(map[string]*list.Element)
 	configAdaptor.quit = make(chan bool)
 	configAdaptor.analyticsServerIP = nsinfo.AnalyticsServerIP
-	configAdaptor.licenseServerIP = nsinfo.LicenseServerIP
 	configAdaptor.logProxyURL = nsinfo.LogProxyURL
 	configAdaptor.localHostVIP = nsinfo.LocalHostVIP
 	configAdaptor.caServerPort = nsinfo.caServerPort
-	var err error
+
+	configAdaptor.licenseServerIP = nsinfo.LicenseServer
+	if len(nsinfo.LicenseServer) > 0 && net.ParseIP(nsinfo.LicenseServer) == nil { // URL is provided
+		configAdaptor.licenseServerIP, err = ResolveFQDN(nsinfo.LicenseServer)
+		if err != nil {
+			xDSLogger.Error("newConfigAdaptor: License Server FQDN could not be resolved", "error", err)
+			return nil, err
+		}
+		CLAServiceURL = nsinfo.LicenseServer
+		xDSLogger.Info("newConfigAdaptor: License Server FQDN resolved", "FQDN", nsinfo.LicenseServer, "ResolvedIP", configAdaptor.licenseServerIP)
+	}
+	CLAResolvedIP = configAdaptor.licenseServerIP // CLAResolveIP will always be holding IP (either resolved for FQDN or actual provided IP when CLAServiceURL is empty)
+
 	logLevel, _ := os.LookupEnv("LOGLEVEL")
 	if logLevel == "" {
 		logLevel = "DEBUG"
@@ -286,14 +298,15 @@ func getNameServer() (string, error) {
 	return match, nil
 }
 
-func findXDSServerIP() {
-	ips, err := net.LookupIP(xDSServerURL)
+func ResolveFQDN(inputURL string) (string, error) {
+	ips, err := net.LookupIP(inputURL)
 	if err != nil {
-		xDSLogger.Debug("findXDSServerIP: Could not resolve xdsserverURL", "xDSServerURL", xDSServerURL)
-		return
+		xDSLogger.Debug("ResolveFQDN: Could not resolve URL", "URL", inputURL)
+		return "", err
 	}
-	xDSServerResolvedIP = ips[0].String() // Mostly it is a single IP
-	xDSLogger.Debug("findXDSServerIP: xDS Server IP resolved", "xDSServerURL", xDSServerURL, "xDSServerResolvedIP", xDSServerResolvedIP)
+	resolvedIP := ips[0].String() // Mostly it is a single IP
+	xDSLogger.Trace("ResolveFQDN: FQDN resolved", "FQDN", inputURL, "resolvedIP", resolvedIP)
+	return resolvedIP, nil
 }
 
 func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
@@ -303,7 +316,10 @@ func (confAdaptor *configAdaptor) sidecarBootstrapConfig() error {
 	if err != nil {
 		return err
 	}
-	findXDSServerIP()
+	xDSServerResolvedIP, err = ResolveFQDN(xDSServerURL)
+	if err != nil {
+		return err
+	}
 	configs := []nsconfigengine.NsConfigEntity{
 		{ResourceType: netscaler.Service.Type(), ResourceName: "dns_service", Resource: basic.Service{Name: "dns_service", Ip: nameServer, Port: 53, Servicetype: "DNS", Healthmonitor: "no"}},
 		{ResourceType: netscaler.Lbvserver.Type(), ResourceName: "dns_vserver", Resource: lb.Lbvserver{Name: "dns_vserver", Servicetype: "DNS"}},

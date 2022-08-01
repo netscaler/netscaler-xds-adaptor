@@ -56,7 +56,7 @@ func Test_StartClient(t *testing.T) {
 	nsinfo.NetscalerVIP = "nsip"
 	nsinfo.NetProfile = ""
 	nsinfo.AnalyticsServerIP = ""
-	nsinfo.LicenseServerIP = ""
+	nsinfo.LicenseServer = ""
 	nsinfo.LogProxyURL = "ns-logproxy.citrix-system"
 	// CA details
 	cainfo := new(certkeyhandler.CADetails)

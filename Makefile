@@ -1,6 +1,6 @@
 TARGETS=nsconfigengine adsclient xds-adaptor delayserver certkeyhandler tests
 
-VERSION=0.10.1
+VERSION=0.10.3
 
 DOCKER_CMD=docker run $(DOCKER_CMD_OPTIONS) -v `pwd`:/citrix-xds-adaptor -w /citrix-xds-adaptor --rm xds-build:$(VERSION)
 
