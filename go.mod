@@ -13,8 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spiffe/go-spiffe v1.0.0
 	github.com/txn2/txeh v1.3.0
-	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.53.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	istio.io/istio v0.0.0-20200625184358-58f551e08f08
